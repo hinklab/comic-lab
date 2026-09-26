@@ -12,8 +12,10 @@ import engine
 class TestConjoinedAndDockedBubbles(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        import os
         cls.img_cv = cv2.imread('samples/page_4.png')
-        with open('scratch/page4_ocr.pkl', 'rb') as f:
+        ocr_path = 'tests/fixtures/page4_ocr.pkl' if os.path.exists('tests/fixtures/page4_ocr.pkl') else 'scratch/page4_ocr.pkl'
+        with open(ocr_path, 'rb') as f:
             cls.cached_ocr = pickle.load(f)
 
     def test_bubble5_jameson_conjoined_waist_separation(self):

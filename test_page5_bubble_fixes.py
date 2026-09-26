@@ -12,9 +12,11 @@ import quality_gates
 class TestPage5BubbleFixes(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        import os
         cls.img_cv = cv2.imread('samples/page_5.png')
         cls.img_pil = Image.open('samples/page_5.png')
-        with open('scratch/page5_ocr.pkl', 'rb') as f:
+        ocr_path = 'tests/fixtures/page5_ocr.pkl' if os.path.exists('tests/fixtures/page5_ocr.pkl') else 'scratch/page5_ocr.pkl'
+        with open(ocr_path, 'rb') as f:
             cls.cached_ocr = pickle.load(f)
 
         cls._orig_get_ocr_reader = engine.get_ocr_reader
