@@ -1,0 +1,31 @@
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Secrets and local config
+.env
+.api_quota.json
+test_mask_correction_memory.json
+
+# Testing & temporary
+.pytest_cache/
+*.log
+
+# Heavy downloaded models (auto-downloaded on first run)
+models/
+
+# Local run outputs & scratch
+output/
+scratch/
+
+# Operating system
+Thumbs.db
+.DS_Store

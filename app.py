@@ -1,0 +1,2051 @@
+"""
+Comic Book Translation and Typesetting Studio
+Zero AI API Keys (free/local translation model); online services for data storage are fine.
+Powered by OpenCV, EasyOCR, deep-translator (Spider-Man tone), and CC Wild Words typography.
+"""
+
+import os
+import io
+import re
+import html
+import base64
+import time
+from typing import Dict, Tuple, List, Any, Optional
+from datetime import datetime
+from PIL import Image, ImageDraw, ImageFont
+import numpy as np
+import cv2
+import streamlit as st
+
+import local_translator
+import character_profiles
+import naturalization_rules
+import quality_gates
+import bubble_lettering
+import bubble_mask_editor
+import history_manager
+import engine
+
+# --- Page config MUST be the very first Streamlit call -----------------
+_favicon_path = os.path.join(os.path.dirname(__file__), "assets", "favicon.png")
+_page_icon = Image.open(_favicon_path) if os.path.exists(_favicon_path) else None
+st.set_page_config(
+    page_title="COMIC-LAB",
+    page_icon=_page_icon,
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+# ------------------------------------------------------------------------
+
+
+class BubbleDict(dict):
+
+    """Dictionary supporting both attribute (dot) and dict-item (bracket) access."""
+    def __getattr__(self, key):
+        try:
+            return self[key]
+        except KeyError:
+            raise AttributeError(key)
+
+    def __setattr__(self, key, value):
+        self[key] = value
+
+
+def pil_to_png_bytes(img: Image.Image) -> bytes:
+    """Converts PIL Image to raw PNG bytes using fast compression level."""
+    buf = io.BytesIO()
+    img.save(buf, format="PNG", compress_level=1)
+    return buf.getvalue()
+
+
+@st.cache_data
+def get_comic_star_b64() -> str:
+    """Returns Base64 string of the comic explosion sticker (cached in memory)."""
+    candidates = [
+        os.path.join(os.path.dirname(__file__), "assets", "comic-lab-logo.png"),
+        r"C:\Users\Ozod\Desktop\comic-lab-logo.png",
+        os.path.join(os.path.dirname(__file__), "assets", "comic_explosion_transparent.png"),
+    ]
+    for p in candidates:
+        if os.path.exists(p):
+            with open(p, "rb") as f:
+                return base64.b64encode(f.read()).decode("utf-8")
+    return ""
+
+
+
+def reset_page_state(image: Image.Image, image_name: str):
+    """Resets all per-page analysis, cleaning, and rendering state for a new image."""
+    keys_to_clear = [k for k in list(st.session_state.keys()) if k.startswith(("trans_", "font_size_", "line_spacing_", "pad_", "overlay_"))]
+    for k in keys_to_clear:
+        del st.session_state[k]
+    st.session_state.image = image
+    st.session_state.image_name = image_name
+    st.session_state.raw_bubbles = []
+    st.session_state.bubbles = []
+    st.session_state.cleaned_page = None
+    st.session_state.cleaned_page_bytes = None
+    st.session_state.cleaned_preview = None
+    st.session_state.rendered_image = None
+    st.session_state.rendered_image_bytes = None
+    st.session_state.saved_file_path = ""
+    st.session_state.last_render_hash = ""
+    st.session_state.current_stage = 1
+    st.session_state.analysis_version = st.session_state.get("analysis_version", 0) + 1
+
+
+def capture_bubble_edits_into_memory(page_name: str = "auto"):
+    """
+    Captures user-edited translations into character memory as concrete sample_lines.
+    Called on review and confirm actions in Stage 2 and Stage 3.
+    Only captures meaningful edits (skips trivial whitespace/typos) and prevents double-counting.
+    """
+    if not st.session_state.get("bubbles"):
+        return
+    if page_name == "auto":
+        page_name = st.session_state.get("image_name", "unknown")
+
+    for b in st.session_state.bubbles:
+        b_id = b["bubble_id"] if isinstance(b, dict) else b.bubble_id
+        spk = b.get("speaker") if isinstance(b, dict) else getattr(b, "speaker", None)
+        if not spk:
+            spk = "Superior Spider-Man"
+
+        en_text = b.get("original_text", "") if isinstance(b, dict) else getattr(b, "original_text", "")
+        cur_uz = b.get("uzbek_translation", "") if isinstance(b, dict) else getattr(b, "uzbek_translation", "")
+        pipe_uz = b.get("pipeline_uzbek_translation", "") if isinstance(b, dict) else getattr(b, "pipeline_uzbek_translation", "")
+        last_captured = b.get("last_captured_uzbek", "") if isinstance(b, dict) else getattr(b, "last_captured_uzbek", "")
+
+        if cur_uz and cur_uz != last_captured and en_text:
+            recorded, reason = character_profiles.record_user_edited_sample_line(
+                character_name=spk,
+                en_text=en_text,
+                edited_uzbek=cur_uz,
+                pipeline_uzbek=pipe_uz,
+                page=page_name
+            )
+            # Mark this text state as recorded/evaluated so we don't repeat on identical runs
+            if recorded or reason in ("duplicate", "trivial_or_identical"):
+                if isinstance(b, dict):
+                    b["last_captured_uzbek"] = cur_uz
+                else:
+                    b.last_captured_uzbek = cur_uz
+
+        # Implicit confirmation: grow character's visual signature if detected with confidence
+        colors = b.get("tail_region_colors") if isinstance(b, dict) else getattr(b, "tail_region_colors", None)
+        weights = b.get("tail_region_weights") if isinstance(b, dict) else getattr(b, "tail_region_weights", None)
+        conf = b.get("speaker_confidence") if isinstance(b, dict) else getattr(b, "speaker_confidence", 0.0)
+        sig_done = b.get("visual_sig_confirmed", False) if isinstance(b, dict) else getattr(b, "visual_sig_confirmed", False)
+        actual_spk = b.get("speaker") if isinstance(b, dict) else getattr(b, "speaker", None)
+        if actual_spk and conf and conf >= 0.55 and colors and weights and not sig_done:
+            character_profiles.update_visual_signature(
+                character_name=actual_spk,
+                new_colors=colors,
+                new_weights=weights,
+                page=page_name
+            )
+            if isinstance(b, dict):
+                b["visual_sig_confirmed"] = True
+            else:
+                b.visual_sig_confirmed = True
+
+
+
+def sync_bubble_widgets():
+    """
+    Explicitly updates all bubbles in st.session_state.bubbles from widget inputs.
+    Must be called right before calling engine.render_page(...) (both in live re-render
+    and inside the 'Sahifaga Shriftlarni Qayta Yozish' button click handler).
+    Also triggers user-edit capture into character memory.
+    """
+    if not st.session_state.get("bubbles"):
+        return
+    for b in st.session_state.bubbles:
+        b_id = b["bubble_id"] if isinstance(b, dict) else b.bubble_id
+
+        # Update translation text
+        trans_key = f"trans_{b_id}"
+        if trans_key in st.session_state:
+            val = st.session_state[trans_key]
+            if isinstance(b, dict):
+                b["uzbek_translation"] = val
+            else:
+                b.uzbek_translation = val
+
+        # Update active/deleted status
+        active_key = f"active_{b_id}"
+        if active_key in st.session_state:
+            is_active = bool(st.session_state[active_key])
+            if isinstance(b, dict):
+                b["is_active"] = is_active
+                b["enabled"] = is_active
+            else:
+                b.is_active = is_active
+                b.enabled = is_active
+
+        # Update font nudge
+        nudge_key = f"nudge_{b_id}"
+        if nudge_key in st.session_state:
+            nudge = st.session_state[nudge_key]
+            if isinstance(b, dict):
+                b["font_size_offset"] = nudge
+                b["size_offset"] = nudge
+            else:
+                b.font_size_offset = nudge
+                b.size_offset = nudge
+
+    # Capture any confirmed text edits into persistent character memory
+    capture_bubble_edits_into_memory()
+
+
+def trigger_render():
+    """
+    Real-time reactive render callback:
+    Renders directly on cleaned_page canvas using typeset_lettering_on_page.
+    """
+    if st.session_state.get("image") is None or not st.session_state.get("bubbles"):
+        return
+
+    sync_bubble_widgets()
+
+    fonts = engine.get_available_fonts()
+    f_choice = st.session_state.get("font_choice_select")
+    f_path = fonts.get(f_choice) if f_choice else next(iter(fonts.values()), "")
+
+    max_fs = st.session_state.get("max_font_size_slider", 26)
+    min_fs = st.session_state.get("min_font_size_slider", 10)
+    lg = st.session_state.get("line_gap_slider", 6)
+
+    active_bubbles = [
+        b for b in st.session_state.bubbles
+        if (b.get("is_active", b.get("enabled", True)) if isinstance(b, dict) else getattr(b, "is_active", getattr(b, "enabled", True)))
+    ]
+
+    base_canvas = st.session_state.get("cleaned_page")
+    if base_canvas is None:
+        base_canvas = engine.clean_page_ink_telea(st.session_state.image, active_bubbles)
+        st.session_state.cleaned_page = base_canvas
+
+    had_rendered = st.session_state.get("rendered_image") is not None
+
+    st.session_state.rendered_image = engine.typeset_lettering_on_page(
+        cleaned_image=base_canvas,
+        bubbles=active_bubbles,
+        font_path=f_path,
+        max_font_size=max_fs,
+        min_font_size=min_fs,
+        line_gap=lg,
+        original_image=st.session_state.get("image")
+    )
+    st.session_state.rendered_image_bytes = pil_to_png_bytes(st.session_state.rendered_image)
+    st.session_state.render_timestamp = time.time()
+    if had_rendered:
+        st.toast("Jonli natija yangilandi!", icon=":material/auto_awesome:")
+
+
+def get_stepper_component(current_stage: int) -> str:
+    """
+    Renders the modern capsule pill stepper exactly matching the user's reference image:
+    - Dark capsule pill container (#181A20)
+    - Continuous connecting track with active progress fill (#FF3366)
+    - 3 circular nodes with minimal task-specific icons:
+      1. Skanerlash: Minimal scan aperture frame
+      2. Tarjima: Minimal speech bubble with dialogue lines
+      3. Shriftlar: Minimal calligraphy pen nib / typography
+    """
+    c_bg = "#000000"       # Black Void
+    c_active = "#b62b1a"   # Crimson Heat (brand accent)
+    c_inactive = "#4d4d4d" # Smoke
+
+    x1, y1 = 75, 45
+    x2, y2 = 230, 45
+    x3, y3 = 385, 45
+    r = 28
+    track_h = 14
+
+    s1 = current_stage >= 1
+    s2 = current_stage >= 2
+    s3 = current_stage >= 3
+
+    ic1 = "#FFFFFF" if s1 else "#757B8A"
+    ic2 = "#FFFFFF" if s2 else "#757B8A"
+    ic3 = "#FFFFFF" if s3 else "#757B8A"
+
+    active_track_w = 0
+    if current_stage == 2:
+        active_track_w = x2 - x1
+    elif current_stage >= 3:
+        active_track_w = x3 - x1
+
+    glow1 = 'filter="url(#stepperGlow)"' if current_stage == 1 else ''
+    glow2 = 'filter="url(#stepperGlow)"' if current_stage == 2 else ''
+    glow3 = 'filter="url(#stepperGlow)"' if current_stage == 3 else ''
+
+    raw_html = f'''
+    <div style="display: flex; justify-content: center; margin: 4px auto 12px auto; max-width: 480px; width: 100%;">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 90" width="100%" height="90" style="display: block; filter: drop-shadow(0 6px 18px rgba(0,0,0,0.4));">
+        <defs>
+          <filter id="stepperGlow" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="0" stdDeviation="4" flood-color="#b62b1a" flood-opacity="0.6"/>
+          </filter>
+        </defs>
+
+        <rect x="2" y="2" width="456" height="86" rx="43" ry="43" fill="{c_bg}" stroke="#4d4d4d" stroke-width="2" />
+        <rect x="{x1}" y="{y1 - track_h//2}" width="{x3 - x1}" height="{track_h}" rx="{track_h//2}" ry="{track_h//2}" fill="{c_inactive}" />
+        {f'<rect x="{x1}" y="{y1 - track_h//2}" width="{active_track_w}" height="{track_h}" rx="{track_h//2 if active_track_w == (x3-x1) else 0}" fill="{c_active}" />' if active_track_w > 0 else ''}
+
+        <circle cx="{x1}" cy="{y1}" r="{r}" fill="{c_active if s1 else c_inactive}" {glow1} />
+        <circle cx="{x2}" cy="{y2}" r="{r}" fill="{c_active if s2 else c_inactive}" {glow2} />
+        <circle cx="{x3}" cy="{y3}" r="{r}" fill="{c_active if s3 else c_inactive}" {glow3} />
+
+        <g transform="translate({x1 - 12}, {y1 - 12})" stroke="{ic1}" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" fill="none">
+          <path d="M3 7V4a1 1 0 0 1 1-1h3" />
+          <path d="M21 7V4a1 1 0 0 0-1-1h-3" />
+          <path d="M3 17v3a1 1 0 0 0 1 1h3" />
+          <path d="M21 17v3a1 1 0 0 1-1 1h-3" />
+          <circle cx="12" cy="12" r="3.5" />
+          <line x1="7" y1="12" x2="8.5" y2="12" />
+          <line x1="15.5" y1="12" x2="17" y2="12" />
+        </g>
+
+        <g transform="translate({x2 - 12}, {y2 - 12})" stroke="{ic2}" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" fill="none">
+          <path d="M4 4h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H8l-5 4V6a2 2 0 0 1 2-2z" />
+          <line x1="8" y1="9" x2="16" y2="9" />
+          <line x1="8" y1="13" x2="13" y2="13" />
+        </g>
+
+        <g transform="translate({x3 - 12}, {y3 - 12})" stroke="{ic3}" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" fill="none">
+          <path d="M12 19l7-7 3 3-7 7-3-3z"/>
+          <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/>
+          <path d="M2 2l7.5 7.5"/>
+          <circle cx="11" cy="11" r="1.5" fill="{ic3}"/>
+        </g>
+      </svg>
+    </div>
+    '''
+    return "".join(line.strip() for line in raw_html.splitlines() if line.strip())
+
+
+def get_progress_bar_html(
+    value: Optional[float] = None,
+    max_val: float = 100.0,
+    label: str = "Jarayon",
+    pending_label: str = "Bajarilmoqda...",
+    complete_label: str = "Tugatildi"
+) -> str:
+    """
+    Renders the exact sleek ProgressBar design (ported from shadcn/motion React component).
+    - If value is None: animated indeterminate sweeping gleam bar
+    - If value is numeric: smooth determinate progress bar with tabular-nums percentage
+    """
+    indeterminate = value is None
+    if indeterminate:
+        status_text = html.escape(pending_label)
+        inner_html = '<span class="comic-progress-indeterminate"></span>'
+    else:
+        frac = 0.0 if max_val <= 0 else max(0.0, min(1.0, float(value) / float(max_val)))
+        pct = int(round(frac * 100))
+        status_text = html.escape(complete_label) if frac >= 1.0 else f"{pct}%"
+        inner_html = f'<span class="comic-progress-fill" style="width: {pct}%;"></span>'
+
+    return f'''<div class="comic-progress-wrap">
+        <div class="comic-progress-header">
+            <span class="comic-progress-label">{html.escape(label)}</span>
+            <span class="comic-progress-status">{status_text}</span>
+        </div>
+        <div class="comic-progress-track">
+            <div class="comic-progress-inner">
+                {inner_html}
+            </div>
+        </div>
+    </div>'''
+
+
+def split_bubble_action(b, bubble_id: int, live_render: bool = False):
+    """Splits a speech bubble horizontally into two separate bubbles."""
+    sync_bubble_widgets()
+    if isinstance(b, dict):
+        x0, y0, x1, y1 = int(b["x0"]), int(b["y0"]), int(b["x1"]), int(b["y1"])
+        orig_t = b.get("original_text", "")
+        uz_t = b.get("uzbek_translation", "")
+        cur_offset = b.get("size_offset", 0)
+    else:
+        x0, y0, x1, y1 = int(b.x0), int(b.y0), int(b.x1), int(b.y1)
+        orig_t = getattr(b, "original_text", "")
+        uz_t = getattr(b, "uzbek_translation", "")
+        cur_offset = getattr(b, "size_offset", 0)
+
+    mid_x = (x0 + x1) // 2
+    words_orig = orig_t.split()
+    mid_orig = max(1, len(words_orig) // 2)
+    orig_left = " ".join(words_orig[:mid_orig]) if words_orig else orig_t
+    orig_right = " ".join(words_orig[mid_orig:]) if len(words_orig) > 1 else orig_t
+
+    # Translate complete clustered sentence first if not yet translated
+    if not uz_t:
+        cur_spk = getattr(b, "speaker", None) if not isinstance(b, dict) else b.get("speaker")
+        uz_t = engine.translate_spiderman_uzbek(orig_t, speaker=cur_spk)
+
+    # Partition translated text across the two split halves using natural syntax/clause boundaries
+    weights = [max(1, len(orig_left.split())), max(1, len(orig_right.split()))]
+    sub_uz = engine.partition_translated_text_for_lobes(uz_t, weights)
+    uz_left = sub_uz[0] if len(sub_uz) > 0 else uz_t
+    uz_right = sub_uz[1] if len(sub_uz) > 1 else ""
+
+    b_left = engine.SpeechBubble(
+        bubble_id=bubble_id,
+        x0=x0, y0=y0, x1=mid_x - 5, y1=y1,
+        original_text=orig_left,
+        uzbek_translation=uz_left,
+        confidence=1.0,
+        enabled=True,
+        is_active=True,
+        size_offset=cur_offset,
+        font_size_offset=cur_offset
+    )
+    b_right = engine.SpeechBubble(
+        bubble_id=bubble_id + 1,
+        x0=mid_x + 5, y0=y0, x1=x1, y1=y1,
+        original_text=orig_right,
+        uzbek_translation=uz_right,
+        confidence=1.0,
+        enabled=True,
+        is_active=True,
+        size_offset=cur_offset,
+        font_size_offset=cur_offset
+    )
+
+    new_bubbles = []
+    for old_b in st.session_state.bubbles:
+        old_id = old_b["bubble_id"] if isinstance(old_b, dict) else old_b.bubble_id
+        if old_id == bubble_id:
+            new_bubbles.append(BubbleDict(b_left.model_dump()))
+            new_bubbles.append(BubbleDict(b_right.model_dump()))
+        else:
+            new_bubbles.append(old_b)
+
+    for new_idx, nb in enumerate(new_bubbles, 1):
+        if isinstance(nb, dict):
+            nb["bubble_id"] = new_idx
+        else:
+            nb.bubble_id = new_idx
+
+    # Push undo snapshot before applying split
+    history_manager.push_undo_snapshot(f"✂️ Pufak #{bubble_id} ni ikkiga ajratish")
+
+    st.session_state.bubbles = new_bubbles
+    for nb in new_bubbles:
+        nb_id = nb["bubble_id"] if isinstance(nb, dict) else nb.bubble_id
+        st.session_state[f"trans_{nb_id}"] = nb["uzbek_translation"] if isinstance(nb, dict) else nb.uzbek_translation
+        st.session_state[f"active_{nb_id}"] = nb["is_active"] if isinstance(nb, dict) else nb.is_active
+        st.session_state[f"nudge_{nb_id}"] = nb.get("font_size_offset", 0) if isinstance(nb, dict) else getattr(nb, "font_size_offset", 0)
+
+    if live_render:
+        trigger_render()
+    st.toast(f"Bubble #{bubble_id} ikkiga muvaffaqiyatli ajratildi!", icon=":material/content_cut:")
+    st.rerun()
+
+
+def render_bubble_editor_panel(live_render: bool = False, key_suffix: str = ""):
+    """
+    Renders the rich bubble text cards allowing full editing:
+    - In Stage 2: normal edits
+    - In Stage 3: live edits with on_change=trigger_render for instant re-rendering!
+    """
+    if not st.session_state.get("bubbles"):
+        st.info("Pufaklar ro'yxati bo'sh.")
+        return
+
+    col_p_title, col_p_undo, col_p_redo = st.columns([0.62, 0.19, 0.19])
+    with col_p_title:
+        st.markdown(f"#### Aniqlangan Pufaklar ({len(st.session_state.bubbles)})")
+    with col_p_undo:
+        u_dis = not history_manager.can_undo()
+        u_desc = history_manager.get_undo_description() or ""
+        u_tip = f"Bekor qilish: {u_desc} (Ctrl+Z)" if u_desc else "Bekor qilish (Ctrl+Z)"
+        if st.button("↩️", key=f"panel_undo_{key_suffix}", disabled=u_dis, help=u_tip, use_container_width=True):
+            succ, desc = history_manager.undo_action()
+            if succ:
+                if live_render:
+                    trigger_render()
+                st.toast(f"↩️ Bekor qilindi: {desc}", icon=":material/undo:")
+                st.rerun()
+    with col_p_redo:
+        r_dis = not history_manager.can_redo()
+        if st.button("↪️", key=f"panel_redo_{key_suffix}", disabled=r_dis, help="Qaytarish (Ctrl+Y)", use_container_width=True):
+            succ, desc = history_manager.redo_action()
+            if succ:
+                if live_render:
+                    trigger_render()
+                st.toast(f"↪️ Qaytarildi: {desc}", icon=":material/redo:")
+                st.rerun()
+
+    cb_on_change = trigger_render if live_render else None
+
+    for i, b in enumerate(st.session_state.bubbles):
+        bubble_id = i + 1
+        is_active = b.get("is_active", b.get("enabled", True)) if isinstance(b, dict) else getattr(b, "is_active", getattr(b, "enabled", True))
+        cur_text = b["uzbek_translation"] if isinstance(b, dict) else b.uzbek_translation
+        orig_dialogue = (b.get("clean_text") or b.get("original_text", "")) if isinstance(b, dict) else (getattr(b, "clean_text", None) or getattr(b, "original_text", ""))
+        has_residue, residue_words = quality_gates.check_untranslated_english_residue(cur_text, en_orig=orig_dialogue)
+        val = quality_gates.post_translation_validation(cur_text, orig_dialogue)
+
+        needs_review = (
+            b.get("needs_review", False) if isinstance(b, dict) else getattr(b, "needs_review", False)
+        ) or has_residue or val.get("needs_review", False)
+
+        review_reason = (
+            b.get("review_reason") if isinstance(b, dict) else getattr(b, "review_reason", None)
+        ) or val.get("reason")
+
+        if needs_review:
+            border_style = 'border: 2px solid #ef4444; background: rgba(239, 68, 68, 0.08); box-shadow: 0 0 14px rgba(239, 68, 68, 0.25); border-radius: 10px; padding: 12px; margin-bottom: 12px;'
+        elif is_active:
+            border_style = 'border: 1px solid #333333; background: #1e1e1e; border-radius: 10px; padding: 12px; margin-bottom: 12px;'
+        else:
+            border_style = 'border: 1px solid #262626; background: #141414; opacity: 0.6; border-radius: 10px; padding: 12px; margin-bottom: 12px;'
+
+        with st.container():
+            orig_text = html.escape(b.get("original_text", "") if isinstance(b, dict) else getattr(b, "original_text", ""))
+            badge_extra = '<span style="background: #ef4444; color: white; padding: 2px 8px; border-radius: 4px; margin-left: 8px; font-weight: 700; font-size: 11px;">⚠️ KO\'RIB CHIQISH SHART</span>' if needs_review else ''
+            card_html = f'<div style="{border_style}"><span class="bubble-badge">Bubble #{bubble_id}</span>{badge_extra}<div class="dialogue-en"><strong>EN:</strong> {orig_text}</div>'
+            if needs_review:
+                card_html += f'<div style="margin-top: 8px; color: #fca5a5; font-size: 13px; font-weight: 600;">⚠️ <strong>Xatolik:</strong> {html.escape(review_reason or "Tarjima sifati tekshiruvi talab etiladi")}</div>'
+            card_html += '</div>'
+            st.markdown(card_html, unsafe_allow_html=True)
+
+            # Auto-Detected Character Indicator (Read-Only)
+            cur_spk = b.get("speaker") if isinstance(b, dict) else getattr(b, "speaker", None)
+            cur_conf = b.get("speaker_confidence") if isinstance(b, dict) else getattr(b, "speaker_confidence", None)
+            if cur_conf is None:
+                cur_conf = 0.0
+
+            if cur_spk and cur_conf >= 0.55:
+                badge_html = f'''<div class="speaker-tag-wrap">
+                    <span class="speaker-tag-detected">{html.escape(cur_spk)}</span>
+                    <span class="speaker-conf-pill">{cur_conf:.0%} ishonch</span>
+                </div>'''
+            else:
+                badge_html = '''<div class="speaker-tag-wrap">
+                    <span class="speaker-tag-generic">Umumiy ovoz</span>
+                    <span class="speaker-conf-pill-muted">past ishonch (generic)</span>
+                </div>'''
+            st.markdown(badge_html, unsafe_allow_html=True)
+
+            col_active, col_text = st.columns([1.2, 3.8])
+            with col_active:
+                active_val = st.checkbox(
+                    "Faol / Active",
+                    value=is_active,
+                    key=f"active_{bubble_id}",
+                    on_change=cb_on_change,
+                    help="Belgini olib tashlasangiz, bu pufak tozalanmaydi va tarjima yozilmaydi."
+                )
+                if active_val != is_active:
+                    act_str = "faollashtirildi" if active_val else "o'chirildi"
+                    history_manager.push_undo_snapshot(f"👁️ Pufak #{bubble_id} {act_str}")
+                if isinstance(b, dict):
+                    b["is_active"] = active_val
+                    b["enabled"] = active_val
+                else:
+                    b.is_active = active_val
+                    b.enabled = active_val
+
+            with col_text:
+                new_uzbek = st.text_area(
+                    f"Uzbek Translation #{bubble_id}",
+                    value=cur_text,
+                    key=f"trans_{bubble_id}",
+                    label_visibility="collapsed",
+                    on_change=cb_on_change,
+                    help=f"Bubble #{bubble_id} tarjimasini tahrirlang"
+                )
+                if new_uzbek != cur_text:
+                    history_manager.push_undo_snapshot(f"✏️ Pufak #{bubble_id} tarjimasi tahrirlandi")
+                if isinstance(b, dict):
+                    b["uzbek_translation"] = new_uzbek
+                    if new_uzbek != cur_text:
+                        new_val = quality_gates.post_translation_validation(new_uzbek, orig_dialogue)
+                        if not new_val.get("needs_review"):
+                            b["needs_review"] = False
+                            b["review_reason"] = None
+                else:
+                    b.uzbek_translation = new_uzbek
+                    if new_uzbek != cur_text:
+                        new_val = quality_gates.post_translation_validation(new_uzbek, orig_dialogue)
+                        if not new_val.get("needs_review"):
+                            b.needs_review = False
+                            b.review_reason = None
+
+            if active_val:
+                cur_nudge = int(b.get("font_size_offset", b.get("size_offset", 0))) if isinstance(b, dict) else int(getattr(b, "font_size_offset", getattr(b, "size_offset", 0)))
+                size_offset = st.slider(
+                    f"Shrift o'lchami tuzatmasi #{bubble_id}",
+                    min_value=-8, max_value=12, value=cur_nudge,
+                    key=f"nudge_{bubble_id}",
+                    on_change=cb_on_change,
+                    help="Ushbu pufak shriftini kattalashtirish yoki kichraytirish."
+                )
+                if size_offset != cur_nudge:
+                    history_manager.push_undo_snapshot(f"📏 Pufak #{bubble_id} shrift o'lchami o'zgartirildi")
+                if isinstance(b, dict):
+                    b["font_size_offset"] = size_offset
+                    b["size_offset"] = size_offset
+                else:
+                    b.font_size_offset = size_offset
+                    b.size_offset = size_offset
+
+                col_split, _ = st.columns([1.5, 2.5])
+                with col_split:
+                    if st.button(f"✂️ Ikkiga ajratish", key=f"split_btn_{key_suffix}_{bubble_id}", help="Pufakni gorizontal ikkiga ajratish"):
+                        split_bubble_action(b, bubble_id, live_render=live_render)
+
+
+
+
+
+SYSTEM_FONTS_CSS_MAP = {
+    "Comic Sans MS": "'Comic Sans MS', cursive, sans-serif",
+    "Segoe UI Bold": "'Segoe UI', sans-serif",
+    "Arial Bold": "Arial, sans-serif",
+}
+
+
+@st.cache_data
+def get_active_font_css(font_path: str) -> str:
+    """
+    Returns @font-face CSS for 'ActiveComicFont'.
+    System fonts use native font-family without heavy base64 strings.
+    """
+    if not os.path.exists(font_path):
+        return ""
+
+    norm_path = font_path.lower()
+    for s_name, s_fam in SYSTEM_FONTS_CSS_MAP.items():
+        if s_name.lower().split()[0] in norm_path or "windows\\fonts" in norm_path:
+            return f"""
+            <style>
+            .comic-preview-text {{
+                font-family: {s_fam} !important;
+            }}
+            div[data-testid="stSidebar"] div[data-testid="stSelectbox"] div[data-baseweb="select"] div,
+            div[data-testid="stSidebar"] div[data-testid="stSelectbox"] div[data-baseweb="select"] span,
+            div[data-testid="stSidebar"] div[data-testid="stSelectbox"] div[data-baseweb="select"] [data-testid="stMarkdownContainer"] p {{
+                font-family: {s_fam} !important;
+                font-size: 1.1rem !important;
+                letter-spacing: 0.5px !important;
+            }}
+            </style>
+            """
+
+    with open(font_path, "rb") as f:
+        font_bytes = f.read()
+
+    b64_str = base64.b64encode(font_bytes).decode("utf-8")
+    is_otf = font_bytes.startswith(b"OTTO")
+    font_mime = "font/otf" if is_otf else "font/ttf"
+    font_fmt = "opentype" if is_otf else "truetype"
+
+    return f"""
+    <style>
+    @font-face {{
+        font-family: 'ActiveComicFont';
+        src: url('data:{font_mime};charset=utf-8;base64,{b64_str}') format('{font_fmt}');
+        font-weight: bold;
+        font-style: normal;
+        font-display: swap;
+    }}
+    .comic-preview-text {{
+        font-family: 'ActiveComicFont', cursive, sans-serif !important;
+    }}
+    div[data-testid="stSidebar"] div[data-testid="stSelectbox"] div[data-baseweb="select"] div,
+    div[data-testid="stSidebar"] div[data-testid="stSelectbox"] div[data-baseweb="select"] span,
+    div[data-testid="stSidebar"] div[data-testid="stSelectbox"] div[data-baseweb="select"] [data-testid="stMarkdownContainer"] p {{
+        font-family: 'ActiveComicFont', cursive, sans-serif !important;
+        font-size: 1.1rem !important;
+        letter-spacing: 0.5px !important;
+    }}
+    </style>
+    """
+
+
+@st.cache_data
+def get_dropdown_fonts_css() -> str:
+    """
+    Loads custom fonts with correct format (OTF/TTF) for selectbox options.
+    System fonts (Arial, Segoe UI, Comic Sans) use direct OS font-family to avoid 3MB base64 DOM payload.
+    """
+    fonts = engine.get_available_fonts()
+    rules = []
+    dropdown_rules = []
+
+    for idx, (name, path) in enumerate(fonts.items(), start=1):
+        norm_path = path.lower()
+        sys_family = None
+        for s_name, s_fam in SYSTEM_FONTS_CSS_MAP.items():
+            if s_name.lower().split()[0] in norm_path or "windows\\fonts" in norm_path:
+                sys_family = s_fam
+                break
+
+        if sys_family:
+            dropdown_rules.append(f"""
+div[data-baseweb="popover"] ul[role="listbox"] li:nth-child({idx}),
+div[data-baseweb="popover"] ul[role="listbox"] li:nth-child({idx}) *,
+div[data-baseweb="popover"] li[role="option"]:nth-child({idx}),
+div[data-baseweb="popover"] li[role="option"]:nth-child({idx}) *,
+ul[role="listbox"] li:nth-child({idx}),
+ul[role="listbox"] li:nth-child({idx}) * {{
+    font-family: {sys_family} !important;
+    font-size: 1.12rem !important;
+}}""")
+        elif os.path.exists(path):
+            with open(path, "rb") as f:
+                fb = f.read()
+            is_otf = fb.startswith(b"OTTO")
+            mime = "font/otf" if is_otf else "font/ttf"
+            fmt = "opentype" if is_otf else "truetype"
+            b64 = base64.b64encode(fb).decode("utf-8")
+            alias = f"MenuFont_{idx}"
+            rules.append(f"""
+@font-face {{
+    font-family: '{alias}';
+    src: url('data:{mime};charset=utf-8;base64,{b64}') format('{fmt}');
+    font-weight: bold;
+    font-style: normal;
+    font-display: swap;
+}}""")
+            dropdown_rules.append(f"""
+div[data-baseweb="popover"] ul[role="listbox"] li:nth-child({idx}),
+div[data-baseweb="popover"] ul[role="listbox"] li:nth-child({idx}) *,
+div[data-baseweb="popover"] li[role="option"]:nth-child({idx}),
+div[data-baseweb="popover"] li[role="option"]:nth-child({idx}) *,
+ul[role="listbox"] li:nth-child({idx}),
+ul[role="listbox"] li:nth-child({idx}) * {{
+    font-family: '{alias}', cursive, sans-serif !important;
+    font-size: 1.12rem !important;
+}}""")
+
+    return "<style>\n" + "\n".join(rules) + "\n" + "\n".join(dropdown_rules) + "\n</style>"
+
+# Custom Styling
+
+st.markdown("""
+<style>
+    /* --- Design System Tokens ---------------------------------------------------
+       Color palette  (ONLY these four -- no other chromatic colors allowed)
+         Brand accent : #b62b1a  -- UI chrome only: buttons, active borders, progress
+         Black Void   : #000000  -- page canvas, deepest surface, dark borders
+         Smoke        : #4d4d4d  -- muted dividers, secondary borders, muted text
+         Paper White  : #ffffff  -- primary text, strokes, ghost-button borders
+
+       Type scale  (Perfect Fourth 1.333, base 14px)
+         display-xl  : 245px / 380 / lh 1
+         display-lg  : 136px / 300 / lh 1.3
+         display     : 130px / 300 / lh 1   (uppercase)
+         heading-lg  : 106px / 300 / lh 1.3
+         heading     :  79px / 300 / lh 1.3
+         heading-sm  :  47px / 300 / lh 1
+         subheading  :  20px / 300 / lh 1.15
+         body/base   :  18px / 380 / lh 1.11
+    --------------------------------------------------------------------------- */
+
+    /* --- Google Fonts ------------------------------------------------------- */
+    @import url('https://fonts.googleapis.com/css2?family=Bangers&family=Inter:wght@300;400;600;700&display=swap');
+
+    /* --- Legacy .comic-header (kept for backward-compat, maps to heading-sm) */
+    .comic-header {
+        font-family: 'Bangers', cursive, sans-serif;
+        font-size: 47px;           /* heading-sm */
+        font-weight: 300;
+        line-height: 1;
+        color: #b62b1a;            /* brand accent */
+        letter-spacing: 2px;
+        text-shadow: 2px 2px 0px #000000;
+        margin-bottom: 0px;
+    }
+
+    /* --- Site Logo (sidebar): heading-sm scale --------------------------- */
+    .comic-site-logo {
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: 10px !important;
+        text-decoration: none !important;
+        cursor: pointer !important;
+        padding: 4px 0 !important;
+        margin: 2px 0 14px 0 !important;
+        border: none !important;
+        background: transparent !important;
+        transition: transform 0.15s ease, opacity 0.15s ease !important;
+    }
+    .comic-site-logo:hover {
+        text-decoration: none !important;
+        opacity: 0.88 !important;
+        transform: scale(1.02) !important;
+    }
+    .comic-logo-icon {
+        width: 54px !important;
+        height: 54px !important;
+        object-fit: contain !important;
+        display: inline-block !important;
+        vertical-align: middle !important;
+        flex-shrink: 0 !important;
+    }
+    .comic-logo-text {
+        font-family: 'Bangers', cursive, sans-serif !important;
+        font-style: italic !important;
+        font-size: 2.3rem !important;          /* original size */
+        font-weight: 400 !important;
+        line-height: 1 !important;
+        color: #FF3366 !important;             /* original logo color */
+        letter-spacing: 2px !important;
+        text-shadow: 2.5px 2.5px 0px #000000 !important;
+        display: inline-block !important;
+        vertical-align: middle !important;
+    }
+
+    /* --- Subheading helper text ------------------------------------------- */
+    .comic-sub {
+        color: #4d4d4d;                    /* Smoke */
+        font-size: 20px;                   /* subheading */
+        font-weight: 300;
+        line-height: 1.15;
+        margin-bottom: 1.2rem;
+    }
+
+    /* --- Offline badge --------------------------------------------------- */
+    .local-badge {
+        background-color: #000000;        /* Black Void surface */
+        border: 1px solid #ffffff;        /* Paper White border */
+        color: #ffffff;
+        font-size: 18px;                  /* body/base */
+        font-weight: 380;
+        line-height: 1.11;
+        padding: 4px 12px;
+        border-radius: 9999px;
+        display: inline-block;
+        margin-bottom: 12px;
+    }
+
+    /* --- Bubble Cards ---------------------------------------------------- */
+    .bubble-card {
+        background-color: #0d0d0d !important;  /* Sleek Dark */
+        border: 1px solid #333333 !important;  /* Subtle Outline */
+        border-radius: 8px !important;
+        padding: 8px 10px !important;
+        margin-bottom: 6px !important;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.3) !important;
+        color: #ffffff !important;
+    }
+    .bubble-card-ignored {
+        background-color: #0a0a0a !important;
+        border: 1px dashed #333333 !important;
+        border-radius: 8px !important;
+        padding: 6px 8px !important;
+        margin-bottom: 6px !important;
+        opacity: 0.45 !important;
+        color: #666666 !important;
+    }
+    .bubble-badge {
+        background-color: #b62b1a !important;  /* brand accent */
+        color: #ffffff !important;
+        font-weight: 600 !important;
+        font-size: 12px !important;            /* compact badge */
+        line-height: 1.2 !important;
+        padding: 2px 6px !important;
+        border-radius: 4px !important;
+        display: inline-block !important;
+        margin-bottom: 4px !important;
+        letter-spacing: 0.3px !important;
+    }
+    .dialogue-en {
+        background-color: #141414 !important;
+        border: 1px solid #2a2a2a !important;
+        padding: 5px 8px !important;
+        border-radius: 4px !important;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+        font-size: 12.5px !important;          /* compact secondary font size */
+        font-weight: 400 !important;
+        line-height: 1.35 !important;
+        color: #9e9e9e !important;             /* subtle secondary text color */
+        margin-bottom: 4px !important;
+        word-break: break-word !important;
+    }
+
+    /* --- Home Upload Zone ------------------------------------------------ */
+    .home-uploader-zone {
+        max-width: 840px;
+        margin: 0 auto 16px auto;
+        width: 100%;
+    }
+    div[data-testid="stFileUploader"] {
+        width: 100% !important;
+    }
+    div[data-testid="stFileUploader"] section[data-testid="stFileUploaderDropzone"] {
+        min-height: 200px !important;
+        height: auto !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        border: 2px dashed #b62b1a !important;  /* brand accent */
+        border-radius: 16px !important;
+        background: rgba(182, 43, 26, 0.03) !important;
+        padding: 30px 24px !important;
+        transition: all 0.2s ease-in-out !important;
+        cursor: pointer !important;
+    }
+    div[data-testid="stFileUploader"] section[data-testid="stFileUploaderDropzone"]:hover {
+        border-color: #b62b1a !important;
+        background: rgba(182, 43, 26, 0.07) !important;
+        box-shadow: 0 0 25px rgba(182, 43, 26, 0.25) !important;
+    }
+    div[data-testid="stFileUploaderDropzoneInstructions"] {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        margin-top: 14px !important;
+        text-align: center !important;
+    }
+    div[data-testid="stFileUploaderDropzoneInstructions"]::before {
+        content: "Komiks sahifasini bu yerga sudrab tashlang yoki yuklang" !important;
+        display: block !important;
+        font-family: 'Inter', sans-serif !important;
+        font-size: 18px !important;            /* body/base */
+        font-weight: 380 !important;
+        line-height: 1.11 !important;
+        color: #ffffff !important;             /* Paper White */
+        margin-bottom: 5px !important;
+        letter-spacing: 0.2px !important;
+    }
+    div[data-testid="stFileUploaderDropzoneInstructions"] > div > span {
+        font-size: 18px !important;            /* body/base */
+        font-weight: 380 !important;
+        color: #ffffff !important;
+    }
+    div[data-testid="stFileUploaderDropzoneInstructions"] > div > small {
+        font-size: 18px !important;
+        color: #4d4d4d !important;             /* Smoke */
+    }
+
+    /* --- Upload / Browse button ------------------------------------------ */
+    .home-uploader-zone button,
+    section[data-testid="stFileUploaderDropzone"] button,
+    div[data-testid="stFileUploaderDropzone"] button {
+        font-family: 'Bangers', cursive, sans-serif !important;
+        font-size: 20px !important;            /* subheading */
+        font-weight: 300 !important;
+        line-height: 1.15 !important;
+        letter-spacing: 1.2px !important;
+        padding: 10px 32px !important;
+        background: #b62b1a !important;        /* brand accent -- solid, no gradient */
+        color: #ffffff !important;
+        border: none !important;
+        border-radius: 8px !important;
+        box-shadow: 2px 2px 0px #000000 !important;
+        transition: all 0.15s ease !important;
+        cursor: pointer !important;
+    }
+    .home-uploader-zone button:hover,
+    section[data-testid="stFileUploaderDropzone"] button:hover,
+    div[data-testid="stFileUploaderDropzone"] button:hover {
+        transform: scale(1.04) translateY(-1px) !important;
+        background: #9a2416 !important;        /* darkened brand accent */
+        box-shadow: 3px 3px 0px #000000 !important;
+    }
+
+    /* --- Shiny Gleam Button Effect (Subtle Low-Contrast Muted Gleam) -------- */
+    @property --gradient-angle {
+        syntax: "<angle>";
+        initial-value: 0deg;
+        inherits: false;
+    }
+    @property --gradient-angle-offset {
+        syntax: "<angle>";
+        initial-value: 0deg;
+        inherits: false;
+    }
+    @property --gradient-percent {
+        syntax: "<percentage>";
+        initial-value: 4%;
+        inherits: false;
+    }
+    @property --gradient-shine {
+        syntax: "<color>";
+        initial-value: rgba(210, 75, 60, 0.4);
+        inherits: false;
+    }
+
+    /* Target all primary continue/stage-advance buttons and .comic-shiny-btn */
+    button[kind="primary"],
+    button[data-testid="baseButton-primary"],
+    .comic-shiny-btn {
+        --gleam-base: #000000;
+        --gleam-inset: #161515;
+        --gleam-label: #ffffff;
+        --gleam-accent: rgba(182, 43, 26, 0.35);
+        --gleam-accent-soft: rgba(215, 65, 50, 0.55);
+        --animation: gradient-angle linear infinite;
+        --duration: 3.5s;
+        --shadow-size: 2px;
+        --transition: 0.8s cubic-bezier(0.25, 1, 0.5, 1);
+
+        isolation: isolate;
+        position: relative !important;
+        overflow: hidden !important;
+        cursor: pointer !important;
+        outline-offset: 4px;
+        padding: 0.9rem 2rem !important;
+        font-size: 1.125rem !important;
+        line-height: 1.2 !important;
+        font-weight: 500 !important;
+        border: 1px solid transparent !important;
+        border-radius: 12px !important;
+        color: var(--gleam-label) !important;
+        background:
+            linear-gradient(var(--gleam-base), var(--gleam-base)) padding-box,
+            conic-gradient(
+                from calc(var(--gradient-angle) - var(--gradient-angle-offset)),
+                transparent,
+                var(--gleam-accent) var(--gradient-percent),
+                var(--gradient-shine) calc(var(--gradient-percent) * 2),
+                var(--gleam-accent) calc(var(--gradient-percent) * 3),
+                transparent calc(var(--gradient-percent) * 4)
+            ) border-box !important;
+        box-shadow: inset 0 0 0 1px var(--gleam-inset) !important;
+        transition: var(--transition) !important;
+        transition-property:
+            --gradient-angle-offset,
+            --gradient-percent,
+            --gradient-shine !important;
+    }
+
+    button[kind="primary"]::before,
+    button[kind="primary"]::after,
+    button[data-testid="baseButton-primary"]::before,
+    button[data-testid="baseButton-primary"]::after,
+    .comic-shiny-btn::before,
+    .comic-shiny-btn::after {
+        content: "" !important;
+        pointer-events: none !important;
+        position: absolute !important;
+        inset-inline-start: 50% !important;
+        inset-block-start: 50% !important;
+        translate: -50% -50% !important;
+        z-index: -1 !important;
+    }
+
+    button[kind="primary"]:active,
+    button[data-testid="baseButton-primary"]:active,
+    .comic-shiny-btn:active {
+        translate: 0 1px !important;
+    }
+
+    button[kind="primary"]::before,
+    button[data-testid="baseButton-primary"]::before,
+    .comic-shiny-btn::before {
+        --size: calc(100% - var(--shadow-size) * 3);
+        --position: 2px;
+        --space: calc(var(--position) * 2);
+        width: var(--size) !important;
+        height: var(--size) !important;
+        background: radial-gradient(
+            circle at var(--position) var(--position),
+            rgba(255, 255, 255, 0.12) calc(var(--position) / 4),
+            transparent 0
+        ) padding-box !important;
+        background-size: var(--space) var(--space) !important;
+        background-repeat: space !important;
+        -webkit-mask-image: conic-gradient(
+            from calc(var(--gradient-angle) + 45deg),
+            black,
+            transparent 10% 90%,
+            black
+        ) !important;
+        mask-image: conic-gradient(
+            from calc(var(--gradient-angle) + 45deg),
+            black,
+            transparent 10% 90%,
+            black
+        ) !important;
+        border-radius: inherit !important;
+        opacity: 0.12 !important;
+        z-index: -1 !important;
+    }
+
+    button[kind="primary"]::after,
+    button[data-testid="baseButton-primary"]::after,
+    .comic-shiny-btn::after {
+        --animation: shimmer linear infinite;
+        width: 100% !important;
+        aspect-ratio: 1 !important;
+        background: linear-gradient(
+            -50deg,
+            transparent,
+            rgba(182, 43, 26, 0.4),
+            transparent
+        ) !important;
+        -webkit-mask-image: radial-gradient(circle at bottom, transparent 40%, black) !important;
+        mask-image: radial-gradient(circle at bottom, transparent 40%, black) !important;
+        opacity: 0.18 !important;
+        z-index: -1 !important;
+    }
+
+    button[kind="primary"] div[data-testid="stMarkdownContainer"],
+    button[kind="primary"] p,
+    button[data-testid="baseButton-primary"] div[data-testid="stMarkdownContainer"],
+    button[data-testid="baseButton-primary"] p,
+    .comic-shiny-btn span {
+        z-index: 1 !important;
+        position: relative !important;
+        color: var(--gleam-label) !important;
+    }
+
+    button[kind="primary"],
+    button[kind="primary"]::before,
+    button[kind="primary"]::after,
+    button[data-testid="baseButton-primary"],
+    button[data-testid="baseButton-primary"]::before,
+    button[data-testid="baseButton-primary"]::after,
+    .comic-shiny-btn,
+    .comic-shiny-btn::before,
+    .comic-shiny-btn::after {
+        animation:
+            var(--animation) var(--duration),
+            var(--animation) calc(var(--duration) / 0.4) reverse paused !important;
+        animation-composition: add !important;
+    }
+
+    button[kind="primary"]:is(:hover, :focus-visible),
+    button[data-testid="baseButton-primary"]:is(:hover, :focus-visible),
+    .comic-shiny-btn:is(:hover, :focus-visible) {
+        --gradient-percent: 7% !important;
+        --gradient-angle-offset: 95deg !important;
+        --gradient-shine: rgba(225, 95, 80, 0.6) !important;
+        box-shadow: 0 0 10px rgba(182, 43, 26, 0.22), inset 0 0 0 1px var(--gleam-inset) !important;
+    }
+
+    button[kind="primary"]:is(:hover, :focus-visible),
+    button[kind="primary"]:is(:hover, :focus-visible)::before,
+    button[kind="primary"]:is(:hover, :focus-visible)::after,
+    button[data-testid="baseButton-primary"]:is(:hover, :focus-visible),
+    button[data-testid="baseButton-primary"]:is(:hover, :focus-visible)::before,
+    button[data-testid="baseButton-primary"]:is(:hover, :focus-visible)::after,
+    .comic-shiny-btn:is(:hover, :focus-visible),
+    .comic-shiny-btn:is(:hover, :focus-visible)::before,
+    .comic-shiny-btn:is(:hover, :focus-visible)::after {
+        animation-play-state: running !important;
+    }
+
+    @keyframes gradient-angle {
+        to {
+            --gradient-angle: 360deg;
+        }
+    }
+
+    @keyframes shimmer {
+        to {
+            rotate: 360deg;
+        }
+    }
+
+    /* Disabled State */
+    button[kind="primary"]:disabled,
+    button[data-testid="baseButton-primary"]:disabled,
+    .comic-shiny-btn:disabled {
+        opacity: 0.45 !important;
+        cursor: not-allowed !important;
+        box-shadow: none !important;
+        translate: 0 0 !important;
+        border-color: #4d4d4d !important;
+        background: #111111 !important;
+    }
+    button[kind="primary"]:disabled::before,
+    button[kind="primary"]:disabled::after,
+    button[data-testid="baseButton-primary"]:disabled::before,
+    button[data-testid="baseButton-primary"]:disabled::after,
+    .comic-shiny-btn:disabled::before,
+    .comic-shiny-btn:disabled::after {
+        animation: none !important;
+        display: none !important;
+    }
+
+    /* Accessibility: respect prefers-reduced-motion */
+    @media (prefers-reduced-motion: reduce) {
+        button[kind="primary"],
+        button[kind="primary"]::before,
+        button[kind="primary"]::after,
+        button[kind="primary"] div[data-testid="stMarkdownContainer"]::before,
+        button[kind="primary"] p::before,
+        button[data-testid="baseButton-primary"],
+        button[data-testid="baseButton-primary"]::before,
+        button[data-testid="baseButton-primary"]::after,
+        .comic-shiny-btn,
+        .comic-shiny-btn::before,
+        .comic-shiny-btn::after,
+        .comic-shiny-btn span::before {
+            animation: none !important;
+            transition: none !important;
+        }
+
+        button[kind="primary"]:is(:hover, :focus-visible),
+        button[kind="primary"]:is(:hover, :focus-visible)::before,
+        button[kind="primary"]:is(:hover, :focus-visible)::after,
+        button[data-testid="baseButton-primary"]:is(:hover, :focus-visible),
+        button[data-testid="baseButton-primary"]:is(:hover, :focus-visible)::before,
+        button[data-testid="baseButton-primary"]:is(:hover, :focus-visible)::after,
+        .comic-shiny-btn:is(:hover, :focus-visible),
+        .comic-shiny-btn:is(:hover, :focus-visible)::before,
+        .comic-shiny-btn:is(:hover, :focus-visible)::after {
+            animation-play-state: paused !important;
+        }
+
+        button[kind="primary"]:is(:hover, :focus-visible) div[data-testid="stMarkdownContainer"]::before,
+        button[kind="primary"]:is(:hover, :focus-visible) p::before,
+        .comic-shiny-btn:is(:hover, :focus-visible) span::before {
+            opacity: 0 !important;
+        }
+    }
+
+
+    /* --- Home Meta Pills ------------------------------------------------- */
+    .uploader-badges-wrap {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin: 0 0 16px 0;
+    }
+    .uploader-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        background: #000000;               /* Black Void */
+        border: 1px solid #4d4d4d;        /* Smoke */
+        border-radius: 9999px;
+        padding: 5px 14px;
+        font-size: 18px;                   /* body/base */
+        font-weight: 380;
+        line-height: 1.11;
+        color: #4d4d4d;                   /* Smoke */
+        letter-spacing: 0.5px;
+    }
+    .uploader-pill-accent {
+        background: #000000;
+        border-color: #ffffff;            /* Paper White -- highlights the "secure" badge */
+        color: #ffffff;
+    }
+    .uploader-pill-comic {
+        background: #000000;
+        border-color: #b62b1a;           /* brand accent border */
+        color: #b62b1a;
+    }
+
+    /* --- Sample launch ghost button ------------------------------------- */
+    .sample-launch-btn button {
+        background: #000000 !important;      /* Black Void */
+        border: 1.5px solid #4d4d4d !important; /* Smoke */
+        color: #ffffff !important;
+        border-radius: 10px !important;
+        font-size: 18px !important;          /* body/base */
+        font-weight: 380 !important;
+        line-height: 1.11 !important;
+        padding: 8px 12px !important;
+        transition: all 0.15s ease !important;
+    }
+    .sample-launch-btn button:hover {
+        border-color: #b62b1a !important;    /* brand accent on hover */
+        color: #b62b1a !important;
+        background: rgba(182, 43, 26, 0.06) !important;
+        transform: translateY(-1px) !important;
+    }
+
+    /* --- Right-side Editor Sidebar --------------------------------------- */
+    div.stColumn:has(#right-sidebar-dock),
+    div[data-testid="stColumn"]:has(#right-sidebar-dock),
+    div[data-testid="column"]:has(#right-sidebar-dock) {
+        background-color: #000000 !important;  /* Black Void */
+        border: 1.5px solid #4d4d4d !important; /* Smoke */
+        border-radius: 14px !important;
+        padding: 18px 20px !important;
+        height: calc(100vh - 95px) !important;
+        max-height: calc(100vh - 95px) !important;
+        overflow-y: auto !important;
+        position: sticky !important;
+        top: 60px !important;
+        box-shadow: -4px 0 25px rgba(0, 0, 0, 0.6) !important;
+    }
+    div.stColumn:has(#right-sidebar-dock)::-webkit-scrollbar,
+    div[data-testid="stColumn"]:has(#right-sidebar-dock)::-webkit-scrollbar {
+        width: 6px;
+    }
+    div.stColumn:has(#right-sidebar-dock)::-webkit-scrollbar-track,
+    div[data-testid="stColumn"]:has(#right-sidebar-dock)::-webkit-scrollbar-track {
+        background: #000000;              /* Black Void */
+    }
+    div.stColumn:has(#right-sidebar-dock)::-webkit-scrollbar-thumb,
+    div[data-testid="stColumn"]:has(#right-sidebar-dock)::-webkit-scrollbar-thumb {
+        background: #4d4d4d;              /* Smoke */
+        border-radius: 4px;
+    }
+    div.stColumn:has(#right-sidebar-dock)::-webkit-scrollbar-thumb:hover,
+    div[data-testid="stColumn"]:has(#right-sidebar-dock)::-webkit-scrollbar-thumb:hover {
+        background: #b62b1a;              /* brand accent on hover */
+    }
+
+    /* --- Sidebar panel title ---------------------------------------------- */
+    .rsidebar-title {
+        font-family: 'Inter', sans-serif !important;
+        font-size: 18px !important;        /* body/base */
+        font-weight: 380 !important;
+        line-height: 1.11 !important;
+        color: #ffffff !important;         /* Paper White */
+        letter-spacing: 0.5px !important;
+    }
+
+    /* --- Close sidebar button -------------------------------------------- */
+    .close-sidebar-btn button {
+        background: rgba(255, 255, 255, 0.04) !important;
+        border: 1px solid #4d4d4d !important;   /* Smoke */
+        color: #4d4d4d !important;              /* Smoke */
+        font-size: 20px !important;             /* subheading */
+        font-weight: 300 !important;
+        border-radius: 8px !important;
+        padding: 2px 10px !important;
+        min-height: 38px !important;
+        line-height: 1 !important;
+        transition: all 0.2s ease !important;
+    }
+    .close-sidebar-btn button:hover {
+        color: #ffffff !important;              /* Paper White */
+        border-color: #b62b1a !important;       /* brand accent */
+        background: rgba(182, 43, 26, 0.12) !important;
+    }
+
+    /* --- Open sidebar button ---------------------------------------------- */
+    .open-sidebar-btn button {
+        font-family: 'Inter', sans-serif !important;
+        font-size: 18px !important;            /* body/base */
+        font-weight: 380 !important;
+        border: 1.5px solid #b62b1a !important;  /* brand accent */
+        color: #b62b1a !important;
+        border-radius: 8px !important;
+        background: rgba(182, 43, 26, 0.06) !important;
+        transition: all 0.2s ease !important;
+    }
+    .open-sidebar-btn button:hover {
+        background: #b62b1a !important;
+        color: #ffffff !important;
+    }
+
+    /* --- Hide Streamlit footer ------------------------------------------- */
+    footer {
+        display: none !important;
+        visibility: hidden !important;
+    }
+
+    /* --- Suppress Streamlit element-toolbar green outline on markdown blocks */
+    [data-testid="element-toolbar"],
+    [data-testid="StyledFullScreenButton"],
+    .stElementToolbar,
+    div[data-testid="stElementToolbarButton"] {
+        display: none !important;
+    }
+    /* Remove browser default focus outline from logo anchor */
+    .comic-site-logo,
+    .comic-site-logo:focus,
+    .comic-site-logo:focus-visible {
+        outline: none !important;
+        box-shadow: none !important;
+    }
+
+    /* --- Speaker Detection Badge & Status --------------------------------- */
+    .speaker-tag-wrap {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin: 2px 0 6px 0;
+        flex-wrap: wrap;
+    }
+    .speaker-tag-detected {
+        background: #000000;
+        border: 1px solid #b62b1a;
+        color: #ffffff;
+        font-family: 'Inter', sans-serif;
+        font-size: 12px;
+        font-weight: 600;
+        padding: 2px 8px;
+        border-radius: 4px;
+        letter-spacing: 0.3px;
+    }
+    .speaker-tag-generic {
+        background: #000000;
+        border: 1px solid #4d4d4d;
+        color: #888888;
+        font-family: 'Inter', sans-serif;
+        font-size: 12px;
+        font-weight: 600;
+        padding: 2px 8px;
+        border-radius: 4px;
+        letter-spacing: 0.3px;
+    }
+    .speaker-conf-pill {
+        background: rgba(182, 43, 26, 0.15);
+        color: #ffffff;
+        font-family: 'Inter', sans-serif;
+        font-size: 12px;
+        padding: 2px 8px;
+        border-radius: 9999px;
+        border: 1px solid #b62b1a;
+    }
+    .speaker-conf-pill-muted {
+        background: rgba(77, 77, 77, 0.2);
+        color: #4d4d4d;
+        font-family: 'Inter', sans-serif;
+        font-size: 12px;
+        padding: 2px 8px;
+        border-radius: 9999px;
+        border: 1px solid #4d4d4d;
+    }
+
+    /* --- Sleek ProgressBar & Loading Indicator (Exact Port from shadcn React component) --- */
+    div[data-testid="stProgress"] {
+        margin: 10px 0 !important;
+    }
+    div[data-testid="stProgress"] > div {
+        background: transparent !important;
+    }
+    div[data-testid="stProgress"] > div > div {
+        background: #1D1D1A !important;
+        border-radius: 4px !important;
+        padding: 2px !important;
+        box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.06) !important;
+        height: 12px !important;
+        overflow: hidden !important;
+    }
+    div[data-testid="stProgress"] > div > div > div {
+        border-radius: 2px !important;
+        background: #b62b1a !important;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(0, 0, 0, 0.25) !important;
+        height: 8px !important;
+        transition: width 0.4s cubic-bezier(0.25, 1, 0.5, 1) !important;
+    }
+
+    div[data-testid="stFileUploader"] [role="progressbar"],
+    div[data-testid="stFileUploaderProgressBar"] {
+        background: #1D1D1A !important;
+        border-radius: 4px !important;
+        padding: 2px !important;
+        box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.06) !important;
+        height: 12px !important;
+    }
+    div[data-testid="stFileUploader"] [role="progressbar"] > div,
+    div[data-testid="stFileUploaderProgressBar"] > div {
+        border-radius: 2px !important;
+        background: #b62b1a !important;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(0, 0, 0, 0.25) !important;
+        height: 8px !important;
+    }
+
+    div[data-testid="stSpinner"] > div {
+        border-top-color: #b62b1a !important;
+    }
+
+    .comic-progress-wrap {
+        width: 100%;
+        margin: 10px 0;
+        font-family: 'Inter', sans-serif;
+    }
+    .comic-progress-header {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 6px;
+    }
+    .comic-progress-label {
+        font-size: 13px;
+        font-weight: 500;
+        color: #e7e5e4;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .comic-progress-status {
+        font-size: 12px;
+        font-weight: 500;
+        color: #a8a29e;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-variant-numeric: tabular-nums;
+        flex-shrink: 0;
+    }
+    .comic-progress-track {
+        border-radius: 4px;
+        background: #1D1D1A;
+        padding: 2px;
+        box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+    }
+    .comic-progress-inner {
+        position: relative;
+        height: 8px;
+        overflow: hidden;
+        border-radius: 2px;
+    }
+    .comic-progress-fill {
+        position: absolute;
+        inset: 0;
+        display: block;
+        transform-origin: left;
+        border-radius: 2px;
+        background: #b62b1a;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(0, 0, 0, 0.25);
+        transition: width 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+    }
+    .comic-progress-indeterminate {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        width: 40%;
+        border-radius: 2px;
+        background: #b62b1a;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(0, 0, 0, 0.25);
+        animation: progress-indeterminate 1.25s ease-in-out infinite;
+    }
+    @keyframes progress-indeterminate {
+        0% {
+            transform: translateX(-100%);
+            opacity: 0;
+        }
+        15% {
+            opacity: 1;
+        }
+        85% {
+            opacity: 1;
+        }
+        100% {
+            transform: translateX(250%);
+            opacity: 0;
+        }
+    }
+</style>
+""", unsafe_allow_html=True)
+
+
+# Inject native browser Base64 @font-face and dropdown rules
+st.markdown(get_dropdown_fonts_css(), unsafe_allow_html=True)
+
+# Initialize Session State
+sample_page_19 = os.path.join(os.path.dirname(__file__), "samples", "page_19.png")
+sample_page_18 = os.path.join(os.path.dirname(__file__), "samples", "page_18.png")
+default_comic_path = sample_page_19 if os.path.exists(sample_page_19) else sample_page_18
+
+# Handle logo click / reset via query param
+if "reset" in st.query_params:
+    st.query_params.clear()
+    reset_page_state(None, "")
+    st.session_state.image = None
+    st.session_state.image_name = ""
+
+if "current_stage" not in st.session_state:
+    st.session_state.current_stage = 1
+if "image" not in st.session_state:
+    st.session_state.image = None
+if "image_name" not in st.session_state:
+    st.session_state.image_name = ""
+if "raw_bubbles" not in st.session_state:
+    st.session_state.raw_bubbles = []
+if "cleaned_page" not in st.session_state:
+    st.session_state.cleaned_page = None
+if "cleaned_page_bytes" not in st.session_state:
+    st.session_state.cleaned_page_bytes = None
+if "bubbles" not in st.session_state:
+    st.session_state.bubbles = []
+if "cleaned_preview" not in st.session_state:
+    st.session_state.cleaned_preview = None
+if "rendered_image" not in st.session_state:
+    st.session_state.rendered_image = None
+if "rendered_image_bytes" not in st.session_state:
+    st.session_state.rendered_image_bytes = None
+if "render_timestamp" not in st.session_state:
+    st.session_state.render_timestamp = 0.0
+if "saved_file_path" not in st.session_state:
+    st.session_state.saved_file_path = ""
+if "analysis_version" not in st.session_state:
+    st.session_state.analysis_version = 0
+if "last_render_hash" not in st.session_state:
+    st.session_state.last_render_hash = ""
+if "show_editor_panel" not in st.session_state:
+    st.session_state.show_editor_panel = True
+
+
+
+# Sidebar Controls
+with st.sidebar:
+    star_b64 = get_comic_star_b64()
+    st.markdown(f"""
+    <a href="/?reset=1" target="_self" class="comic-site-logo" title="Bosh sahifaga qaytish">
+        <img src="data:image/png;base64,{star_b64}" class="comic-logo-icon" alt="Logo" />
+        <span class="comic-logo-text">COMIC-LAB</span>
+    </a>
+    """, unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.markdown("### Tipografiya va Lettering")
+
+    available_fonts = engine.get_available_fonts()
+    font_choice = st.selectbox(
+        "Comic Lettering Font",
+        list(available_fonts.keys()),
+        index=0,
+        key="font_choice_select",
+        on_change=trigger_render,
+        help="CC Wild Words is the industry standard comic font for Marvel and manga lettering."
+    )
+    selected_font_path = available_fonts[font_choice]
+
+    # Inject ActiveComicFont CSS matching the exact format of selected_font_path (OTTO -> font/otf & format('opentype'))
+    st.markdown(get_active_font_css(selected_font_path), unsafe_allow_html=True)
+
+    # Editable Preview Text Box
+    preview_text = st.text_input("Prevyu matni (Preview Text)", value="QOYIL QOLDINGMI?!")
+
+    # Simplified Crisp Vector HTML/CSS Preview Block (100% native vector rendering, zero blur)
+    cur_font_size = st.session_state.get("max_font_size_slider", 26)
+    cur_line_gap = st.session_state.get("line_gap_slider", 6)
+    clean_font_name = font_choice.replace(" (Recommended)", "")
+    line_gap_mult = f"{1.15 + (cur_line_gap / max(1, cur_font_size)):.2f}"
+    escaped_text = html.escape(preview_text or "QOYIL QOLDINGMI?!").upper()
+
+    st.markdown(f"""
+    <div style="background: #000000; border: 2px solid #b62b1a; border-radius: 8px; padding: 16px; text-align: center; margin: 10px 0 14px 0;">
+      <div style="font-size: 11px; color: #4d4d4d; margin-bottom: 6px; font-family: sans-serif; letter-spacing: 1px;">
+        {clean_font_name.upper()} | {cur_font_size}PX | GAP: {cur_line_gap}PX
+      </div>
+      <div class="comic-preview-text" style="
+        font-size: {cur_font_size}px;
+        line-height: {line_gap_mult};
+        color: #ffffff;
+        text-shadow: 2px 2px 0px #000000, -1px -1px 0px #000000, 1px -1px 0px #000000, -1px 1px 0px #000000;
+        word-break: break-word;
+        text-transform: uppercase;
+      ">
+        {escaped_text}
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    with st.expander("Qahramon Shaxsiyati (Voice)", expanded=False):
+        st.caption("Avtomatik xarakter aniqlash (Classical CV) faol.")
+        known_profiles = character_profiles.list_available_profiles()
+        st.markdown(f"**Xotiradagi profillar:**<br>`{', '.join(known_profiles)}`", unsafe_allow_html=True)
+
+
+    with st.expander("Tipografiya va Shrift Sozlamalari", expanded=True):
+        max_font_size = st.slider(
+            "Max Font Size (px)", min_value=14, max_value=46, value=26,
+            key="max_font_size_slider", on_change=trigger_render,
+            help="Maximum dialogue font size."
+        )
+        min_font_size = st.slider(
+            "Min Font Size (px)", min_value=6, max_value=18, value=10,
+            key="min_font_size_slider", on_change=trigger_render,
+            help="Minimum font size threshold."
+        )
+        line_gap = st.slider(
+            "Line Gap Safety (px)", min_value=0, max_value=20, value=6,
+            key="line_gap_slider", on_change=trigger_render,
+            help="Explicit spacing added between lines to completely prevent line collision."
+        )
+
+    # Dedicated Re-render Action (only shown when comic is loaded and bubbles exist)
+    if st.session_state.image is not None and st.session_state.get("bubbles"):
+        apply_settings_btn = st.button(
+            "Sahifaga Shriftlarni Qayta Yozish",
+            type="primary",
+            use_container_width=True,
+            help="Yangi shrift, o'lcham va oraliqlarni sahifadagi barcha pufakchalarga darhol qayta yozish."
+        )
+
+        if apply_settings_btn:
+            trigger_render()
+            st.toast("Shrift va sozlamalar sahifaga muvaffaqiyatli qo'llandi", icon=":material/check_circle:")
+            st.rerun()
+
+if st.session_state.image is None:
+    star_b64 = get_comic_star_b64()
+    st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
+    st.markdown(f"""
+    <div style="text-align: center; margin-bottom: 24px;">
+        <div style="display: inline-flex; align-items: center; justify-content: center; gap: 16px;">
+            <img src="data:image/png;base64,{star_b64}" style="height: 80px; width: 80px; object-fit: contain;" />
+            <span style="font-family: 'Bangers', cursive, sans-serif; font-style: italic; font-size: 3.8rem; color: #FF3366; letter-spacing: 3px; text-shadow: 3px 3px 0px #000000; line-height: 1;">
+                COMIC-LAB
+            </span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <div class="home-uploader-zone">
+        <div class="uploader-badges-wrap">
+            <span class="uploader-pill">PNG, JPG, WEBP</span>
+            <span class="uploader-pill">200MB gacha</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown('<div class="home-uploader-zone">', unsafe_allow_html=True)
+    home_file = st.file_uploader(
+        "Komiks sahifasini yuklang",
+        type=["png", "jpg", "jpeg", "webp"],
+        key="home_file_uploader",
+        label_visibility="collapsed",
+        help="Komiks sahifasini bu yerga tashlang (drag & drop) yoki fayl tanlash orqali yuklang."
+    )
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    if home_file is not None:
+        reset_page_state(Image.open(home_file).convert("RGB"), home_file.name)
+        st.rerun()
+else:
+    # 3-Stage Visual Stepper Header matching reference pill design
+    stage = st.session_state.get("current_stage", 1)
+    has_raw = bool(st.session_state.get("raw_bubbles"))
+    has_trans = bool(st.session_state.get("bubbles"))
+
+    # Render Visual Capsule Stepper
+    st.markdown(get_stepper_component(stage), unsafe_allow_html=True)
+
+    col_nav1, col_nav2, col_nav3 = st.columns(3)
+    with col_nav1:
+        if st.button("1. Skanerlash & Tozalash", type="primary" if stage == 1 else "secondary", use_container_width=True):
+            st.session_state.current_stage = 1
+            st.rerun()
+    with col_nav2:
+        if st.button("2. Tarjima & Tahrir", type="primary" if stage == 2 else "secondary", disabled=not has_raw, use_container_width=True):
+            need_translate = not has_trans or (len(st.session_state.get("bubbles", [])) != len(st.session_state.raw_bubbles))
+            if need_translate and has_raw:
+                p_slot = st.empty()
+                p_slot.markdown(
+                    get_progress_bar_html(None, label="NLLB-200 AI Model", pending_label="O'zbek tiliga tarjima qilinmoqda..."),
+                    unsafe_allow_html=True
+                )
+                translated = engine.translate_bubbles_list(st.session_state.raw_bubbles)
+                st.session_state.bubbles = [BubbleDict(b.model_dump()) for b in translated]
+                for b in st.session_state.bubbles:
+                    b["pipeline_uzbek_translation"] = b.get("pipeline_uzbek_translation") or b.get("uzbek_translation", "")
+                    b["last_captured_uzbek"] = b["pipeline_uzbek_translation"]
+                    st.session_state[f"trans_{b.bubble_id}"] = b.uzbek_translation
+                    st.session_state[f"active_{b.bubble_id}"] = b.is_active
+                    st.session_state[f"nudge_{b.bubble_id}"] = b.font_size_offset
+                p_slot.markdown(
+                    get_progress_bar_html(100, label="NLLB-200 AI Model", complete_label="Tarjima yakunlandi"),
+                    unsafe_allow_html=True
+                )
+                time.sleep(0.3)
+                p_slot.empty()
+
+            st.session_state.current_stage = 2
+            st.rerun()
+    with col_nav3:
+        if st.button("3. Shriftlarni Yozish", type="primary" if stage == 3 else "secondary", disabled=not has_trans, use_container_width=True):
+            sync_bubble_widgets()
+            trigger_render()
+            st.session_state.current_stage = 3
+            st.rerun()
+
+    # When right sidebar is closed, show open button at top right
+    if not st.session_state.get("show_editor_panel", True):
+        col_t_sp, col_t_open = st.columns([0.76, 0.24])
+        with col_t_open:
+            st.markdown('<div class="open-sidebar-btn">', unsafe_allow_html=True)
+            if st.button("Matnlar Paneli", key="btn_open_rsidebar", type="secondary", use_container_width=True, help="O'ng tarafdagi matnlar panelini ochish"):
+                st.session_state.show_editor_panel = True
+                st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown("---")
+
+    # ----------------------------------------------------
+    # STAGE 1: SCAN & CLEAN (Skanerlash va Tozalash)
+    # ----------------------------------------------------
+    if stage == 1:
+        if st.session_state.get("show_editor_panel", True):
+            col_left, col_right = st.columns([1.25, 0.75], gap="large")
+        else:
+            col_left = st.container()
+            col_right = None
+
+        with col_left:
+            st.markdown("### Sahifa Ko'rinishi")
+            if st.session_state.cleaned_page is not None:
+                tab_clean, tab_orig = st.tabs([":material/cleaning_services: Tozalangan Sahifa", ":material/image: Asl Sahifa"])
+                with tab_clean:
+                    show_markers = st.checkbox("Pufak chegaralarini ko'rsatish (Green Markers)", value=True, key="markers_st1")
+                    if show_markers and st.session_state.raw_bubbles:
+                        overlay_key = f"overlay_st1_{len(st.session_state.raw_bubbles)}_{st.session_state.get('analysis_version', 0)}"
+                        if overlay_key not in st.session_state:
+                            st.session_state[overlay_key] = engine.draw_bounding_box_overlay(st.session_state.cleaned_page, st.session_state.raw_bubbles)
+                        annotated = st.session_state[overlay_key]
+                        st.image(annotated, use_container_width=True, caption=f"Tozalangan sahifa ({len(st.session_state.raw_bubbles)} ta pufak)")
+                    else:
+                        st.image(st.session_state.cleaned_page, use_container_width=True, caption="Tozalangan sahifa (Siyoh Telea orqali tozalangan, to'rtburchak oq dog'siz)")
+                with tab_orig:
+                    st.image(st.session_state.image, use_container_width=True, caption=st.session_state.image_name)
+            else:
+                st.image(st.session_state.image, use_container_width=True, caption="Asl sahifa (Hali skanerlanmagan)")
+
+        if col_right is not None:
+            with col_right:
+                st.markdown('<div id="right-sidebar-dock"></div>', unsafe_allow_html=True)
+                col_h1, col_h2 = st.columns([0.84, 0.16])
+                with col_h1:
+                    st.markdown('<div class="rsidebar-title">Skanerlash & Tozalash</div>', unsafe_allow_html=True)
+                with col_h2:
+                    st.markdown('<div class="close-sidebar-btn">', unsafe_allow_html=True)
+                    if st.button("X", key="btn_close_panel_1", help="O'ng panelni yopish"):
+                        st.session_state.show_editor_panel = False
+                        st.rerun()
+                    st.markdown('</div>', unsafe_allow_html=True)
+                st.markdown("<hr style='border: none; border-top: 1px solid #4d4d4d; margin: 4px 0 14px 0;' />", unsafe_allow_html=True)
+
+                st.caption("EasyOCR pufaklarni aniqlaydi va qog'oz teksturasini buzmasdan faqat qora siyohni tozalaydi (Pure Ink Inpainting).")
+
+                scan_label = "Qayta Skanerlash va Tozalash" if st.session_state.cleaned_page is not None else "1. Sahifani Skanerlash va Pufaklarni Tozalash"
+                scan_type = "secondary" if st.session_state.cleaned_page is not None else "primary"
+                scan_btn = st.button(scan_label, type=scan_type, use_container_width=True)
+
+                if scan_btn:
+                    p_slot = st.empty()
+                    p_slot.markdown(
+                        get_progress_bar_html(None, label=st.session_state.image_name or "Komiks sahifasi", pending_label="EasyOCR matnlarni tahlil qilmoqda..."),
+                        unsafe_allow_html=True
+                    )
+                    raw_bubbles = engine.scan_bubbles_ocr(st.session_state.image)
+                    if not raw_bubbles:
+                        p_slot.empty()
+                        st.error("Hech qanday pufak aniqlanmadi!")
+                    else:
+                        p_slot.markdown(
+                            get_progress_bar_html(65, label=st.session_state.image_name or "Komiks sahifasi", pending_label="Siyoh Telea orqali tozalanmoqda..."),
+                            unsafe_allow_html=True
+                        )
+                        keys_to_clear = [k for k in list(st.session_state.keys()) if k.startswith("overlay_")]
+                        for k in keys_to_clear:
+                            del st.session_state[k]
+                        st.session_state.analysis_version = st.session_state.get("analysis_version", 0) + 1
+                        st.session_state.raw_bubbles = raw_bubbles
+                        cleaned = engine.clean_page_ink_telea(st.session_state.image, raw_bubbles)
+                        st.session_state.cleaned_page = cleaned
+                        st.session_state.bubbles = []
+                        st.session_state.rendered_image = None
+                        st.session_state.rendered_image_bytes = None
+                        p_slot.markdown(
+                            get_progress_bar_html(100, label=st.session_state.image_name or "Komiks sahifasi", complete_label=f"{len(raw_bubbles)} ta pufak tozalandi"),
+                            unsafe_allow_html=True
+                        )
+                        time.sleep(0.3)
+                        p_slot.empty()
+                        st.toast(f"{len(raw_bubbles)} ta pufak topildi va sahifa tozalandi!", icon=":material/check_circle:")
+                        st.rerun()
+
+                if st.session_state.cleaned_page is not None and st.session_state.raw_bubbles:
+                    if st.button("2-bosqich: Matnlarni Ko'rish va Tahrirlash", type="primary", use_container_width=True):
+                        p_slot = st.empty()
+                        p_slot.markdown(
+                            get_progress_bar_html(None, label="NLLB-200 AI Model", pending_label="O'zbek tiliga tarjima qilinmoqda..."),
+                            unsafe_allow_html=True
+                        )
+                        translated = engine.translate_bubbles_list(st.session_state.raw_bubbles)
+                        st.session_state.bubbles = [BubbleDict(b.model_dump()) for b in translated]
+                        for b in st.session_state.bubbles:
+                            b["pipeline_uzbek_translation"] = b.get("pipeline_uzbek_translation") or b.get("uzbek_translation", "")
+                            b["last_captured_uzbek"] = b["pipeline_uzbek_translation"]
+                            st.session_state[f"trans_{b.bubble_id}"] = b.uzbek_translation
+                            st.session_state[f"active_{b.bubble_id}"] = b.is_active
+                            st.session_state[f"nudge_{b.bubble_id}"] = b.font_size_offset
+                        p_slot.markdown(
+                            get_progress_bar_html(100, label="NLLB-200 AI Model", complete_label="Tarjima yakunlandi"),
+                            unsafe_allow_html=True
+                        )
+                        time.sleep(0.3)
+                        p_slot.empty()
+                        st.session_state.current_stage = 2
+                        st.rerun()
+
+                    st.success(f"Tozalash muvaffaqiyatli! {len(st.session_state.raw_bubbles)} ta pufak topildi va matnlar to'liq o'chirildi.", icon=":material/check_circle:")
+                    
+                    st.markdown(f"#### Aniqlangan Matnlar (Ingliz tilida - {len(st.session_state.raw_bubbles)} ta):")
+                    for b in st.session_state.raw_bubbles:
+                        esc_orig = html.escape(b.original_text)
+                        card_html = f'<div class="bubble-card"><span class="bubble-badge">Bubble #{b.bubble_id}</span><div class="dialogue-en"><strong>EN:</strong> {esc_orig}</div></div>'
+                        st.markdown(card_html, unsafe_allow_html=True)
+
+    # ----------------------------------------------------
+    # STAGE 2: TRANSLATE & REVIEW (Tarjima va Tahrir)
+    # ----------------------------------------------------
+    elif stage == 2:
+        sync_bubble_widgets()
+        if st.session_state.get("show_editor_panel", True):
+            col_left, col_right = st.columns([1.25, 0.75], gap="large")
+        else:
+            col_left = st.container()
+            col_right = None
+
+        with col_left:
+            canvas = st.session_state.cleaned_page if st.session_state.cleaned_page is not None else st.session_state.image
+            active_sig = tuple((b.get("is_active", True) if isinstance(b, dict) else getattr(b, "is_active", True)) for b in st.session_state.bubbles)
+            overlay_st2_key = f"overlay_st2_{len(st.session_state.bubbles)}_{hash(active_sig)}_{st.session_state.get('analysis_version', 0)}"
+            if overlay_st2_key not in st.session_state:
+                st.session_state[overlay_st2_key] = engine.draw_bounding_box_overlay(canvas, st.session_state.bubbles)
+            annotated = st.session_state[overlay_st2_key]
+
+            page_bgr = cv2.cvtColor(np.array(st.session_state.image), cv2.COLOR_RGB2BGR)
+            cur_page_name = st.session_state.get("uploaded_file_name", "page.png")
+            bubble_mask_editor.render_stage2_mask_editor(
+                annotated_page_image=annotated,
+                page_bgr=page_bgr,
+                page_name=cur_page_name
+            )
+
+        if col_right is not None:
+            with col_right:
+                st.markdown('<div id="right-sidebar-dock"></div>', unsafe_allow_html=True)
+                col_h1, col_h2 = st.columns([0.84, 0.16])
+                with col_h1:
+                    st.markdown('<div class="rsidebar-title">Tarjima & Tahrirlash</div>', unsafe_allow_html=True)
+                with col_h2:
+                    st.markdown('<div class="close-sidebar-btn">', unsafe_allow_html=True)
+                    if st.button("X", key="btn_close_panel_2", help="O'ng panelni yopish"):
+                        st.session_state.show_editor_panel = False
+                        st.rerun()
+                    st.markdown('</div>', unsafe_allow_html=True)
+                st.markdown("<hr style='border: none; border-top: 1px solid #4d4d4d; margin: 4px 0 14px 0;' />", unsafe_allow_html=True)
+
+                st.caption("Tarjimalarni ko'rib chiqing va tahrirlang. Bu bosqichda og'ir grafik qayta ishlanmaydi.")
+
+                col_btn1, col_btn2 = st.columns(2)
+                with col_btn1:
+                    if st.button("1-bosqichga qaytish", use_container_width=True):
+                        st.session_state.current_stage = 1
+                        st.rerun()
+                with col_btn2:
+                    unresolved = [
+                        b for b in st.session_state.bubbles
+                        if (b.get("needs_review", False) if isinstance(b, dict) else getattr(b, "needs_review", False))
+                        and (b.get("is_active", True) if isinstance(b, dict) else getattr(b, "is_active", True))
+                    ]
+                    if unresolved:
+                        st.markdown(
+                            f'<div style="color: #ef4444; font-size: 12px; font-weight: 700; margin-bottom: 4px;">'
+                            f'⚠️ {len(unresolved)} ta pufak ko\'rib chiqilishi kerak'
+                            f'</div>',
+                            unsafe_allow_html=True
+                        )
+                    if st.button("3-bosqich: Shriftlarni Yozish", type="primary", use_container_width=True):
+                        sync_bubble_widgets()
+                        trigger_render()
+                        st.session_state.current_stage = 3
+                        st.rerun()
+
+                st.markdown("---")
+                render_bubble_editor_panel(live_render=False, key_suffix="st2")
+
+    # ----------------------------------------------------
+    # STAGE 3: LETTERING & EXPORT (Yakuniy Lettering)
+    # ----------------------------------------------------
+    elif stage == 3:
+        sync_bubble_widgets()
+        if st.session_state.rendered_image is None:
+            trigger_render()
+
+        if st.session_state.get("show_editor_panel", True):
+            col_left, col_right = st.columns([1.25, 0.75], gap="large")
+        else:
+            col_left = st.container()
+            col_right = None
+
+        with col_left:
+            st.markdown("### Yakuniy Lettering Natijasi")
+            tab_res, tab_clean, tab_orig = st.tabs([":material/auto_awesome: Jonli Natija", ":material/cleaning_services: Tozalangan Sahifa", ":material/image: Asl Sahifa"])
+            with tab_res:
+                img_data = st.session_state.get("rendered_image_bytes") or st.session_state.rendered_image
+                st.image(img_data, use_container_width=True, caption="Jonli Lettering (CC Wild Words, Solid Black, Zero Stroke)")
+            with tab_clean:
+                st.image(st.session_state.cleaned_page, use_container_width=True, caption="1-bosqichda tozalangan sahifa")
+            with tab_orig:
+                st.image(st.session_state.image, use_container_width=True, caption="Asl sahifa")
+
+        if col_right is not None:
+            with col_right:
+                st.markdown('<div id="right-sidebar-dock"></div>', unsafe_allow_html=True)
+                col_h1, col_h2 = st.columns([0.84, 0.16])
+                with col_h1:
+                    st.markdown('<div class="rsidebar-title">Shriftlar & Jonli Tahrir</div>', unsafe_allow_html=True)
+                with col_h2:
+                    st.markdown('<div class="close-sidebar-btn">', unsafe_allow_html=True)
+                    if st.button("X", key="btn_close_panel_3", help="O'ng panelni yopish"):
+                        st.session_state.show_editor_panel = False
+                        st.rerun()
+                    st.markdown('</div>', unsafe_allow_html=True)
+                st.markdown("<hr style='border: none; border-top: 1px solid #4d4d4d; margin: 4px 0 14px 0;' />", unsafe_allow_html=True)
+
+                col_back, col_re = st.columns(2)
+                with col_back:
+                    if st.button("Matnlarni Qayta Tahrirlash (2-bosqich)", use_container_width=True):
+                        st.session_state.current_stage = 2
+                        st.rerun()
+                with col_re:
+                    if st.button("Jonli Qayta Chizish", type="primary", use_container_width=True):
+                        trigger_render()
+                        st.rerun()
+
+                st.markdown("---")
+                st.markdown("#### Yuklab olish va Saqlash")
+
+                if st.session_state.rendered_image is not None:
+                    unresolved = [
+                        b for b in st.session_state.bubbles
+                        if (b.get("needs_review", False) if isinstance(b, dict) else getattr(b, "needs_review", False))
+                        and (b.get("is_active", True) if isinstance(b, dict) else getattr(b, "is_active", True))
+                    ]
+                    if unresolved:
+                        st.markdown(
+                            f'<div style="border: 1.5px solid #ef4444; background: rgba(239, 68, 68, 0.12); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; color: #fca5a5; font-size: 13px; line-height: 1.4;">'
+                            f'⚠️ <strong>Eksport Ogohlantirishi:</strong> {len(unresolved)} ta pufakda tarjima xatosi/qoldiq aniqlangan. Ushbu pufaklar komiksda asl inglizcha tasvir holatida tegilmasdan saqlanadi (xom matn ustiga yozilmaydi).'
+                            f'</div>',
+                            unsafe_allow_html=True
+                        )
+
+                    png_bytes = st.session_state.get("rendered_image_bytes") or pil_to_png_bytes(st.session_state.rendered_image)
+                    base_name = os.path.splitext(st.session_state.image_name)[0] or "comic"
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    dl_filename = f"{base_name}_uzbek_{timestamp}.png"
+
+                    st.download_button(
+                        label="Yuklab Olish (Download HD PNG)",
+                        data=png_bytes,
+                        file_name=dl_filename,
+                        mime="image/png",
+                        type="primary",
+                        use_container_width=True
+                    )
+
+                    if st.button("Server 'output/' papkasiga saqlash", use_container_width=True):
+                        os.makedirs("output", exist_ok=True)
+                        out_path = os.path.abspath(os.path.join("output", dl_filename))
+                        st.session_state.rendered_image.save(out_path, format="PNG")
+                        st.session_state.saved_file_path = out_path
+                        st.success(f"Komiks saqlandi: output/{dl_filename}", icon=":material/check_circle:")
+
+                st.markdown("""
+                <div style="background: rgba(182, 43, 26, 0.06); border: 1.5px solid #b62b1a; border-radius: 8px; padding: 10px 14px; margin: 14px 0 10px 0; font-size: 18px; font-weight: 380; line-height: 1.11; color: #ffffff;">
+                    <strong>Jonli Tahrirlash:</strong> Matnni yoki shrift o'lchamini o'zgartirsangiz, komiks sahifasi darhol yangilanadi!
+                </div>
+                """, unsafe_allow_html=True)
+
+                render_bubble_editor_panel(live_render=True, key_suffix="st3")
+
+

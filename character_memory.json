@@ -1,0 +1,734 @@
+{
+  "characters": [
+    {
+      "name": "Superior Spider-Man",
+      "aliases": [
+        "superior spider-man",
+        "superior spiderman",
+        "otto octavius",
+        "otto",
+        "doc ock",
+        "spiderman",
+        "spider-man"
+      ],
+      "voice_traits": [
+        "Formal, elevated, scientific vocabulary ('tafakkur', 'ishqalanishsiz', 'intellekt', 'daholik')",
+        "Arrogant and patronizing superiority over all adversaries ('ahmoqlar', 'nodonlar', 'arzimas')",
+        "Grandiose self-references ('Mening Spider-botlarim', 'ancha ustun Spider-Man')",
+        "Cold, diagnostic physical descriptions ('lat yegan nafas yo\\'li', 'ezilgan hiqildoq')",
+        "Clipped, decisive imperatives ('Ovora bo\\'lmang', 'Shu yerda to\\'xtang', 'Bajarilsin')"
+      ],
+      "forbidden_tones": [
+        "Casual teenage slang ('vapshe', 'og'ayni', 'brat', 'chotki')",
+        "Peter Parker's goofy, playful, self-deprecating quips ('voy-bo'', 'kechirasizlar')",
+        "Uncertainty or self-doubt ('balki', 'eplay olarmikinman', 'bilmadim-da')"
+      ],
+      "established_facts": [
+        "Refers to himself in third person or as an intellectual superior ('mutlaqo ustun', 'katta aql')",
+        "Names his autonomous surveillance units Spider-bots ('mening Spider-botlarim')",
+        "Addresses women formally with polite condescension ('Xonim')",
+        "Despises teenage slang and insists on clinical scientific precision ('lat yegan nafas yo\\'li', 'ezilgan hiqildoq')",
+        "Executes tactical contingencies with Greek letter designations ('Reja: Epsilon-besh')",
+        "Refuses self-deprecating humor or apologies when questioned by the public or press",
+        "Claims responsibility for university property recovery ('Marla Jeymson xotira binosiga qaytarganim uchunmi?')",
+        "Deploys instantaneous frictionless surface chemical compound against adversaries"
+      ],
+      "sample_lines": [
+        {
+          "en": "SECOND DAY ON THE 'JOB'...",
+          "voice_uz": "ISHDAGI IKKINCHI KUN...",
+          "literal_mt": "ISHDAGI IKKINCHI KUN..."
+        },
+        {
+          "en": "...AND NOT ONE OF THEM KNOWS I'M A DIFFERENT SPIDER-MAN.",
+          "voice_uz": "VA ULARNING HECH BIRI MENI BOSHQA O'RGIMCHAK ODAMLIGIMNI BILMAYDI",
+          "literal_mt": "VA ULARNING HECH BIRI BILMAYDI MEN BOSHQA ODAMMAN SPIDER-MAN."
+        },
+        {
+          "en": "BUT SOON THEY'LL ALL LEARN THAT I AM A FAR SUPERIOR ONE.",
+          "voice_uz": "BIROQ TEZ ORADA BARCHALARI MENING YUKSAK O'rgimcha odamligimni ANGLAB YETISHADI!",
+          "literal_mt": "BIROQ TEZ ORADA BARCHALARI MENING ANCHA USTUN SPIDER-MAN EKANIMNI ANGLAB YETISHADI!"
+        },
+        {
+          "en": "IMPRESSED? DON'T BOTHER.",
+          "voice_uz": "QOYIL QOLDINGIZMI? OVORA BO'LMANG, BU MEN UCHUN ODDIY HOL.",
+          "literal_mt": "QOYIL QOLDINGIZMI? TASHVISH CHEKMANG."
+        },
+        {
+          "en": "PLAN: EPSILON FIVE!",
+          "voice_uz": "REJA: EPSILON-BESH!",
+          "literal_mt": "REJA: EPSILON BESH!"
+        },
+        {
+          "en": "INSTANT FRICTIONLESS SURFACE!",
+          "voice_uz": "ISHQALANISHSIZ TEZKOR SIRT!",
+          "literal_mt": "ZAMONAVIY ISHQALANIShSIZ YUZASI!"
+        },
+        {
+          "en": "BRUISED TRACHEA. CRUSHED LARYNX.",
+          "voice_uz": "LAT YEGAN NAFAS YO'LI. EZILGAN HIQILDOQ.",
+          "literal_mt": "KO'KARGAN TRAXEYA. EZILGAN XALQUM."
+        },
+        {
+          "en": "FOOLS! YOU ARE FACING A SUPERIOR INTELLECT!",
+          "voice_uz": "AHMOQLAR! SIZLAR MUTLAQO USTUN TAFAKKUR BILAN TO'QNASHDINGIZ!",
+          "literal_mt": "AHMOQLAR! SIZ KUCHLI AQL BILAN YUZLASHYAPSIZ!"
+        },
+        {
+          "en": "WHAT AN UNEXPECTED honor",
+          "voice_uz": "Qanday kutilmagan sharaf.",
+          "literal_mt": "BU KUTILMAGAN SHARAF."
+        },
+        {
+          "en": "Anything For ThE FORCES OF LAW AND Order",
+          "voice_uz": "Qonun va tartibot kuchlari uchun har narsaga tayyorman.",
+          "literal_mt": "QONUN VA TARTIB KUCHLARI UCHUN HAMMA NARSA."
+        },
+        {
+          "en": "Still Hurts. But THAT'S not it",
+          "voice_uz": "LEKIN BU EMAS, BU U AYTGAN NARSA",
+          "literal_mt": ""
+        },
+        {
+          "en": "It'S Something HE SAiD",
+          "voice_uz": "O'SHANDA HAM BO'LARDI , LEKIN JUDA HAM BO'LADI .",
+          "literal_mt": ""
+        },
+        {
+          "en": "Ock? WHAT? You Dont TALK About it.",
+          "voice_uz": "O'SHANDA HAM BO'LARDI , LEKIN JUDA HAM BO'LADI .",
+          "literal_mt": "NIMA, SEN BU HAQDA GAPLASHMAYSAN."
+        },
+        {
+          "en": "Wish coulD. but it'S Too_",
+          "voice_uz": "CRAZY-TOWN BANANA- PANTS.",
+          "literal_mt": "O'SHANDA HAM BO'LARDI , LEKIN JUDA HAM BO'LADI ."
+        },
+        {
+          "en": "CRAZY- TowN BANANA- PANTS.",
+          "voice_uz": "LEKIN MEN UNI TO'LDIRA OLARDIM.",
+          "literal_mt": "CRAZY-TOWN BANANA- PANTS."
+        },
+        {
+          "en": "BET I CoulD Top it_",
+          "voice_uz": "O'YLAYMANKI , PETE VA MEN YANA BIRGA BO'LA OLAMIZ .",
+          "literal_mt": "LEKIN MEN UNI TO'LDIRA OLARDIM."
+        },
+        {
+          "en": "Doubt It.",
+          "voice_uz": "RPFBL?",
+          "literal_mt": "O'YLAYMANKI , PETE VA MEN YANA BIRGA BO'LA OLAMIZ ."
+        },
+        {
+          "en": "I Think PETE AND I ArE Getting BACK ToGether.",
+          "voice_uz": "RPFBL?",
+          "literal_mt": "O'YLAYMANKI , PETE VA MEN YANA BIRGA BO'LA OLAMIZ ."
+        },
+        {
+          "en": "Two DAYS In A Row AND Spidey'S THE LEAD Story:",
+          "voice_uz": "IKKI KUN BIRINCHI QATORDA VA O'RGIMCHAK BOSH MAVZU",
+          "literal_mt": "IKKI KUN BIR QATORDA VA SPIDEY'S ENG BOSH MAVZU."
+        },
+        {
+          "en": "Spider-MAN, Im Ruth GOLDMAN, DEAN OF STUDEnTS.",
+          "voice_uz": "O'RGIMCHAK-ODAM, MEN RUT GOLDMAN, TALABALAR DEKANI.",
+          "literal_mt": "SPIDER-MAN, MEN RUT GOLDMAN, TALABALAR DEKANI."
+        },
+        {
+          "en": "it WAS No Trouble AT ALL_ MA'AM.",
+          "voice_uz": "A-- YO'Q, ARZIMAYDI",
+          "literal_mt": "BU HECH QANDAY ARZIMAYDI EDI."
+        },
+        {
+          "en": "AND So You Don'T Mind_",
+          "voice_uz": "...VA BU HAQIDA O'YLAMASANGIZ HAM BO'LADI",
+          "literal_mt": "VA SIZ UCHUN HAMMASI BEFARQ EMAS."
+        },
+        {
+          "en": "#You WErE Wrong AboUt ME, AND MAYBE I'vE Been Wrong About Youl",
+          "voice_uz": "SIZ MEN HAQIMDA NOTO'G'RI FIKRDA EDINGIZ VA MEN HAM BALKI SIZ HAQINGIZDA NOTO'G'RI FIKRDA EDIM!",
+          "literal_mt": "SIZ MEN HAQIMDA NOTO'G'RI EDI VA MEN SIZ HAQINGIZDA NOTO'G'RI BO'LGAN BO'LARDIM!"
+        },
+        {
+          "en": "YOU'VE DONE A HECKUVA Job HerE, Spidey!",
+          "voice_uz": "SIZ JUDA YAXSHI ISH QILDINGIZ, O'RGIMCHAK!",
+          "literal_mt": "SIZ JUDA YAXSHI ISH QILDINGIZ, SPIDEY!"
+        },
+        {
+          "en": "AkhHII CaN'T TAKE This AnyMoRei itis- t's CrAZY- Town BANANA PANTSI",
+          "voice_uz": "BU... BUNI QABUL QILA OLMAYMAN- BU AXMOQLIK-BU AQLDAN OZISH!",
+          "literal_mt": "BU... BU MUTLAQO AQLDAN OZISH!"
+        },
+        {
+          "en": "ThaT'S NOT Spider- MANI",
+          "voice_uz": "BU O'RGIMCHAK-ODAM EMAS!",
+          "literal_mt": "BU SPIDER-MAN EMAS!"
+        }
+      ],
+      "exact_lines": {
+        "HERMAN": "HERMAN?",
+        "DOUBT IT": "RPFBL?",
+        "DOUBT IT.": "RPFBL?",
+        "CRUSHED LARYNX.": "EZILGAN HIQILDOQ.",
+        "BRUISED TRACHEA.": "LAT YEGAN NAFAS YO'LI.",
+        "PLAN EPSILON FIVE": "REJA: EPSILON-BESH!",
+        "PLAN: EPSILON FIVE": "REJA: EPSILON-BESH!",
+        "BET I COULD TOP IT_": "O'YLAYMANKI , PETE VA MEN YANA BIRGA BO'LA OLAMIZ .",
+        "PLAN: EPSILON FIVE!": "REJA: EPSILON-BESH!",
+        "SECOND DAY ON THE JOB": "ISHDAGI IKKINCHI KUN...",
+        "AND SO YOU DON'T MIND_": "...VA BU HAQIDA O'YLAMASANGIZ HAM BO'LADI",
+        "IMPRESSED? DONT BOTHER": "QOYIL QOLDINGIZMI? OVORA BO'LMANG.",
+        "IT'S SOMETHING HE SAID": "O'SHANDA HAM BO'LARDI , LEKIN JUDA HAM BO'LADI .",
+        "IMPRESSED? DONT BOTHER.": "QOYIL QOLDINGIZMI? OVORA BO'LMANG.",
+        "SECOND DAY ON THE \"JOB\"": "ISHDAGI IKKINCHI KUN...",
+        "SECOND DAY ON THE 'JOB'": "ISHDAGI IKKINCHI KUN...",
+        "THAT'S NOT SPIDER- MANI": "BU O'RGIMCHAK-ODAM EMAS!",
+        "IMPRESSED? DON'T BOTHER.": "QOYIL QOLDINGIZMI? OVORA BO'LMANG.",
+        "SECOND DAY ON THE JOB...": "ISHDAGI IKKINCHI KUN...",
+        "WHAT AN UNEXPECTED HONOR": "Qanday kutilmagan sharaf.",
+        "CRAZY- TOWN BANANA- PANTS": "LEKIN MEN UNI TO'LDIRA OLARDIM.",
+        "WISH COULD. BUT IT'S TOO_": "CRAZY-TOWN BANANA- PANTS.",
+        "CRAZY- TOWN BANANA- PANTS.": "LEKIN MEN UNI TO'LDIRA OLARDIM.",
+        "SECOND DAY ON THE 'JOB'...": "ISHDAGI IKKINCHI KUN...",
+        "INSTANT FRICTIONLESS SURFACE": "ISHQALANISHSIZ TEZKOR SIRT!",
+        "INSTANT FRICTIONLESS SURFACE!": "ISHQALANISHSIZ TEZKOR SIRT!",
+        "STILL HURTS. BUT THAT'S NOT IT": "LEKIN BU EMAS, BU U AYTGAN NARSA",
+        "IT WAS NO TROUBLE AT ALL_ MA'AM": "A-- YO'Q, ARZIMAYDI",
+        "BRUISED TRACHEA. CRUSHED LARYNX.": "LAT YEGAN NAFAS YO'LI. EZILGAN HIQILDOQ.",
+        "IT WAS NO TROUBLE AT ALL_ MA'AM.": "A-- YO'Q, ARZIMAYDI",
+        "OCK? WHAT? YOU DON'T TALK ABOUT IT": "O'SHANDA HAM BO'LARDI , LEKIN JUDA HAM BO'LADI .",
+        "OCK? WHAT? YOU DONT TALK ABOUT IT.": "O'SHANDA HAM BO'LARDI , LEKIN JUDA HAM BO'LADI .",
+        "YOU'VE DONE A HECKUVA JOB HERE, SPIDEY": "SIZ JUDA YAXSHI ISH QILDINGIZ, O'RGIMCHAK!",
+        "YOU'VE DONE A HECKUVA JOB HERE, SPIDEY!": "SIZ JUDA YAXSHI ISH QILDINGIZ, O'RGIMCHAK!",
+        "ANYTHING FOR THE FORCES OF LAW AND ORDER": "Qonun va tartibot kuchlari uchun har narsaga tayyorman.",
+        "FOOLS! YOU ARE FACING A SUPERIOR INTELLECT!": "AHMOQLAR! SIZLAR MUTLAQO USTUN TAFAKKUR BILAN TO'QNASHDINGIZ!",
+        "I THINK PETE AND I ARE GETTING BACK TOGETHER": "RPFBL?",
+        "I THINK PETE AND I ARE GETTING BACK TOGETHER.": "RPFBL?",
+        "TWO DAYS IN A ROW AND SPIDEY'S THE LEAD STORY": "IKKI KUN BIRINCHI QATORDA VA O'RGIMCHAK BOSH MAVZU",
+        "SPIDER-MAN, I'M RUTH GOLDMAN, DEAN OF STUDENTS": "O'RGIMCHAK-ODAM, MEN RUT GOLDMAN, TALABALAR DEKANI.",
+        "SPIDER-MAN, IM RUTH GOLDMAN, DEAN OF STUDENTS.": "O'RGIMCHAK-ODAM, MEN RUT GOLDMAN, TALABALAR DEKANI.",
+        "TWO DAYS IN A ROW AND SPIDEY'S THE LEAD STORY:": "IKKI KUN BIRINCHI QATORDA VA O'RGIMCHAK BOSH MAVZU",
+        "AND NOT ONE OF THEM KNOWS I'M A DIFFERENT SPIDER-MAN": "VA ULARNING HECH BIRI MENI BOSHQA O'RGIMCHAK ODAMLIGIMNI BILMAYDI",
+        "AND NOT ONE OF THEM KNOWS IM A DIFFERENT SPIDER-MAN:": "VA ULARNING HECH BIRI MENI BOSHQA O'RGIMCHAK ODAMLIGIMNI BILMAYDI",
+        "AND NOT ONE OF THEM KNOWS I'M A DIFFERENT SPIDER-MAN.": "VA ULARDAN HECH BIRI MENING MUTLAQO BOSHQA SPIDER-MAN EKANIMNI BILMAYDI.",
+        "BUT SOON THEY'LL ALL LEARN THAT I'M A FAR SUPERIOR ONE": "BIROQ TEZ ORADA BARCHALARI MENING YUKSAK O'rgimcha odamligimni ANGLAB YETISHADI!",
+        "BUT SOON THEY'LL ALL LEARN THAT I AM A FAR SUPERIOR ONE": "BIROQ TEZ ORADA BARCHALARI MENING YUKSAK O'rgimcha odamligimni ANGLAB YETISHADI!",
+        "BUT SOON THEYLL ALL LEARN THAT I AM A FAR SUPERIOR ONE.": "BIROQ TEZ ORADA BARCHALARI MENING ANCHA USTUN SPIDER-MAN EKANIMNI ANGLAB YETISHADI!",
+        "...AND NOT ONE OF THEM KNOWS I'M A DIFFERENT SPIDER-MAN.": "...VA ULARDAN HECH BIRI MENING MUTLAQO BOSHQA SPIDER-MAN EKANIMNI BILMAYDI.",
+        "BUT SOON THEY 'LL ALL LEARN THAT I AM A FAR SUPERIOR ONE": "BIROQ TEZ ORADA BARCHALARI MENING ANCHA USTUN SPIDER-MAN EKANIMNI ANGLAB YETISHADI!",
+        "BUT SOON THEY'LL ALL LEARN THAT I AM A FAR SUPERIOR ONE.": "BIROQ TEZ ORADA BARCHALARI MENING ANCHA USTUN SPIDER-MAN EKANIMNI ANGLAB YETISHADI!",
+        "#YOU WERE WRONG ABOUT ME, AND MAYBE I'VE BEEN WRONG ABOUT YOUL": "SIZ MEN HAQIMDA NOTO'G'RI FIKRDA EDINGIZ VA MEN HAM BALKI SIZ HAQINGIZDA NOTO'G'RI FIKRDA EDIM!",
+        "AKHHII CAN'T TAKE THIS ANYMOREI ITIS- T'S CRAZY- TOWN BANANA PANTSI": "BU... BUNI QABUL QILA OLMAYMAN- BU AXMOQLIK-BU AQLDAN OZISH!"
+      },
+      "phrase_replacements": [
+        [
+          "\\bboshqa\\s+Spider-Man\\b",
+          "mutlaqo boshqa Spider-Man"
+        ],
+        [
+          "\\byuqori\\s+darajali\\b",
+          "ancha ustun"
+        ],
+        [
+          "\\bancha\\s+yaxshi\\b",
+          "ancha ustun"
+        ],
+        [
+          "\\bancha\\s+kuchli\\b",
+          "ancha ustun"
+        ],
+        [
+          "\\bbilib\\s+oladi\\b",
+          "anglab yetishadi"
+        ],
+        [
+          "\\btushunadi\\b",
+          "anglab yetadi"
+        ],
+        [
+          "\\bo['’]?rganib\\s+oladi\\b",
+          "anglab yetadi"
+        ],
+        [
+          "\\btashvish\\s+chekmang\\b",
+          "ovora bo'lmang"
+        ],
+        [
+          "\\bxavotir\\s+olmang\\b",
+          "ovora bo'lmang"
+        ],
+        [
+          "\\bkuchli\\s+aql\\b",
+          "ustun tafakkur"
+        ],
+        [
+          "\\baql\\s+egasi\\b",
+          "ustun tafakkur"
+        ],
+        [
+          "\\bmening\\s+robotlarim\\b",
+          "mening Spider-botlarim"
+        ],
+        [
+          "\\bkichik\\s+muammo\\b",
+          "arzimas to'siq"
+        ],
+        [
+          "\\boddiy\\s+ish\\b",
+          "arzimas yumush"
+        ],
+        [
+          "\\bmen\\s+yordam\\s+beraman\\b",
+          "men nazoratga olaman"
+        ],
+        [
+          "\\beplay\\s+olaman\\b",
+          "bartaraf etaman"
+        ],
+        [
+          "\\byaxshiroqman\\b",
+          "mutlaqo ustunman"
+        ],
+        [
+          "\\bkuchliroqman\\b",
+          "ancha ustunman"
+        ]
+      ],
+      "visual_signature": {
+        "last_updated": "2026-09-25",
+        "sample_count": 672,
+        "color_weights": [
+          0.004949728726768609,
+          0.004399758868238756,
+          0.056570185972292936,
+          0.04136157360737152,
+          0.0289136747842256,
+          0.05798475358691173,
+          0.038883007983190915,
+          0.022153478178149433,
+          0.002493416265690506,
+          0.052209380161123746,
+          0.05291600951318676,
+          0.024382361247007822,
+          0.016759480419476246,
+          0.02867375652120297,
+          0.005093819361019979,
+          0.07766382030562223,
+          0.03226676869612085,
+          0.03828037751711865,
+          0.01775107449913457,
+          0.032342024586223025,
+          0.012054232861509183,
+          0.05509341980480923,
+          0.00943321818744936,
+          0.0003861990147868914,
+          0.03300621964555411,
+          0.06342879265558646,
+          0.0029158272381269354,
+          0.004213311511595448,
+          0.021572109104499273,
+          0.03693400631773666,
+          0.002789769778412871,
+          0.021939279270342792,
+          0.001682230426578736,
+          0.0009535330845563748,
+          0.04788351549202081,
+          0.01955895006898071,
+          0.011036862742233144,
+          0.019070071995143965
+        ],
+        "dominant_colors": [
+          [
+            178,
+            30,
+            30
+          ],
+          [
+            30,
+            55,
+            175
+          ],
+          [
+            167,
+            172,
+            171
+          ],
+          [
+            158,
+            169,
+            172
+          ],
+          [
+            46,
+            43,
+            43
+          ],
+          [
+            90,
+            97,
+            94
+          ],
+          [
+            107,
+            109,
+            110
+          ],
+          [
+            116,
+            188,
+            201
+          ],
+          [
+            88,
+            129,
+            154
+          ],
+          [
+            146,
+            131,
+            119
+          ],
+          [
+            53,
+            54,
+            54
+          ],
+          [
+            47,
+            49,
+            48
+          ],
+          [
+            206,
+            148,
+            134
+          ],
+          [
+            63,
+            62,
+            54
+          ],
+          [
+            80,
+            106,
+            129
+          ],
+          [
+            171,
+            190,
+            189
+          ],
+          [
+            83,
+            166,
+            213
+          ],
+          [
+            128,
+            124,
+            110
+          ],
+          [
+            186,
+            201,
+            217
+          ],
+          [
+            118,
+            137,
+            146
+          ],
+          [
+            65,
+            56,
+            52
+          ],
+          [
+            187,
+            167,
+            153
+          ],
+          [
+            154,
+            216,
+            227
+          ],
+          [
+            146,
+            77,
+            56
+          ],
+          [
+            146,
+            106,
+            97
+          ],
+          [
+            177,
+            157,
+            146
+          ],
+          [
+            101,
+            161,
+            156
+          ],
+          [
+            192,
+            154,
+            114
+          ],
+          [
+            234,
+            188,
+            155
+          ],
+          [
+            186,
+            106,
+            89
+          ],
+          [
+            60,
+            79,
+            95
+          ],
+          [
+            125,
+            123,
+            116
+          ],
+          [
+            123,
+            93,
+            81
+          ],
+          [
+            126,
+            156,
+            177
+          ],
+          [
+            192,
+            175,
+            160
+          ],
+          [
+            59,
+            58,
+            56
+          ],
+          [
+            72,
+            64,
+            59
+          ],
+          [
+            200,
+            188,
+            170
+          ]
+        ]
+      }
+    },
+    {
+      "name": "Peter Parker (Ghost)",
+      "aliases": [
+        "peter parker (ghost)",
+        "peter parker ghost",
+        "ghost peter",
+        "peter ghost",
+        "peter parker",
+        "piter parker",
+        "ghost"
+      ],
+      "voice_traits": [
+        "Frustrated, desperate, and ironic internal spectral ghost commentary",
+        "Addresses Mayor Jameson respectfully with 'SIZ' in public/dialogue context ('Siz men haqimda adashgan')",
+        "Stunned disbelief at Doc Ock hijacking his life and reputation"
+      ],
+      "forbidden_tones": [
+        "Cold, arrogant superiority (that's Doc Ock/Otto)",
+        "Formal villainous declarations"
+      ],
+      "established_facts": [
+        "Trapped as a disembodied astral spirit witnessing Otto Octavius in his body",
+        "Frustrated that Jameson is finally nice to Spider-Man only when Otto is inside his body"
+      ],
+      "sample_lines": [
+        {
+          "en": "YOU WERE WRONG ABOUT ME, AND MAYBE I'VE BEEN WRONG ABOUT YOU!",
+          "voice_uz": "--Siz men haqimda adashgansiz, ehtimol men ham siz haqingizda adashgandirman!",
+          "literal_mt": "MEN HAQIMDA XATO QILDIM VA EHTIMOL MEN SIZ HAQINGIZDA XATO QILDIM!"
+        },
+        {
+          "en": "THAT'S OTTO OCTAVIUS, YOU FLAT-TOPPED FINK!",
+          "voice_uz": "Bu Otto Oktavius, ey yalpoqbosh ahmoq!",
+          "literal_mt": "BU OTTO OKTAVIUS, EY TEKIS KALLA ABLAX!"
+        },
+        {
+          "en": "I CAN'T BELIEVE IT! AFTER ALL THESE YEARS, JONAH FINALLY MAKES NICE...",
+          "voice_uz": "Ishonolmayman! Shuncha yildan keyin Jona nihoyat muloyimlashdi...",
+          "literal_mt": "ISHONOLMAYMAN! SHUNCHA YILDAN KEYIN JONA NIHONAT MULOYIMLAShDI..."
+        },
+        {
+          "en": "...AND HE DOES IT OVER MY DEAD BODY!",
+          "voice_uz": "...va buni faqat mening o‘ligim ustidan qilyapti!",
+          "literal_mt": "...VA U BUNI MENING O'LIGIM USTIDAN QILYAPTI!"
+        },
+        {
+          "en": "OR MY LIVE BODY WITH DOC OCK'S BRAIN!",
+          "voice_uz": "Yoki Dok Okning miyasi joylashgan tirik tanam orqali!",
+          "literal_mt": "YOKI DOKTOR OKTOPUS MIYASI BILAN TIRIK TANAM!"
+        },
+        {
+          "en": "AHHH! I CAN'T TAKE THIS ANYMORE! IT'S-- IT'S CRAZY TOWN BANANA-PANTS!",
+          "voice_uz": "Aaa! Bunga ortiq chiday olmayman! Bu... bu mutlaqo telbalik!",
+          "literal_mt": "AHH! ORTIQ CHIDAY OLMAYMAN! BU-- BU TELBALIK!"
+        }
+      ],
+      "exact_lines": {
+        "DOCTOR OCTOPUS IN MY BODY!": "Mening tanamdagi Doktor Sakkizoyoq!",
+        "DOCTOR OCTOPUS IN MY BODYI": "Mening tanamdagi Doktor Sakkizoyoq!",
+        "AND HE DOES IT OVER MY DEAD BODY!": "...va buni faqat mening o‘ligim ustidan qilyapti!",
+        "#AND HE DOES IT OVER MY DEAD BODYI": "...va buni faqat mening o‘ligim ustidan qilyapti!",
+        "...AND HE DOES IT OVER MY DEAD BODY!": "...va buni faqat mening o‘ligim ustidan qilyapti!",
+        "OR MY LIVE BODY WITH DOC OCK'S BRAIN!": "Yoki Dok Okning miyasi joylashgan tirik tanam orqali!",
+        "OR MY LIVE BODY WITH DOC OCK'S BRAINI": "Yoki Dok Okning miyasi joylashgan tirik tanam orqali!",
+        "THAT'S OTTO OCTAVIUS YOU FLAT-TOPPED FINK": "Bu Otto Oktavius, ey yalpoqbosh ahmoq!",
+        "THAT'S OTTO OCTAVIUS, YOU FLAT-TOPPED FINK!": "Bu Otto Oktavius, ey yalpoqbosh ahmoq!",
+        "THAT'S OTTO OCTAVIUS; YOU FLAT-TOPPED FINK!": "Bu Otto Oktavius, ey yalpoqbosh ahmoq!",
+        "THAT'S OTTO OCTAVIUS; YOU FLAT-TOPPED FINKA": "Bu Otto Oktavius, ey yalpoqbosh ahmoq!",
+        "YOU WERE WRONG ABOUT ME, AND MAYBE I'VE BEEN WRONG ABOUT YOU": "--Siz men haqimda adashgansiz, ehtimol men ham siz haqingizda adashgandirman!",
+        "YOU WERE WRONG ABOUT ME, AND MAYBE I'VE BEEN WRONG ABOUT YOU!": "--Siz men haqimda adashgansiz, ehtimol men ham siz haqingizda adashgandirman!",
+        "~OU WERE WRONG ABOUT ME, AND MAYBE I'VE BEEN WRONG ABOUT YOUL": "--Siz men haqimda adashgansiz, ehtimol men ham siz haqingizda adashgandirman!",
+        "I CAN'T BELIEVE IT! AFTER ALL THESE YEARS, JONAH FINALLY MAKES NICE": "Ishonolmayman! Shuncha yildan keyin Jona nihoyat muloyimlashdi...",
+        "I CAN'T BELIEVE IT! AFTER ALL THESE YEARS; JONAH FINALLY MAKES NICE": "Ishonolmayman! Shuncha yildan keyin Jona nihoyat muloyimlashdi...",
+        "I CAN'T BELIEVE ITI AFTER ALL THESE YEARS; JONAH FINALLY MAKES NICE": "Ishonolmayman! Shuncha yildan keyin Jona nihoyat muloyimlashdi...",
+        "AHHH! I CAN'T TAKE THIS ANYMORE! IT'S-- IT'S CRAZY TOWN BANANA-PANTS!": "Aaa! Bunga ortiq chiday olmayman! Bu... bu mutlaqo telbalik!",
+        "AHHHI I CAN'T TAKE THIS ANYMORE! IT'S-- IT'S CRAZY TOWN BANANA- PANTSI": "Aaa! Bunga ortiq chiday olmayman! Bu... bu mutlaqo telbalik!"
+      },
+      "phrase_replacements": [
+        [
+          "\\btekis\\s+kalla\\s+ablax\\b",
+          "yalpoqbosh ahmoq"
+        ],
+        [
+          "\\bflat-topped\\s+fink\\b",
+          "yalpoqbosh ahmoq"
+        ],
+        [
+          "\\bmakes\\s+nice\\b",
+          "muloyimlashdi"
+        ],
+        [
+          "\\bcrazy\\s+town\\s+banana-pants\\b",
+          "mutlaqo telbalik"
+        ],
+        [
+          "\\bdead\\s+body\\b",
+          "o'ligim"
+        ]
+      ]
+    },
+    {
+      "name": "J. Jonah Jameson",
+      "aliases": [
+        "j. jonah jameson",
+        "jonah jameson",
+        "mayor jameson",
+        "mayor j. jonah jameson",
+        "jonah",
+        "jameson",
+        "mer j. jona jeymson",
+        "mer jona jeymson",
+        "jona jeymson",
+        "mer jeymson",
+        "mayor jonah jameson"
+      ],
+      "voice_traits": [
+        "Bombastic, loud, self-aggrandizing civic authority ('Bu axir menman-ku!', 'Kattalik qilib')",
+        "Colorful colloquial idioms and folk expressions ('qoyilmaqom ish', 'yalpoqbosh ahmoq')",
+        "Condescending and patronizing tone towards superheroes and subordinates",
+        "Insistence on public recognition and memorial fund prestige"
+      ],
+      "forbidden_tones": [
+        "Boring, neutral bureaucratic tone ('juda yaxshi ish qildingiz')",
+        "Humble apologies or sincere self-doubt",
+        "Excessive politeness or servility"
+      ],
+      "established_facts": [
+        "Holds the office of Mayor of New York City ('Mer J. Jona Jeymson')",
+        "Founded the Marla Jameson Memorial Fund / Wing in honor of his late wife",
+        "Publicly patronizes Spider-Man while secretly taking credit for city safety"
+      ],
+      "sample_lines": [
+        {
+          "en": "WHY, THAT WOULD BE ME! MAYOR JONAH JAMESON!",
+          "voice_uz": "Bu axir menman-ku! Mer J. Jona Jeymson!",
+          "literal_mt": "NIMA UCHUN, BU MEN BO'LAMAN! MER J. JONA JEYMSON!"
+        },
+        {
+          "en": "AND AS THE BIGGER MAN HERE I'M MAGNANIMOUS ENOUGH TO ADMIT--",
+          "voice_uz": "Va bu yerda kattalik qilib, shuni tan olishga yetarlicha bag‘rikengman--",
+          "literal_mt": "VA MEN BU YERDA KATTA ODAM SIFATIDA MEN TAN OLISH UCHUN YETARLICHA OLIJANOBLIK--"
+        },
+        {
+          "en": "YOU'VE DONE A HECKUVA JOB HERE, SPIDEY!",
+          "voice_uz": "Bu yerda qoyilmaqom ish qilding, O‘rgimchak!",
+          "literal_mt": "SIZ BU YERDA JUDA YAXSHI ISH QILDINGIZ, SPIDEY!"
+        },
+        {
+          "en": "SO ON BEHALF OF THE MARLA JAMESON MEMORIAL FUND, LET ME JUST SAY--",
+          "voice_uz": "Shunday ekan, Marla Jeymson xotira jamg‘armasi nomidan shuni aytishga ijozat ber...",
+          "literal_mt": "MARLA JEYMSON XOTIRA FONDINING NOMIDAN, SHUNI AYTAMANKI--"
+        }
+      ],
+      "exact_lines": {
+        "YOU'VE DONE A HECKUVA JOB HERE SPIDEY": "Bu yerda qoyilmaqom ish qilding, O‘rgimchak!",
+        "YOU'VE DONE A HECKUVA JOB HERE , SPIDEY": "Bu yerda qoyilmaqom ish qilding, O‘rgimchak!",
+        "YOU'VE DONE A HECKUVA JOB HERE, SPIDEY!": "Bu yerda qoyilmaqom ish qilding, O‘rgimchak!",
+        "WHY THAT WOULD BE ME MAYOR JONAH JAMESON": "Bu axir menman-ku! Mer J. Jona Jeymson!",
+        "YOU'VE DONE A HECKUVA JOB HERE , SPIDEY!": "Bu yerda qoyilmaqom ish qilding, O‘rgimchak!",
+        "WHY, THAT WOULD BE ME! MAYOR JONAH JAMESON!": "Bu axir menman-ku! Mer J. Jona Jeymson!",
+        "WHY, THAT WOULD BE ME! MAYOR JONAH JAMESONI": "Bu axir menman-ku! Mer J. Jona Jeymson!",
+        "AND AS THE BIGGER MAN HERE I'M MAGNANIMOUS ENOUGH TO ADMIT": "Va bu yerda kattalik qilib, shuni tan olishga yetarlicha bag‘rikengman--",
+        "AND AS THE BIGGER MAN HERE IM MAGNANIMOUS ENOUGH TO ADMIT--": "Va bu yerda kattalik qilib, shuni tan olishga yetarlicha bag‘rikengman--",
+        "AND AS THE BIGGER MAN HERE I'M MAGNANIMOUS ENOUGH TO ADMIT--": "Va bu yerda kattalik qilib, shuni tan olishga yetarlicha bag‘rikengman--",
+        "SO ON BEHALF OF THE MARLA JAMESON MEMORIAL FUND, LET ME JUST SAY": "Shunday ekan, Marla Jeymson xotira jamg‘armasi nomidan shuni aytishga ijozat ber...",
+        "SO ON BEHALF OF THE MARLA JAMESON MEMORIAL FUND, LET ME JUST SAY--": "Shunday ekan, Marla Jeymson xotira jamg‘armasi nomidan shuni aytishga ijozat ber..."
+      },
+      "phrase_replacements": [
+        [
+          "\\bheckuva\\s+job\\b",
+          "qoyilmaqom ish"
+        ],
+        [
+          "\\bjuda\\s+yaxshi\\s+ish\\s+qildingiz\\b",
+          "qoyilmaqom ish qilding"
+        ],
+        [
+          "\\bjuda\\s+yaxshi\\s+ish\\s+qilding\\b",
+          "qoyilmaqom ish qilding"
+        ],
+        [
+          "\\bkatta\\s+odam\\s+sifatida\\b",
+          "kattalik qilib"
+        ],
+        [
+          "\\bolijanoblik\\b",
+          "bag'rikenglik"
+        ],
+        [
+          "\\byetarlicha\\s+olijanobman\\b",
+          "yetarlicha bag'rikengman"
+        ],
+        [
+          "\\bbu\\s+men\\s+bo['’`]?laman\\b",
+          "bu axir menman-ku"
+        ]
+      ]
+    }
+  ],
+  "version": 1
+}

@@ -1,0 +1,316 @@
+{
+  "version": 2,
+  "terms": [
+    {
+      "source_term": "the superior spider-man",
+      "canonical_uzbek": "Yuksak O'rgimchak-Odam",
+      "first_seen_page": "rulebook",
+      "locked": true,
+      "aliases": [
+        "superior spider-man"
+      ],
+      "entry_type": "title",
+      "method": "meaning"
+    },
+    {
+      "source_term": "spider-man",
+      "canonical_uzbek": "O'rgimchak-Odam",
+      "first_seen_page": "seed",
+      "locked": true,
+      "aliases": [
+        "spiderman",
+        "spider man"
+      ],
+      "entry_type": "character_name",
+      "method": "meaning"
+    },
+    {
+      "source_term": "spider-men",
+      "canonical_uzbek": "O'rgimchak-Odamlar",
+      "first_seen_page": "seed",
+      "locked": true,
+      "aliases": [
+        "spidermen"
+      ],
+      "entry_type": "character_name",
+      "method": "meaning"
+    },
+    {
+      "source_term": "spidey",
+      "canonical_uzbek": "O'rgimchak",
+      "first_seen_page": "seed",
+      "locked": true,
+      "aliases": [],
+      "entry_type": "character_name",
+      "method": "meaning"
+    },
+    {
+      "source_term": "beetle",
+      "canonical_uzbek": "Qo'ng'iz",
+      "first_seen_page": "rulebook",
+      "locked": true,
+      "aliases": [],
+      "entry_type": "character_name",
+      "method": "meaning"
+    },
+    {
+      "source_term": "living brain",
+      "canonical_uzbek": "Tirik Miya",
+      "first_seen_page": "rulebook",
+      "locked": true,
+      "aliases": [],
+      "entry_type": "character_name",
+      "method": "meaning"
+    },
+    {
+      "source_term": "doctor octopus",
+      "canonical_uzbek": "Doktor Oktopus",
+      "first_seen_page": "seed",
+      "locked": true,
+      "aliases": [
+        "doc ock"
+      ],
+      "entry_type": "character_name",
+      "method": "meaning"
+    },
+    {
+      "source_term": "doc ock",
+      "canonical_uzbek": "Doktor Oktopus",
+      "first_seen_page": "seed",
+      "locked": true,
+      "aliases": [],
+      "entry_type": "character_name",
+      "method": "meaning"
+    },
+    {
+      "source_term": "overdrive",
+      "canonical_uzbek": "Overdrayv",
+      "first_seen_page": "rulebook",
+      "locked": true,
+      "aliases": [],
+      "entry_type": "character_name",
+      "method": "transliteration_override",
+      "reason": "Speed-based villain moniker retained by pronunciation"
+    },
+    {
+      "source_term": "steven strange",
+      "canonical_uzbek": "Stivn-Strenj",
+      "first_seen_page": "rulebook",
+      "locked": true,
+      "aliases": [
+        "stephen strange"
+      ],
+      "entry_type": "real_person",
+      "method": "transliteration"
+    },
+    {
+      "source_term": "peter parker",
+      "canonical_uzbek": "Piter Parker",
+      "first_seen_page": "seed",
+      "locked": true,
+      "aliases": [
+        "parker"
+      ],
+      "entry_type": "real_person",
+      "method": "transliteration"
+    },
+    {
+      "source_term": "otto octavius",
+      "canonical_uzbek": "Otto Oktavius",
+      "first_seen_page": "seed",
+      "locked": true,
+      "aliases": [
+        "octavius"
+      ],
+      "entry_type": "real_person",
+      "method": "transliteration"
+    },
+    {
+      "source_term": "mayor j. jonah jameson",
+      "canonical_uzbek": "Mer J. Jona Jeymson",
+      "first_seen_page": "4.png",
+      "locked": true,
+      "aliases": [
+        "mayor jonah jameson",
+        "mayor jameson"
+      ],
+      "entry_type": "real_person",
+      "method": "transliteration"
+    },
+    {
+      "source_term": "j. jonah jameson",
+      "canonical_uzbek": "J. Jona Jeymson",
+      "first_seen_page": "seed",
+      "locked": true,
+      "aliases": [
+        "j jonah jameson",
+        "jj jameson"
+      ],
+      "entry_type": "real_person",
+      "method": "transliteration"
+    },
+    {
+      "source_term": "jonah jameson",
+      "canonical_uzbek": "Jona Jeymson",
+      "first_seen_page": "seed",
+      "locked": true,
+      "aliases": [],
+      "entry_type": "real_person",
+      "method": "transliteration"
+    },
+    {
+      "source_term": "jonah",
+      "canonical_uzbek": "Jona",
+      "first_seen_page": "4.png",
+      "locked": true,
+      "aliases": [],
+      "entry_type": "real_person",
+      "method": "transliteration"
+    },
+    {
+      "source_term": "jameson",
+      "canonical_uzbek": "Jeymson",
+      "first_seen_page": "seed",
+      "locked": true,
+      "aliases": [],
+      "entry_type": "real_person",
+      "method": "transliteration"
+    },
+    {
+      "source_term": "marla jameson memorial fund",
+      "canonical_uzbek": "Marla Jeymson xotira jamg'armasi",
+      "first_seen_page": "4.png",
+      "locked": true,
+      "aliases": [
+        "memorial fund",
+        "marla jameson memorial",
+        "marla jameson memorial fund"
+      ],
+      "entry_type": "term",
+      "method": "meaning"
+    },
+    {
+      "source_term": "marla jameson",
+      "canonical_uzbek": "Marla Jeymson",
+      "first_seen_page": "3.png",
+      "locked": true,
+      "aliases": [],
+      "entry_type": "real_person",
+      "method": "transliteration"
+    },
+    {
+      "source_term": "ruth goldman",
+      "canonical_uzbek": "Rut Goldman",
+      "first_seen_page": "3.png",
+      "locked": true,
+      "aliases": [
+        "dean goldman"
+      ],
+      "entry_type": "real_person",
+      "method": "transliteration"
+    },
+    {
+      "source_term": "dean goldman",
+      "canonical_uzbek": "Dekan Goldman",
+      "first_seen_page": "3.png",
+      "locked": true,
+      "aliases": [],
+      "entry_type": "real_person",
+      "method": "transliteration"
+    },
+    {
+      "source_term": "goldman",
+      "canonical_uzbek": "Goldman",
+      "first_seen_page": "3.png",
+      "locked": true,
+      "aliases": [],
+      "entry_type": "real_person",
+      "method": "transliteration"
+    },
+    {
+      "source_term": "mary jane watson",
+      "canonical_uzbek": "Meri Jeyn Uotson",
+      "first_seen_page": "seed",
+      "locked": true,
+      "aliases": [
+        "mj watson",
+        "mary jane"
+      ],
+      "entry_type": "real_person",
+      "method": "transliteration"
+    },
+    {
+      "source_term": "mary jane",
+      "canonical_uzbek": "Meri Jeyn",
+      "first_seen_page": "seed",
+      "locked": true,
+      "aliases": [
+        "mj"
+      ],
+      "entry_type": "real_person",
+      "method": "transliteration"
+    },
+    {
+      "source_term": "oscillator",
+      "canonical_uzbek": "Tebranish generatori",
+      "first_seen_page": "rulebook",
+      "locked": true,
+      "aliases": [],
+      "entry_type": "term",
+      "method": "fixed"
+    },
+    {
+      "source_term": "marla jameson memorial wing",
+      "canonical_uzbek": "Marla Jeymson xotira binosi",
+      "first_seen_page": "3.png",
+      "locked": true,
+      "aliases": [
+        "marla jameson wing"
+      ],
+      "entry_type": "term",
+      "method": "meaning"
+    },
+    {
+      "source_term": "empire state university",
+      "canonical_uzbek": "Empire State universiteti",
+      "first_seen_page": "3.png",
+      "locked": true,
+      "aliases": [
+        "esu"
+      ],
+      "entry_type": "term",
+      "method": "fixed"
+    },
+    {
+      "source_term": "empire state",
+      "canonical_uzbek": "Empire State",
+      "first_seen_page": "3.png",
+      "locked": true,
+      "aliases": [],
+      "entry_type": "term",
+      "method": "fixed"
+    },
+    {
+      "source_term": "daily bugle",
+      "canonical_uzbek": "Daily Bugle",
+      "first_seen_page": "seed",
+      "locked": true,
+      "aliases": [
+        "bugle"
+      ],
+      "entry_type": "term",
+      "method": "fixed"
+    },
+    {
+      "source_term": "midtown high",
+      "canonical_uzbek": "Midtown maktabi",
+      "first_seen_page": "seed",
+      "locked": true,
+      "aliases": [
+        "midtown high school"
+      ],
+      "entry_type": "term",
+      "method": "meaning"
+    }
+  ]
+}
