@@ -449,27 +449,20 @@ def split_bubble_action(b, bubble_id: int, live_render: bool = False):
 
 def render_right_panel_header(title: str, badge_text: str = "", close_key: str = "close_panel"):
     """Renders the sleek modern IDE-style right panel header matching left sidebar symmetry."""
-    st.markdown('<div id="right-sidebar-dock"></div>', unsafe_allow_html=True)
-    col_h1, col_h2 = st.columns([0.84, 0.16])
-    with col_h1:
-        badge_html = f'<span class="modern-badge-pill">{html.escape(badge_text)}</span>' if badge_text else ''
-        st.markdown(
-            f'''<div class="modern-panel-header">
-                <div class="modern-panel-title-wrap">
-                    <span class="modern-panel-icon">◨</span>
-                    <span class="modern-panel-title">{html.escape(title)}</span>
-                    {badge_html}
-                </div>
-            </div>''',
-            unsafe_allow_html=True
-        )
-    with col_h2:
-        st.markdown('<div class="close-sidebar-btn">', unsafe_allow_html=True)
-        if st.button("◧", key=close_key, help="O'ng panelni yopish (Close Panel)"):
-            st.session_state.show_editor_panel = False
-            st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
-    st.markdown("<hr style='border: none; border-top: 1px solid #1f1f25; margin: 4px 0 14px 0;' />", unsafe_allow_html=True)
+    open_cls = "sidebar-open" if st.session_state.get("show_editor_panel", True) else "sidebar-closed"
+    badge_html = f'<span class="modern-badge-pill">{html.escape(badge_text)}</span>' if badge_text else ''
+    st.markdown(
+        f'''<div id="right-sidebar-dock" class="{open_cls}"></div>
+        <div class="modern-panel-header">
+            <div class="modern-panel-title-wrap">
+                <span class="modern-panel-icon">◨</span>
+                <span class="modern-panel-title">{html.escape(title)}</span>
+                {badge_html}
+            </div>
+        </div>
+        <hr style="border: none; border-top: 1px solid #1f1f25; margin: 4px 0 14px 0;" />''',
+        unsafe_allow_html=True
+    )
 
 
 def render_bubble_editor_panel(live_render: bool = False, key_suffix: str = ""):
@@ -1360,7 +1353,7 @@ st.markdown("""
         border-top: 1px solid #1f1f25 !important;
     }
 
-    /* --- True Edge-to-Edge Right Sidebar (Identical to Left stSidebar) --- */
+    /* --- True Edge-to-Edge Right Sidebar with Smooth Slide Animation --- */
     div.stColumn:has(#right-sidebar-dock),
     div[data-testid="stColumn"]:has(#right-sidebar-dock),
     div[data-testid="column"]:has(#right-sidebar-dock) {
@@ -1379,21 +1372,52 @@ st.markdown("""
         border-top: none !important;
         border-bottom: none !important;
         border-radius: 0 !important;
-        padding: 16px 18px 24px 18px !important;
+        padding: 58px 18px 24px 18px !important;
         overflow-y: auto !important;
         z-index: 9999 !important;
         box-shadow: -4px 0 28px rgba(0, 0, 0, 0.55) !important;
+        transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease !important;
     }
 
-    /* Make the sibling main column expand to full width and reserve space for the fixed right sidebar */
+    /* Open state: slide in */
+    div.stColumn:has(#right-sidebar-dock.sidebar-open),
+    div[data-testid="stColumn"]:has(#right-sidebar-dock.sidebar-open),
+    div[data-testid="column"]:has(#right-sidebar-dock.sidebar-open) {
+        transform: translateX(0%) !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        visibility: visible !important;
+    }
+
+    /* Closed state: slide out */
+    div.stColumn:has(#right-sidebar-dock.sidebar-closed),
+    div[data-testid="stColumn"]:has(#right-sidebar-dock.sidebar-closed),
+    div[data-testid="column"]:has(#right-sidebar-dock.sidebar-closed) {
+        transform: translateX(105%) !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+        visibility: hidden !important;
+        box-shadow: none !important;
+    }
+
+    /* Main content column smooth transition */
     div[data-testid="stHorizontalBlock"]:has(#right-sidebar-dock) {
         gap: 0 !important;
     }
-    div[data-testid="stHorizontalBlock"]:has(#right-sidebar-dock) > div[data-testid="column"]:first-child,
-    div[data-testid="stHorizontalBlock"]:has(#right-sidebar-dock) > div.stColumn:first-child {
+    div[data-testid="stHorizontalBlock"]:has(#right-sidebar-dock.sidebar-open) > div[data-testid="column"]:first-child,
+    div[data-testid="stHorizontalBlock"]:has(#right-sidebar-dock.sidebar-open) > div.stColumn:first-child {
         flex: 1 1 100% !important;
         width: 100% !important;
         padding-right: 440px !important;
+        transition: padding-right 0.35s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    }
+
+    div[data-testid="stHorizontalBlock"]:has(#right-sidebar-dock.sidebar-closed) > div[data-testid="column"]:first-child,
+    div[data-testid="stHorizontalBlock"]:has(#right-sidebar-dock.sidebar-closed) > div.stColumn:first-child {
+        flex: 1 1 100% !important;
+        width: 100% !important;
+        padding-right: 0px !important;
+        transition: padding-right 0.35s cubic-bezier(0.16, 1, 0.3, 1) !important;
     }
     div.stColumn:has(#right-sidebar-dock)::-webkit-scrollbar,
     div[data-testid="stColumn"]:has(#right-sidebar-dock)::-webkit-scrollbar {
@@ -1483,28 +1507,45 @@ st.markdown("""
         background: #222228 !important;
     }
 
-    /* Floating Re-Open Button for Right Sidebar when collapsed */
-    .floating-right-reopen-wrap {
+    /* Fixed Top-Right Panel Toggle Button (Always at the top-right spot!) */
+    div:has(> div > div > #topright-panel-toggle-dock),
+    div[data-testid="stVerticalBlock"]:has(#topright-panel-toggle-dock),
+    div.element-container:has(#topright-panel-toggle-dock),
+    div.stElementContainer:has(#topright-panel-toggle-dock) {
         position: fixed !important;
-        top: 14px !important;
+        top: 54px !important;
         right: 18px !important;
-        z-index: 99999 !important;
+        z-index: 100000 !important;
+        width: 36px !important;
+        height: 36px !important;
+        margin: 0 !important;
+        padding: 0 !important;
     }
-    .floating-right-reopen-wrap button {
+    div:has(> div > div > #topright-panel-toggle-dock) button,
+    div[data-testid="stVerticalBlock"]:has(#topright-panel-toggle-dock) button,
+    div.stElementContainer:has(#topright-panel-toggle-dock) button {
         background: #18181c !important;
         border: 1px solid #27272f !important;
         color: #e4e4e7 !important;
         border-radius: 6px !important;
-        padding: 4px 12px !important;
-        font-size: 13px !important;
-        font-weight: 500 !important;
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45) !important;
+        width: 36px !important;
+        height: 36px !important;
+        min-height: 36px !important;
+        padding: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        font-size: 16px !important;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.45) !important;
         transition: all 0.15s ease !important;
     }
-    .floating-right-reopen-wrap button:hover {
+    div:has(> div > div > #topright-panel-toggle-dock) button:hover,
+    div[data-testid="stVerticalBlock"]:has(#topright-panel-toggle-dock) button:hover,
+    div.stElementContainer:has(#topright-panel-toggle-dock) button:hover {
         background: #222228 !important;
         border-color: #3f3f46 !important;
         color: #ffffff !important;
+        transform: scale(1.05) !important;
     }
 
     /* Modern Bubble Cards in Right Panel */
@@ -2037,6 +2078,17 @@ else:
     # Render Visual Capsule Stepper
     st.markdown(get_stepper_component(stage), unsafe_allow_html=True)
 
+    # Dedicated Fixed Top-Right Panel Toggle Button (Always in the same top-right spot!)
+    is_panel_open = st.session_state.get("show_editor_panel", True)
+    btn_panel_icon = "◧" if is_panel_open else "◫"
+    btn_panel_tip = "O'ng panelni yopish (Slide Close)" if is_panel_open else "O'ng panelni ochish (Slide Open)"
+
+    with st.container():
+        st.markdown('<div id="topright-panel-toggle-dock"></div>', unsafe_allow_html=True)
+        if st.button(btn_panel_icon, key="btn_fixed_panel_toggle", help=btn_panel_tip):
+            st.session_state.show_editor_panel = not is_panel_open
+            st.rerun()
+
     # Modern Workspace Breadcrumb + Status Indicator matching reference header
     cur_doc_name = st.session_state.image_name or "comic_page"
     st.markdown(
@@ -2053,7 +2105,7 @@ else:
         unsafe_allow_html=True
     )
 
-    col_nav1, col_nav2, col_nav3, col_toggle = st.columns([0.27, 0.27, 0.27, 0.19])
+    col_nav1, col_nav2, col_nav3 = st.columns(3)
     with col_nav1:
         if st.button("1. Skanerlash & Tozalash", type="primary" if stage == 1 else "secondary", use_container_width=True):
             st.session_state.current_stage = 1
@@ -2091,32 +2143,13 @@ else:
             st.session_state.current_stage = 3
             st.rerun()
 
-    with col_toggle:
-        is_open = st.session_state.get("show_editor_panel", True)
-        btn_label = "◨ Panel: Ochiq" if is_open else "◫ Panel: Yopiq"
-        btn_type = "primary" if is_open else "secondary"
-        if st.button(btn_label, key="btn_topbar_panel_toggle", type=btn_type, use_container_width=True, help="O'ng tarafdagi matnlar panelini ochish yoki yopish"):
-            st.session_state.show_editor_panel = not is_open
-            st.rerun()
-
     st.markdown("---")
-
-    if not is_open:
-        st.markdown('<div class="floating-right-reopen-wrap">', unsafe_allow_html=True)
-        if st.button("◧", key="btn_floating_right_reopen", help="O'ng panelni ochish (Open Right Sidebar)"):
-            st.session_state.show_editor_panel = True
-            st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
 
     # ----------------------------------------------------
     # STAGE 1: SCAN & CLEAN (Skanerlash va Tozalash)
     # ----------------------------------------------------
     if stage == 1:
-        if st.session_state.get("show_editor_panel", True):
-            col_left, col_right = st.columns([1.25, 0.75], gap="large")
-        else:
-            col_left = st.container()
-            col_right = None
+        col_left, col_right = st.columns([1.25, 0.75])
 
         with col_left:
             st.markdown("### Sahifa Ko'rinishi")
@@ -2229,11 +2262,7 @@ else:
     # ----------------------------------------------------
     elif stage == 2:
         sync_bubble_widgets()
-        if st.session_state.get("show_editor_panel", True):
-            col_left, col_right = st.columns([1.25, 0.75], gap="large")
-        else:
-            col_left = st.container()
-            col_right = None
+        col_left, col_right = st.columns([1.25, 0.75])
 
         with col_left:
             canvas = st.session_state.cleaned_page if st.session_state.cleaned_page is not None else st.session_state.image
@@ -2251,39 +2280,38 @@ else:
                 page_name=cur_page_name
             )
 
-        if col_right is not None:
-            with col_right:
-                p_cnt_str = f"{len(st.session_state.bubbles)} ta pufak" if st.session_state.bubbles else ""
-                render_right_panel_header("Tarjima & Tahrirlash", p_cnt_str, close_key="btn_close_panel_2")
+        with col_right:
+            p_cnt_str = f"{len(st.session_state.bubbles)} ta pufak" if st.session_state.bubbles else ""
+            render_right_panel_header("Tarjima & Tahrirlash", p_cnt_str, close_key="btn_close_panel_2")
 
-                st.caption("Tarjimalarni ko'rib chiqing va tahrirlang. Bu bosqichda og'ir grafik qayta ishlanmaydi.")
+            st.caption("Tarjimalarni ko'rib chiqing va tahrirlang. Bu bosqichda og'ir grafik qayta ishlanmaydi.")
 
-                col_btn1, col_btn2 = st.columns(2)
-                with col_btn1:
-                    if st.button("1-bosqichga qaytish", use_container_width=True):
-                        st.session_state.current_stage = 1
-                        st.rerun()
-                with col_btn2:
-                    unresolved = [
-                        b for b in st.session_state.bubbles
-                        if (b.get("needs_review", False) if isinstance(b, dict) else getattr(b, "needs_review", False))
-                        and (b.get("is_active", True) if isinstance(b, dict) else getattr(b, "is_active", True))
-                    ]
-                    if unresolved:
-                        st.markdown(
-                            f'<div style="color: #ef4444; font-size: 12px; font-weight: 700; margin-bottom: 4px;">'
-                            f'⚠️ {len(unresolved)} ta pufak ko\'rib chiqilishi kerak'
-                            f'</div>',
-                            unsafe_allow_html=True
-                        )
-                    if st.button("3-bosqich: Shriftlarni Yozish", type="primary", use_container_width=True):
-                        sync_bubble_widgets()
-                        trigger_render()
-                        st.session_state.current_stage = 3
-                        st.rerun()
+            col_btn1, col_btn2 = st.columns(2)
+            with col_btn1:
+                if st.button("1-bosqichga qaytish", use_container_width=True):
+                    st.session_state.current_stage = 1
+                    st.rerun()
+            with col_btn2:
+                unresolved = [
+                    b for b in st.session_state.bubbles
+                    if (b.get("needs_review", False) if isinstance(b, dict) else getattr(b, "needs_review", False))
+                    and (b.get("is_active", True) if isinstance(b, dict) else getattr(b, "is_active", True))
+                ]
+                if unresolved:
+                    st.markdown(
+                        f'<div style="color: #ef4444; font-size: 12px; font-weight: 700; margin-bottom: 4px;">'
+                        f'⚠️ {len(unresolved)} ta pufak ko\'rib chiqilishi kerak'
+                        f'</div>',
+                        unsafe_allow_html=True
+                    )
+                if st.button("3-bosqich: Shriftlarni Yozish", type="primary", use_container_width=True):
+                    sync_bubble_widgets()
+                    trigger_render()
+                    st.session_state.current_stage = 3
+                    st.rerun()
 
-                st.markdown("---")
-                render_bubble_editor_panel(live_render=False, key_suffix="st2")
+            st.markdown("---")
+            render_bubble_editor_panel(live_render=False, key_suffix="st2")
 
     # ----------------------------------------------------
     # STAGE 3: LETTERING & EXPORT (Yakuniy Lettering)
@@ -2293,11 +2321,7 @@ else:
         if st.session_state.rendered_image is None:
             trigger_render()
 
-        if st.session_state.get("show_editor_panel", True):
-            col_left, col_right = st.columns([1.25, 0.75], gap="large")
-        else:
-            col_left = st.container()
-            col_right = None
+        col_left, col_right = st.columns([1.25, 0.75])
 
         with col_left:
             st.markdown("### Yakuniy Lettering Natijasi")
@@ -2310,65 +2334,64 @@ else:
             with tab_orig:
                 st.image(st.session_state.image, use_container_width=True, caption="Asl sahifa")
 
-        if col_right is not None:
-            with col_right:
-                p_cnt_str = f"{len(st.session_state.bubbles)} ta pufak" if st.session_state.bubbles else ""
-                render_right_panel_header("Shriftlar & Jonli Tahrir", p_cnt_str, close_key="btn_close_panel_3")
+        with col_right:
+            p_cnt_str = f"{len(st.session_state.bubbles)} ta pufak" if st.session_state.bubbles else ""
+            render_right_panel_header("Shriftlar & Jonli Tahrir", p_cnt_str, close_key="btn_close_panel_3")
 
-                col_back, col_re = st.columns(2)
-                with col_back:
-                    if st.button("Matnlarni Qayta Tahrirlash (2-bosqich)", use_container_width=True):
-                        st.session_state.current_stage = 2
-                        st.rerun()
-                with col_re:
-                    if st.button("Jonli Qayta Chizish", type="primary", use_container_width=True):
-                        trigger_render()
-                        st.rerun()
+            col_back, col_re = st.columns(2)
+            with col_back:
+                if st.button("Matnlarni Qayta Tahrirlash (2-bosqich)", use_container_width=True):
+                    st.session_state.current_stage = 2
+                    st.rerun()
+            with col_re:
+                if st.button("Jonli Qayta Chizish", type="primary", use_container_width=True):
+                    trigger_render()
+                    st.rerun()
 
-                st.markdown("---")
-                st.markdown("#### Yuklab olish va Saqlash")
+            st.markdown("---")
+            st.markdown("#### Yuklab olish va Saqlash")
 
-                if st.session_state.rendered_image is not None:
-                    unresolved = [
-                        b for b in st.session_state.bubbles
-                        if (b.get("needs_review", False) if isinstance(b, dict) else getattr(b, "needs_review", False))
-                        and (b.get("is_active", True) if isinstance(b, dict) else getattr(b, "is_active", True))
-                    ]
-                    if unresolved:
-                        st.markdown(
-                            f'<div style="border: 1.5px solid #ef4444; background: rgba(239, 68, 68, 0.12); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; color: #fca5a5; font-size: 13px; line-height: 1.4;">'
-                            f'⚠️ <strong>Eksport Ogohlantirishi:</strong> {len(unresolved)} ta pufakda tarjima xatosi/qoldiq aniqlangan. Ushbu pufaklar komiksda asl inglizcha tasvir holatida tegilmasdan saqlanadi (xom matn ustiga yozilmaydi).'
-                            f'</div>',
-                            unsafe_allow_html=True
-                        )
-
-                    png_bytes = st.session_state.get("rendered_image_bytes") or pil_to_png_bytes(st.session_state.rendered_image)
-                    base_name = os.path.splitext(st.session_state.image_name)[0] or "comic"
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    dl_filename = f"{base_name}_uzbek_{timestamp}.png"
-
-                    st.download_button(
-                        label="Yuklab Olish (Download HD PNG)",
-                        data=png_bytes,
-                        file_name=dl_filename,
-                        mime="image/png",
-                        type="primary",
-                        use_container_width=True
+            if st.session_state.rendered_image is not None:
+                unresolved = [
+                    b for b in st.session_state.bubbles
+                    if (b.get("needs_review", False) if isinstance(b, dict) else getattr(b, "needs_review", False))
+                    and (b.get("is_active", True) if isinstance(b, dict) else getattr(b, "is_active", True))
+                ]
+                if unresolved:
+                    st.markdown(
+                        f'<div style="border: 1.5px solid #ef4444; background: rgba(239, 68, 68, 0.12); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; color: #fca5a5; font-size: 13px; line-height: 1.4;">'
+                        f'⚠️ <strong>Eksport Ogohlantirishi:</strong> {len(unresolved)} ta pufakda tarjima xatosi/qoldiq aniqlangan. Ushbu pufaklar komiksda asl inglizcha tasvir holatida tegilmasdan saqlanadi (xom matn ustiga yozilmaydi).'
+                        f'</div>',
+                        unsafe_allow_html=True
                     )
 
-                    if st.button("Server 'output/' papkasiga saqlash", use_container_width=True):
-                        os.makedirs("output", exist_ok=True)
-                        out_path = os.path.abspath(os.path.join("output", dl_filename))
-                        st.session_state.rendered_image.save(out_path, format="PNG")
-                        st.session_state.saved_file_path = out_path
-                        st.success(f"Komiks saqlandi: output/{dl_filename}", icon=":material/check_circle:")
+                png_bytes = st.session_state.get("rendered_image_bytes") or pil_to_png_bytes(st.session_state.rendered_image)
+                base_name = os.path.splitext(st.session_state.image_name)[0] or "comic"
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                dl_filename = f"{base_name}_uzbek_{timestamp}.png"
 
-                st.markdown("""
-                <div style="background: #16161a; border: 1px solid #23232a; border-left: 3px solid #b62b1a; border-radius: 6px; padding: 8px 12px; margin: 12px 0 10px 0; font-size: 12px; line-height: 1.4; color: #a1a1aa;">
-                    <strong style="color: #ffffff;">Jonli Tahrirlash:</strong> Matnni yoki shrift o'lchamini o'zgartirsangiz, komiks sahifasi avtomatik qayta chiziladi.
-                </div>
-                """, unsafe_allow_html=True)
+                st.download_button(
+                    label="Yuklab Olish (Download HD PNG)",
+                    data=png_bytes,
+                    file_name=dl_filename,
+                    mime="image/png",
+                    type="primary",
+                    use_container_width=True
+                )
 
-                render_bubble_editor_panel(live_render=True, key_suffix="st3")
+                if st.button("Server 'output/' papkasiga saqlash", use_container_width=True):
+                    os.makedirs("output", exist_ok=True)
+                    out_path = os.path.abspath(os.path.join("output", dl_filename))
+                    st.session_state.rendered_image.save(out_path, format="PNG")
+                    st.session_state.saved_file_path = out_path
+                    st.success(f"Komiks saqlandi: output/{dl_filename}", icon=":material/check_circle:")
+
+            st.markdown("""
+            <div style="background: #16161a; border: 1px solid #23232a; border-left: 3px solid #b62b1a; border-radius: 6px; padding: 8px 12px; margin: 12px 0 10px 0; font-size: 12px; line-height: 1.4; color: #a1a1aa;">
+                <strong style="color: #ffffff;">Jonli Tahrirlash:</strong> Matnni yoki shrift o'lchamini o'zgartirsangiz, komiks sahifasi avtomatik qayta chiziladi.
+            </div>
+            """, unsafe_allow_html=True)
+
+            render_bubble_editor_panel(live_render=True, key_suffix="st3")
 
 
