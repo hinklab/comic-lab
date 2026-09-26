@@ -26,8 +26,10 @@ import bubble_mask_editor
 import history_manager
 import engine
 
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 # --- Page config MUST be the very first Streamlit call -----------------
-_favicon_path = os.path.join(os.path.dirname(__file__), "assets", "favicon.png")
+_favicon_path = os.path.join(_BASE_DIR, "assets", "favicon.png")
 _page_icon = Image.open(_favicon_path) if os.path.exists(_favicon_path) else None
 st.set_page_config(
     page_title="COMIC-LAB",
@@ -62,9 +64,8 @@ def pil_to_png_bytes(img: Image.Image) -> bytes:
 def get_comic_star_b64() -> str:
     """Returns Base64 string of the comic explosion sticker (cached in memory)."""
     candidates = [
-        os.path.join(os.path.dirname(__file__), "assets", "comic-lab-logo.png"),
-        r"C:\Users\Ozod\Desktop\comic-lab-logo.png",
-        os.path.join(os.path.dirname(__file__), "assets", "comic_explosion_transparent.png"),
+        os.path.join(_BASE_DIR, "assets", "comic-lab-logo.png"),
+        os.path.join(_BASE_DIR, "assets", "comic_explosion_transparent.png"),
     ]
     for p in candidates:
         if os.path.exists(p):
@@ -1537,8 +1538,8 @@ st.markdown("""
 st.markdown(get_dropdown_fonts_css(), unsafe_allow_html=True)
 
 # Initialize Session State
-sample_page_19 = os.path.join(os.path.dirname(__file__), "samples", "page_19.png")
-sample_page_18 = os.path.join(os.path.dirname(__file__), "samples", "page_18.png")
+sample_page_19 = os.path.join(_BASE_DIR, "samples", "page_19.png")
+sample_page_18 = os.path.join(_BASE_DIR, "samples", "page_18.png")
 default_comic_path = sample_page_19 if os.path.exists(sample_page_19) else sample_page_18
 
 # Handle logo click / reset via query param
