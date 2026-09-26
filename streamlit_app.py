@@ -447,9 +447,33 @@ def split_bubble_action(b, bubble_id: int, live_render: bool = False):
     st.rerun()
 
 
+def render_right_panel_header(title: str, badge_text: str = "", close_key: str = "close_panel"):
+    """Renders the sleek modern IDE-style right panel header matching left sidebar symmetry."""
+    st.markdown('<div id="right-sidebar-dock"></div>', unsafe_allow_html=True)
+    col_h1, col_h2 = st.columns([0.84, 0.16])
+    with col_h1:
+        badge_html = f'<span class="modern-badge-pill">{html.escape(badge_text)}</span>' if badge_text else ''
+        st.markdown(
+            f'''<div class="modern-panel-header">
+                <div class="modern-panel-title-wrap">
+                    <span class="modern-panel-icon">◨</span>
+                    <span class="modern-panel-title">{html.escape(title)}</span>
+                    {badge_html}
+                </div>
+            </div>''',
+            unsafe_allow_html=True
+        )
+    with col_h2:
+        st.markdown('<div class="close-sidebar-btn">', unsafe_allow_html=True)
+        if st.button("◧", key=close_key, help="O'ng panelni yopish (Close Panel)"):
+            st.session_state.show_editor_panel = False
+            st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+
+
 def render_bubble_editor_panel(live_render: bool = False, key_suffix: str = ""):
     """
-    Renders the rich bubble text cards allowing full editing:
+    Renders the rich bubble text cards in a sleek modern IDE/Cursor-like inspector panel:
     - In Stage 2: normal edits
     - In Stage 3: live edits with on_change=trigger_render for instant re-rendering!
     """
@@ -457,9 +481,14 @@ def render_bubble_editor_panel(live_render: bool = False, key_suffix: str = ""):
         st.info("Pufaklar ro'yxati bo'sh.")
         return
 
-    col_p_title, col_p_undo, col_p_redo = st.columns([0.62, 0.19, 0.19])
+    col_p_title, col_p_undo, col_p_redo = st.columns([0.64, 0.18, 0.18])
     with col_p_title:
-        st.markdown(f"#### Aniqlangan Pufaklar ({len(st.session_state.bubbles)})")
+        st.markdown(
+            f'''<div class="modern-panel-section-header">
+                <span>PUFAKLAR ({len(st.session_state.bubbles)})</span>
+            </div>''',
+            unsafe_allow_html=True
+        )
     with col_p_undo:
         u_dis = not history_manager.can_undo()
         u_desc = history_manager.get_undo_description() or ""
@@ -499,39 +528,44 @@ def render_bubble_editor_panel(live_render: bool = False, key_suffix: str = ""):
             b.get("review_reason") if isinstance(b, dict) else getattr(b, "review_reason", None)
         ) or val.get("reason")
 
+        card_classes = ["modern-bubble-card"]
         if needs_review:
-            border_style = 'border: 2px solid #ef4444; background: rgba(239, 68, 68, 0.08); box-shadow: 0 0 14px rgba(239, 68, 68, 0.25); border-radius: 10px; padding: 12px; margin-bottom: 12px;'
-        elif is_active:
-            border_style = 'border: 1px solid #333333; background: #1e1e1e; border-radius: 10px; padding: 12px; margin-bottom: 12px;'
-        else:
-            border_style = 'border: 1px solid #262626; background: #141414; opacity: 0.6; border-radius: 10px; padding: 12px; margin-bottom: 12px;'
+            card_classes.append("needs-review")
+        if not is_active:
+            card_classes.append("disabled")
+        class_str = " ".join(card_classes)
 
         with st.container():
             orig_text = html.escape(b.get("original_text", "") if isinstance(b, dict) else getattr(b, "original_text", ""))
-            badge_extra = '<span style="background: #ef4444; color: white; padding: 2px 8px; border-radius: 4px; margin-left: 8px; font-weight: 700; font-size: 11px;">⚠️ KO\'RIB CHIQISH SHART</span>' if needs_review else ''
-            card_html = f'<div style="{border_style}"><span class="bubble-badge">Bubble #{bubble_id}</span>{badge_extra}<div class="dialogue-en"><strong>EN:</strong> {orig_text}</div>'
-            if needs_review:
-                card_html += f'<div style="margin-top: 8px; color: #fca5a5; font-size: 13px; font-weight: 600;">⚠️ <strong>Xatolik:</strong> {html.escape(review_reason or "Tarjima sifati tekshiruvi talab etiladi")}</div>'
-            card_html += '</div>'
-            st.markdown(card_html, unsafe_allow_html=True)
-
-            # Auto-Detected Character Indicator (Read-Only)
+            
+            # Speaker badge
             cur_spk = b.get("speaker") if isinstance(b, dict) else getattr(b, "speaker", None)
             cur_conf = b.get("speaker_confidence") if isinstance(b, dict) else getattr(b, "speaker_confidence", None)
             if cur_conf is None:
                 cur_conf = 0.0
-
             if cur_spk and cur_conf >= 0.55:
-                badge_html = f'''<div class="speaker-tag-wrap">
-                    <span class="speaker-tag-detected">{html.escape(cur_spk)}</span>
-                    <span class="speaker-conf-pill">{cur_conf:.0%} ishonch</span>
-                </div>'''
+                spk_html = f'<span class="modern-speaker-pill">{html.escape(cur_spk)} ({cur_conf:.0%})</span>'
             else:
-                badge_html = '''<div class="speaker-tag-wrap">
-                    <span class="speaker-tag-generic">Umumiy ovoz</span>
-                    <span class="speaker-conf-pill-muted">past ishonch (generic)</span>
+                spk_html = '<span class="modern-speaker-pill-muted">Umumiy ovoz</span>'
+
+            # Review badge
+            review_badge = '<span class="modern-review-pill">⚠️ KO\'RIB CHIQISH</span>' if needs_review else ''
+
+            card_html = f'''<div class="{class_str}">
+                <div class="mbc-header">
+                    <div class="mbc-tags">
+                        <span class="mbc-id">#{bubble_id}</span>
+                        {spk_html}
+                    </div>
+                    {review_badge}
+                </div>
+                <div class="mbc-orig-dialogue">
+                    <span class="mbc-orig-label">EN</span> {orig_text}
                 </div>'''
-            st.markdown(badge_html, unsafe_allow_html=True)
+            if needs_review:
+                card_html += f'<div class="mbc-error-notice">⚠️ {html.escape(review_reason or "Tarjima sifati tekshiruvi talab etiladi")}</div>'
+            card_html += '</div>'
+            st.markdown(card_html, unsafe_allow_html=True)
 
             col_active, col_text = st.columns([1.2, 3.8])
             with col_active:
@@ -1262,82 +1296,321 @@ st.markdown("""
         transform: translateY(-1px) !important;
     }
 
-    /* --- Right-side Editor Sidebar --------------------------------------- */
+    /* --- Modern Left Sidebar System -------------------------------------- */
+    section[data-testid="stSidebar"],
+    div[data-testid="stSidebar"] {
+        background-color: #111114 !important;
+        border-right: 1px solid #1f1f25 !important;
+        box-shadow: 4px 0 24px rgba(0, 0, 0, 0.45) !important;
+    }
+    section[data-testid="stSidebar"] hr {
+        border: none !important;
+        border-top: 1px solid #1f1f25 !important;
+        margin: 12px 0 16px 0 !important;
+    }
+    section[data-testid="stSidebar"] h3,
+    section[data-testid="stSidebar"] h4 {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+        font-size: 11px !important;
+        font-weight: 600 !important;
+        letter-spacing: 0.8px !important;
+        text-transform: uppercase !important;
+        color: #71717a !important;
+        margin: 14px 0 8px 0 !important;
+    }
+    button[data-testid="stSidebarCollapseButton"],
+    [data-testid="collapsedControl"] button {
+        background: #18181c !important;
+        border: 1px solid #27272f !important;
+        border-radius: 6px !important;
+        color: #a1a1aa !important;
+        transition: all 0.15s ease !important;
+    }
+    button[data-testid="stSidebarCollapseButton"]:hover,
+    [data-testid="collapsedControl"] button:hover {
+        background: #222228 !important;
+        border-color: #3f3f46 !important;
+        color: #ffffff !important;
+    }
+
+    /* Modern Expander matching reference sections */
+    div[data-testid="stExpander"] {
+        background-color: #141418 !important;
+        border: 1px solid #1f1f25 !important;
+        border-radius: 8px !important;
+        margin-bottom: 8px !important;
+        overflow: hidden !important;
+    }
+    div[data-testid="stExpander"]:hover {
+        border-color: #2b2b36 !important;
+    }
+    div[data-testid="stExpander"] > details > summary {
+        padding: 8px 12px !important;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+        font-size: 12px !important;
+        font-weight: 500 !important;
+        color: #d4d4d8 !important;
+    }
+    div[data-testid="stExpander"] > details > summary:hover {
+        color: #ffffff !important;
+    }
+    div[data-testid="stExpander"] > details > div {
+        padding: 10px 12px !important;
+        border-top: 1px solid #1f1f25 !important;
+    }
+
+    /* --- Modern Right Inspector Panel System ----------------------------- */
     div.stColumn:has(#right-sidebar-dock),
     div[data-testid="stColumn"]:has(#right-sidebar-dock),
     div[data-testid="column"]:has(#right-sidebar-dock) {
-        background-color: #000000 !important;  /* Black Void */
-        border: 1.5px solid #4d4d4d !important; /* Smoke */
-        border-radius: 14px !important;
-        padding: 18px 20px !important;
-        height: calc(100vh - 95px) !important;
-        max-height: calc(100vh - 95px) !important;
+        background-color: #111114 !important;
+        border: 1px solid #1f1f25 !important;
+        border-radius: 12px !important;
+        padding: 14px 16px !important;
+        height: calc(100vh - 80px) !important;
+        max-height: calc(100vh - 80px) !important;
         overflow-y: auto !important;
         position: sticky !important;
-        top: 60px !important;
-        box-shadow: -4px 0 25px rgba(0, 0, 0, 0.6) !important;
+        top: 56px !important;
+        box-shadow: -4px 0 28px rgba(0, 0, 0, 0.45) !important;
     }
     div.stColumn:has(#right-sidebar-dock)::-webkit-scrollbar,
     div[data-testid="stColumn"]:has(#right-sidebar-dock)::-webkit-scrollbar {
-        width: 6px;
+        width: 5px;
     }
     div.stColumn:has(#right-sidebar-dock)::-webkit-scrollbar-track,
     div[data-testid="stColumn"]:has(#right-sidebar-dock)::-webkit-scrollbar-track {
-        background: #000000;              /* Black Void */
+        background: transparent;
     }
     div.stColumn:has(#right-sidebar-dock)::-webkit-scrollbar-thumb,
     div[data-testid="stColumn"]:has(#right-sidebar-dock)::-webkit-scrollbar-thumb {
-        background: #4d4d4d;              /* Smoke */
-        border-radius: 4px;
+        background: #27272f;
+        border-radius: 9999px;
     }
     div.stColumn:has(#right-sidebar-dock)::-webkit-scrollbar-thumb:hover,
     div[data-testid="stColumn"]:has(#right-sidebar-dock)::-webkit-scrollbar-thumb:hover {
-        background: #b62b1a;              /* brand accent on hover */
+        background: #b62b1a;
     }
 
-    /* --- Sidebar panel title ---------------------------------------------- */
-    .rsidebar-title {
-        font-family: 'Inter', sans-serif !important;
-        font-size: 18px !important;        /* body/base */
-        font-weight: 380 !important;
-        line-height: 1.11 !important;
-        color: #ffffff !important;         /* Paper White */
-        letter-spacing: 0.5px !important;
+    /* Modern Panel Header */
+    .modern-panel-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding-bottom: 8px;
+        margin-bottom: 8px;
+    }
+    .modern-panel-title-wrap {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .modern-panel-icon {
+        color: #b62b1a;
+        font-size: 15px;
+        font-weight: 700;
+    }
+    .modern-panel-title {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+        font-size: 13px !important;
+        font-weight: 600 !important;
+        letter-spacing: 0.6px !important;
+        text-transform: uppercase !important;
+        color: #f4f4f5 !important;
+    }
+    .modern-badge-pill {
+        background: #1f1f25;
+        border: 1px solid #2b2b34;
+        color: #a1a1aa;
+        font-size: 11px;
+        font-weight: 500;
+        padding: 2px 7px;
+        border-radius: 9999px;
     }
 
-    /* --- Close sidebar button -------------------------------------------- */
+    /* Modern Section Header inside Right Panel */
+    .modern-panel-section-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.8px;
+        text-transform: uppercase;
+        color: #71717a;
+        margin: 10px 0 6px 0;
+        padding: 4px 0;
+    }
+
+    /* Close / Toggle Panel Button */
     .close-sidebar-btn button {
-        background: rgba(255, 255, 255, 0.04) !important;
-        border: 1px solid #4d4d4d !important;   /* Smoke */
-        color: #4d4d4d !important;              /* Smoke */
-        font-size: 20px !important;             /* subheading */
-        font-weight: 300 !important;
-        border-radius: 8px !important;
-        padding: 2px 10px !important;
-        min-height: 38px !important;
+        background: #18181c !important;
+        border: 1px solid #27272f !important;
+        color: #a1a1aa !important;
+        font-size: 16px !important;
+        font-weight: 500 !important;
+        border-radius: 6px !important;
+        padding: 2px 8px !important;
+        min-height: 32px !important;
+        height: 32px !important;
         line-height: 1 !important;
-        transition: all 0.2s ease !important;
+        transition: all 0.15s ease !important;
     }
     .close-sidebar-btn button:hover {
-        color: #ffffff !important;              /* Paper White */
-        border-color: #b62b1a !important;       /* brand accent */
-        background: rgba(182, 43, 26, 0.12) !important;
+        color: #ffffff !important;
+        border-color: #3f3f46 !important;
+        background: #222228 !important;
     }
 
-    /* --- Open sidebar button ---------------------------------------------- */
-    .open-sidebar-btn button {
-        font-family: 'Inter', sans-serif !important;
-        font-size: 18px !important;            /* body/base */
-        font-weight: 380 !important;
-        border: 1.5px solid #b62b1a !important;  /* brand accent */
-        color: #b62b1a !important;
-        border-radius: 8px !important;
-        background: rgba(182, 43, 26, 0.06) !important;
-        transition: all 0.2s ease !important;
+    /* Modern Bubble Cards in Right Panel */
+    .modern-bubble-card {
+        background: #16161a;
+        border: 1px solid #23232a;
+        border-radius: 8px;
+        padding: 10px 12px;
+        margin-bottom: 8px;
+        transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
     }
-    .open-sidebar-btn button:hover {
-        background: #b62b1a !important;
-        color: #ffffff !important;
+    .modern-bubble-card:hover {
+        border-color: #33333d;
+        background: #18181d;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    }
+    .modern-bubble-card.needs-review {
+        border-color: rgba(239, 68, 68, 0.45);
+        background: rgba(239, 68, 68, 0.04);
+        box-shadow: 0 0 16px rgba(239, 68, 68, 0.12);
+    }
+    .modern-bubble-card.disabled {
+        opacity: 0.45;
+        border-style: dashed;
+    }
+    .mbc-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 6px;
+    }
+    .mbc-tags {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .mbc-id {
+        background: #23232c;
+        border: 1px solid #2f2f3a;
+        color: #f4f4f5;
+        font-family: ui-monospace, monospace;
+        font-weight: 700;
+        font-size: 11px;
+        padding: 2px 7px;
+        border-radius: 4px;
+        letter-spacing: 0.3px;
+    }
+    .modern-speaker-pill {
+        background: rgba(59, 130, 246, 0.08);
+        border: 1px solid rgba(59, 130, 246, 0.22);
+        color: #93c5fd;
+        font-size: 11px;
+        font-weight: 500;
+        padding: 1px 7px;
+        border-radius: 4px;
+    }
+    .modern-speaker-pill-muted {
+        background: #1c1c22;
+        border: 1px solid #272730;
+        color: #71717a;
+        font-size: 11px;
+        font-weight: 400;
+        padding: 1px 6px;
+        border-radius: 4px;
+    }
+    .modern-review-pill {
+        background: rgba(239, 68, 68, 0.15);
+        border: 1px solid rgba(239, 68, 68, 0.4);
+        color: #fca5a5;
+        font-size: 10px;
+        font-weight: 700;
+        padding: 1px 6px;
+        border-radius: 4px;
+        letter-spacing: 0.5px;
+    }
+    .mbc-orig-dialogue {
+        background: #0d0d10;
+        border: 1px solid #1c1c23;
+        border-radius: 6px;
+        padding: 6px 9px;
+        font-size: 12px;
+        line-height: 1.35;
+        color: #a1a1aa;
+        margin-bottom: 6px;
+        word-break: break-word;
+    }
+    .mbc-orig-label {
+        font-family: ui-monospace, monospace;
+        font-size: 10px;
+        font-weight: 700;
+        color: #52525b;
+        background: #18181f;
+        padding: 1px 4px;
+        border-radius: 3px;
+        margin-right: 4px;
+    }
+    .mbc-error-notice {
+        margin-top: 6px;
+        padding: 5px 8px;
+        border-radius: 5px;
+        background: rgba(239, 68, 68, 0.08);
+        border-left: 3px solid #ef4444;
+        color: #fca5a5;
+        font-size: 12px;
+        font-weight: 500;
+    }
+
+    /* Workspace breadcrumb matching reference header */
+    .workspace-breadcrumb-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 6px 0 12px 0;
+        border-bottom: 1px solid #1f1f25;
+        margin-bottom: 12px;
+    }
+    .workspace-breadcrumb {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-size: 13px;
+        color: #71717a;
+    }
+    .workspace-breadcrumb .wb-root {
+        color: #e4e4e7;
+        font-weight: 600;
+    }
+    .workspace-breadcrumb .wb-sep {
+        color: #52525b;
+    }
+    .workspace-breadcrumb .wb-leaf {
+        color: #a1a1aa;
+    }
+    .workspace-stage-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: #71717a;
+        background: #141418;
+        border: 1px solid #23232a;
+        padding: 2px 8px;
+        border-radius: 9999px;
+    }
+    .wsi-dot {
+        width: 6px;
+        height: 6px;
+        background: #b62b1a;
+        border-radius: 50%;
+        display: inline-block;
     }
 
     /* --- Hide Streamlit footer ------------------------------------------- */
@@ -1620,9 +1893,9 @@ with st.sidebar:
     escaped_text = html.escape(preview_text or "QOYIL QOLDINGMI?!").upper()
 
     st.markdown(f"""
-    <div style="background: #000000; border: 2px solid #b62b1a; border-radius: 8px; padding: 16px; text-align: center; margin: 10px 0 14px 0;">
-      <div style="font-size: 11px; color: #4d4d4d; margin-bottom: 6px; font-family: sans-serif; letter-spacing: 1px;">
-        {clean_font_name.upper()} | {cur_font_size}PX | GAP: {cur_line_gap}PX
+    <div style="background: #141418; border: 1px solid #23232a; border-radius: 8px; padding: 14px; text-align: center; margin: 10px 0 14px 0;">
+      <div style="display: inline-flex; align-items: center; gap: 6px; font-size: 10px; color: #a1a1aa; background: #1c1c22; border: 1px solid #272730; padding: 2px 8px; border-radius: 9999px; margin-bottom: 8px; font-family: ui-monospace, monospace; letter-spacing: 0.5px;">
+        {clean_font_name.upper()} · {cur_font_size}PX · GAP {cur_line_gap}PX
       </div>
       <div class="comic-preview-text" style="
         font-size: {cur_font_size}px;
@@ -1719,7 +1992,23 @@ else:
     # Render Visual Capsule Stepper
     st.markdown(get_stepper_component(stage), unsafe_allow_html=True)
 
-    col_nav1, col_nav2, col_nav3 = st.columns(3)
+    # Modern Workspace Breadcrumb + Status Indicator matching reference header
+    cur_doc_name = st.session_state.image_name or "comic_page"
+    st.markdown(
+        f'''<div class="workspace-breadcrumb-bar">
+            <div class="workspace-breadcrumb">
+                <span class="wb-root">comic-lab</span>
+                <span class="wb-sep">/</span>
+                <span class="wb-leaf">{html.escape(cur_doc_name)}</span>
+            </div>
+            <div class="workspace-stage-indicator">
+                <span class="wsi-dot"></span> Bosqich {stage}/3
+            </div>
+        </div>''',
+        unsafe_allow_html=True
+    )
+
+    col_nav1, col_nav2, col_nav3, col_toggle = st.columns([0.27, 0.27, 0.27, 0.19])
     with col_nav1:
         if st.button("1. Skanerlash & Tozalash", type="primary" if stage == 1 else "secondary", use_container_width=True):
             st.session_state.current_stage = 1
@@ -1757,15 +2046,13 @@ else:
             st.session_state.current_stage = 3
             st.rerun()
 
-    # When right sidebar is closed, show open button at top right
-    if not st.session_state.get("show_editor_panel", True):
-        col_t_sp, col_t_open = st.columns([0.76, 0.24])
-        with col_t_open:
-            st.markdown('<div class="open-sidebar-btn">', unsafe_allow_html=True)
-            if st.button("Matnlar Paneli", key="btn_open_rsidebar", type="secondary", use_container_width=True, help="O'ng tarafdagi matnlar panelini ochish"):
-                st.session_state.show_editor_panel = True
-                st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
+    with col_toggle:
+        is_open = st.session_state.get("show_editor_panel", True)
+        btn_label = "◨ Panel: Ochiq" if is_open else "◫ Panel: Yopiq"
+        btn_type = "primary" if is_open else "secondary"
+        if st.button(btn_label, key="btn_topbar_panel_toggle", type=btn_type, use_container_width=True, help="O'ng tarafdagi matnlar panelini ochish yoki yopish"):
+            st.session_state.show_editor_panel = not is_open
+            st.rerun()
 
     st.markdown("---")
 
@@ -1800,17 +2087,8 @@ else:
 
         if col_right is not None:
             with col_right:
-                st.markdown('<div id="right-sidebar-dock"></div>', unsafe_allow_html=True)
-                col_h1, col_h2 = st.columns([0.84, 0.16])
-                with col_h1:
-                    st.markdown('<div class="rsidebar-title">Skanerlash & Tozalash</div>', unsafe_allow_html=True)
-                with col_h2:
-                    st.markdown('<div class="close-sidebar-btn">', unsafe_allow_html=True)
-                    if st.button("X", key="btn_close_panel_1", help="O'ng panelni yopish"):
-                        st.session_state.show_editor_panel = False
-                        st.rerun()
-                    st.markdown('</div>', unsafe_allow_html=True)
-                st.markdown("<hr style='border: none; border-top: 1px solid #4d4d4d; margin: 4px 0 14px 0;' />", unsafe_allow_html=True)
+                p_cnt_str = f"{len(st.session_state.raw_bubbles)} ta pufak" if st.session_state.raw_bubbles else ""
+                render_right_panel_header("Skanerlash & Tozalash", p_cnt_str, close_key="btn_close_panel_1")
 
                 st.caption("EasyOCR pufaklarni aniqlaydi va qog'oz teksturasini buzmasdan faqat qora siyohni tozalaydi (Pure Ink Inpainting).")
 
@@ -1878,10 +2156,20 @@ else:
 
                     st.success(f"Tozalash muvaffaqiyatli! {len(st.session_state.raw_bubbles)} ta pufak topildi va matnlar to'liq o'chirildi.", icon=":material/check_circle:")
                     
-                    st.markdown(f"#### Aniqlangan Matnlar (Ingliz tilida - {len(st.session_state.raw_bubbles)} ta):")
+                    st.markdown(
+                        f'''<div class="modern-panel-section-header">
+                            <span>ANIQLANGAN MATNLAR ({len(st.session_state.raw_bubbles)})</span>
+                        </div>''',
+                        unsafe_allow_html=True
+                    )
                     for b in st.session_state.raw_bubbles:
                         esc_orig = html.escape(b.original_text)
-                        card_html = f'<div class="bubble-card"><span class="bubble-badge">Bubble #{b.bubble_id}</span><div class="dialogue-en"><strong>EN:</strong> {esc_orig}</div></div>'
+                        card_html = (
+                            f'<div class="modern-bubble-card">'
+                            f'<div class="mbc-header"><div class="mbc-tags"><span class="mbc-id">#{b.bubble_id}</span></div></div>'
+                            f'<div class="mbc-orig-dialogue"><span class="mbc-orig-label">EN</span>{esc_orig}</div>'
+                            f'</div>'
+                        )
                         st.markdown(card_html, unsafe_allow_html=True)
 
     # ----------------------------------------------------
@@ -1913,17 +2201,8 @@ else:
 
         if col_right is not None:
             with col_right:
-                st.markdown('<div id="right-sidebar-dock"></div>', unsafe_allow_html=True)
-                col_h1, col_h2 = st.columns([0.84, 0.16])
-                with col_h1:
-                    st.markdown('<div class="rsidebar-title">Tarjima & Tahrirlash</div>', unsafe_allow_html=True)
-                with col_h2:
-                    st.markdown('<div class="close-sidebar-btn">', unsafe_allow_html=True)
-                    if st.button("X", key="btn_close_panel_2", help="O'ng panelni yopish"):
-                        st.session_state.show_editor_panel = False
-                        st.rerun()
-                    st.markdown('</div>', unsafe_allow_html=True)
-                st.markdown("<hr style='border: none; border-top: 1px solid #4d4d4d; margin: 4px 0 14px 0;' />", unsafe_allow_html=True)
+                p_cnt_str = f"{len(st.session_state.bubbles)} ta pufak" if st.session_state.bubbles else ""
+                render_right_panel_header("Tarjima & Tahrirlash", p_cnt_str, close_key="btn_close_panel_2")
 
                 st.caption("Tarjimalarni ko'rib chiqing va tahrirlang. Bu bosqichda og'ir grafik qayta ishlanmaydi.")
 
@@ -1981,17 +2260,8 @@ else:
 
         if col_right is not None:
             with col_right:
-                st.markdown('<div id="right-sidebar-dock"></div>', unsafe_allow_html=True)
-                col_h1, col_h2 = st.columns([0.84, 0.16])
-                with col_h1:
-                    st.markdown('<div class="rsidebar-title">Shriftlar & Jonli Tahrir</div>', unsafe_allow_html=True)
-                with col_h2:
-                    st.markdown('<div class="close-sidebar-btn">', unsafe_allow_html=True)
-                    if st.button("X", key="btn_close_panel_3", help="O'ng panelni yopish"):
-                        st.session_state.show_editor_panel = False
-                        st.rerun()
-                    st.markdown('</div>', unsafe_allow_html=True)
-                st.markdown("<hr style='border: none; border-top: 1px solid #4d4d4d; margin: 4px 0 14px 0;' />", unsafe_allow_html=True)
+                p_cnt_str = f"{len(st.session_state.bubbles)} ta pufak" if st.session_state.bubbles else ""
+                render_right_panel_header("Shriftlar & Jonli Tahrir", p_cnt_str, close_key="btn_close_panel_3")
 
                 col_back, col_re = st.columns(2)
                 with col_back:
@@ -2042,8 +2312,8 @@ else:
                         st.success(f"Komiks saqlandi: output/{dl_filename}", icon=":material/check_circle:")
 
                 st.markdown("""
-                <div style="background: rgba(182, 43, 26, 0.06); border: 1.5px solid #b62b1a; border-radius: 8px; padding: 10px 14px; margin: 14px 0 10px 0; font-size: 18px; font-weight: 380; line-height: 1.11; color: #ffffff;">
-                    <strong>Jonli Tahrirlash:</strong> Matnni yoki shrift o'lchamini o'zgartirsangiz, komiks sahifasi darhol yangilanadi!
+                <div style="background: #16161a; border: 1px solid #23232a; border-left: 3px solid #b62b1a; border-radius: 6px; padding: 8px 12px; margin: 12px 0 10px 0; font-size: 12px; line-height: 1.4; color: #a1a1aa;">
+                    <strong style="color: #ffffff;">Jonli Tahrirlash:</strong> Matnni yoki shrift o'lchamini o'zgartirsangiz, komiks sahifasi avtomatik qayta chiziladi.
                 </div>
                 """, unsafe_allow_html=True)
 
