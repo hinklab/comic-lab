@@ -469,6 +469,7 @@ def render_right_panel_header(title: str, badge_text: str = "", close_key: str =
             st.session_state.show_editor_panel = False
             st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown("<hr style='border: none; border-top: 1px solid #1f1f25; margin: 4px 0 14px 0;' />", unsafe_allow_html=True)
 
 
 def render_bubble_editor_panel(live_render: bool = False, key_suffix: str = ""):
@@ -1359,20 +1360,40 @@ st.markdown("""
         border-top: 1px solid #1f1f25 !important;
     }
 
-    /* --- Modern Right Inspector Panel System ----------------------------- */
+    /* --- True Edge-to-Edge Right Sidebar (Identical to Left stSidebar) --- */
     div.stColumn:has(#right-sidebar-dock),
     div[data-testid="stColumn"]:has(#right-sidebar-dock),
     div[data-testid="column"]:has(#right-sidebar-dock) {
+        position: fixed !important;
+        top: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        width: 420px !important;
+        max-width: 420px !important;
+        min-width: 360px !important;
+        height: 100vh !important;
+        max-height: 100vh !important;
         background-color: #111114 !important;
-        border: 1px solid #1f1f25 !important;
-        border-radius: 12px !important;
-        padding: 14px 16px !important;
-        height: calc(100vh - 80px) !important;
-        max-height: calc(100vh - 80px) !important;
+        border-left: 1px solid #1f1f25 !important;
+        border-right: none !important;
+        border-top: none !important;
+        border-bottom: none !important;
+        border-radius: 0 !important;
+        padding: 16px 18px 24px 18px !important;
         overflow-y: auto !important;
-        position: sticky !important;
-        top: 56px !important;
-        box-shadow: -4px 0 28px rgba(0, 0, 0, 0.45) !important;
+        z-index: 9999 !important;
+        box-shadow: -4px 0 28px rgba(0, 0, 0, 0.55) !important;
+    }
+
+    /* Make the sibling main column expand to full width and reserve space for the fixed right sidebar */
+    div[data-testid="stHorizontalBlock"]:has(#right-sidebar-dock) {
+        gap: 0 !important;
+    }
+    div[data-testid="stHorizontalBlock"]:has(#right-sidebar-dock) > div[data-testid="column"]:first-child,
+    div[data-testid="stHorizontalBlock"]:has(#right-sidebar-dock) > div.stColumn:first-child {
+        flex: 1 1 100% !important;
+        width: 100% !important;
+        padding-right: 440px !important;
     }
     div.stColumn:has(#right-sidebar-dock)::-webkit-scrollbar,
     div[data-testid="stColumn"]:has(#right-sidebar-dock)::-webkit-scrollbar {
@@ -1460,6 +1481,30 @@ st.markdown("""
         color: #ffffff !important;
         border-color: #3f3f46 !important;
         background: #222228 !important;
+    }
+
+    /* Floating Re-Open Button for Right Sidebar when collapsed */
+    .floating-right-reopen-wrap {
+        position: fixed !important;
+        top: 14px !important;
+        right: 18px !important;
+        z-index: 99999 !important;
+    }
+    .floating-right-reopen-wrap button {
+        background: #18181c !important;
+        border: 1px solid #27272f !important;
+        color: #e4e4e7 !important;
+        border-radius: 6px !important;
+        padding: 4px 12px !important;
+        font-size: 13px !important;
+        font-weight: 500 !important;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45) !important;
+        transition: all 0.15s ease !important;
+    }
+    .floating-right-reopen-wrap button:hover {
+        background: #222228 !important;
+        border-color: #3f3f46 !important;
+        color: #ffffff !important;
     }
 
     /* Modern Bubble Cards in Right Panel */
@@ -2055,6 +2100,13 @@ else:
             st.rerun()
 
     st.markdown("---")
+
+    if not is_open:
+        st.markdown('<div class="floating-right-reopen-wrap">', unsafe_allow_html=True)
+        if st.button("◧", key="btn_floating_right_reopen", help="O'ng panelni ochish (Open Right Sidebar)"):
+            st.session_state.show_editor_panel = True
+            st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
     # ----------------------------------------------------
     # STAGE 1: SCAN & CLEAN (Skanerlash va Tozalash)
