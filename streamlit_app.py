@@ -459,35 +459,65 @@ def inject_drawer_css():
     is_open = bool(st.session_state.get("show_editor_panel", True) and st.session_state.get("image") is not None)
     css = """
 <style>
-:root { --drawer-w: __W__px; --drawer-pad: __PAD__px; --drawer-anim: __ANIM__; }
+:root {
+  --drawer-w: __W__px;
+  --drawer-pad: __PAD__px;
+  --panel-anim: __ANIM__;
+  --panel-bg: var(--secondary-background-color, #111114);
+  --panel-border: rgba(250, 250, 250, 0.12);
+  --panel-text: var(--text-color, #fafafa);
+}
 
 /* 1) PUSH/SHRINK: [sidebar | main] qatorining o'ng tomoniga joy ochamiz */
 [data-testid="stAppViewContainer"] {
   box-sizing: border-box !important;
   padding-right: var(--drawer-pad) !important;
-  transition: padding-right var(--drawer-anim) !important;
+  transition: padding-right var(--panel-anim) !important;
 }
 
-/* 2) Yuqoridagi fixed header ham qisqaradi (Deploy tugmasi panel tagida qolmasin) */
+/* 2) Yuqoridagi fixed header ham qisqaradi (Deploy/Toolbar panel tagida qolmasin) */
 [data-testid="stHeader"] {
   width: calc(100% - var(--drawer-pad)) !important;
-  transition: width var(--drawer-anim) !important;
+  transition: width var(--panel-anim) !important;
+}
+[data-testid="stToolbar"] {
+  margin-right: __TB__ !important;
+  transition: margin-right var(--panel-anim) !important;
 }
 
-/* 3) Drawer: st.container(key="right_drawer") -> .st-key-right_drawer */
+/* 3) CHAP PANEL: slide animatsiyani majburlash (o'ng panel bilan bir xil rang va tezlik) */
+section[data-testid="stSidebar"],
+div[data-testid="stSidebar"] {
+  background-color: var(--panel-bg) !important;
+  border-right: 1px solid var(--panel-border) !important;
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.45) !important;
+  transition: transform var(--panel-anim), min-width var(--panel-anim),
+              max-width var(--panel-anim), margin-left var(--panel-anim) !important;
+}
+
+/* 4) O'NG PANEL: st.container(key="right_drawer") -> .st-key-right_drawer */
 .st-key-right_drawer {
-  position: fixed !important; top: 0 !important; right: 0 !important; bottom: 0 !important;
-  width: var(--drawer-w) !important; max-width: 100vw !important;
-  overflow-y: auto !important; padding: 58px 1.25rem 2rem 1.25rem !important;
-  background: #111114 !important; border-left: 1px solid #1f1f25 !important;
-  border-right: none !important; border-top: none !important; border-bottom: none !important;
+  position: fixed !important;
+  top: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: var(--drawer-w) !important;
+  max-width: 100vw !important;
+  box-sizing: border-box !important;
+  overflow-y: auto !important;
+  padding: 0.85rem 1.25rem 2rem 1.25rem !important;
+  background: var(--panel-bg) !important;
+  border-left: 1px solid var(--panel-border) !important;
+  border-right: none !important;
+  border-top: none !important;
+  border-bottom: none !important;
   border-radius: 0 !important;
-  z-index: 1000001 !important;                         /* stHeader (999990) dan yuqori */
+  color: var(--panel-text) !important;
+  z-index: 1000001 !important;
   box-shadow: -4px 0 28px rgba(0, 0, 0, 0.55) !important;
   transform: translateX(__TX__) !important;
   visibility: __VIS__ !important;
-  /* yopilganda visibility slide tugagach o'chadi; ochilganda darrov yoqiladi */
-  transition: transform var(--drawer-anim), visibility 0s linear __VISDELAY__ !important;
+  transition: transform var(--panel-anim), visibility 0s linear __VISDELAY__ !important;
 }
 
 .st-key-right_drawer::-webkit-scrollbar {
@@ -503,6 +533,72 @@ def inject_drawer_css():
 .st-key-right_drawer::-webkit-scrollbar-thumb:hover {
   background: #b62b1a;
 }
+
+.panel-title {
+  margin: 0 !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.8px !important;
+  text-transform: uppercase !important;
+  color: #a1a1aa !important;
+}
+
+/* 5) CHAP VA O'NG TUGMALAR BIR XIL USLUBDA (Shaffof, hoshiyasiz, hover yorug') */
+.st-key-drawer_open button,
+[class*="st-key-drawer_close"] button,
+button[data-testid="stSidebarCollapseButton"],
+[data-testid="stSidebarCollapseButton"] button,
+[data-testid="collapsedControl"] button,
+[data-testid="stSidebarCollapsedControl"] button {
+  width: 2rem !important;
+  height: 2rem !important;
+  min-height: 2rem !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: var(--panel-text) !important;
+  opacity: .65 !important;
+  border-radius: .5rem !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: opacity .2s, background-color .2s !important;
+}
+.st-key-drawer_open button:hover,
+[class*="st-key-drawer_close"] button:hover,
+button[data-testid="stSidebarCollapseButton"]:hover,
+[data-testid="stSidebarCollapseButton"] button:hover,
+[data-testid="collapsedControl"] button:hover,
+[data-testid="stSidebarCollapsedControl"] button:hover {
+  opacity: 1 !important;
+  background: rgba(250, 250, 250, .08) !important;
+}
+.st-key-drawer_open button p,
+[class*="st-key-drawer_close"] button p,
+.st-key-drawer_open button span,
+[class*="st-key-drawer_close"] button span {
+  font-size: 1.25rem !important;
+  line-height: 1 !important;
+  margin: 0 !important;
+}
+
+[class*="st-key-drawer_close"] {
+  display: flex !important;
+  justify-content: flex-end !important;
+}
+
+/* Floating top-right Open Button when drawer is closed */
+.st-key-drawer_open {
+  position: fixed !important;
+  top: .6rem !important;
+  right: .75rem !important;
+  z-index: 1000002 !important;
+  width: auto !important;
+  animation: panelFade var(--panel-anim) !important;
+}
+@keyframes panelFade { from {opacity: 0} to {opacity: 1} }
 
 /* rerun paytida Streamlit elementlarni xiralashtirmasin (flicker) */
 [data-stale="true"] { opacity: 1 !important; }
@@ -520,37 +616,35 @@ def inject_drawer_css():
               .replace("__ANIM__", ANIM)
               .replace("__TX__", "0" if is_open else "105%")
               .replace("__VIS__", "visible" if is_open else "hidden")
-              .replace("__VISDELAY__", "0s" if is_open else "0.35s"))
+              .replace("__VISDELAY__", "0s" if is_open else "0.35s")
+              .replace("__TB__", "0" if is_open else "2.75rem"))
     st.markdown(css, unsafe_allow_html=True)
 
 
 def render_right_panel_header(title: str, badge_text: str = "", close_key: str = "close_panel"):
     """Renders the sleek modern IDE-style right panel header matching left sidebar symmetry."""
-    badge_html = f'<span class="modern-badge-pill">{html.escape(badge_text)}</span>' if badge_text else ''
+    badge_html = f' <span class="modern-badge-pill">{html.escape(badge_text)}</span>' if badge_text else ''
     
-    col_rh_title, col_rh_btn = st.columns([0.86, 0.14])
+    col_rh_title, col_rh_btn = st.columns([0.86, 0.14], vertical_alignment="center")
     with col_rh_title:
         st.markdown(
-            f'<div class="modern-panel-header">'
-            f'<div class="modern-panel-title-wrap">'
-            f'<span class="modern-panel-icon">◨</span>'
-            f'<span class="modern-panel-title">{html.escape(title)}</span>'
-            f'{badge_html}'
-            f'</div></div>',
+            f'<div style="display: flex; align-items: center; gap: 8px;">'
+            f'<span style="color: #b62b1a; font-size: 14px; font-weight: 700;">◨</span>'
+            f'<p class="panel-title">{html.escape(title)}</p>{badge_html}'
+            f'</div>',
             unsafe_allow_html=True
         )
     with col_rh_btn:
-        st.markdown('<div class="panel-close-btn"></div>', unsafe_allow_html=True)
         st.button(
-            "◨",
-            key=f"btn_close_panel_{close_key}",
+            ":material/keyboard_double_arrow_right:",
+            key=f"drawer_close_{close_key}",
             on_click=set_drawer,
             args=(False,),
-            help="O'ng panelni yopish (Slide Close)",
+            help="Yopish",
             use_container_width=True
         )
 
-    st.markdown('<hr style="border: none; border-top: 1px solid #1f1f25; margin: 4px 0 14px 0;" />', unsafe_allow_html=True)
+    st.markdown('<hr style="border: none; border-top: 1px solid var(--panel-border, rgba(250,250,250,.12)); margin: 6px 0 14px 0;" />', unsafe_allow_html=True)
 
 
 def render_bubble_editor_panel(live_render: bool = False, key_suffix: str = ""):
@@ -1376,13 +1470,17 @@ st.markdown("""
     /* --- Modern Left Sidebar System -------------------------------------- */
     section[data-testid="stSidebar"],
     div[data-testid="stSidebar"] {
-        background-color: #111114 !important;
-        border-right: 1px solid #1f1f25 !important;
+        background-color: var(--panel-bg, #111114) !important;
+        border-right: 1px solid var(--panel-border, rgba(250, 250, 250, 0.12)) !important;
         box-shadow: 4px 0 24px rgba(0, 0, 0, 0.45) !important;
+        transition: transform var(--panel-anim, 0.35s cubic-bezier(.4,0,.2,1)),
+                    min-width var(--panel-anim, 0.35s cubic-bezier(.4,0,.2,1)),
+                    max-width var(--panel-anim, 0.35s cubic-bezier(.4,0,.2,1)),
+                    margin-left var(--panel-anim, 0.35s cubic-bezier(.4,0,.2,1)) !important;
     }
     section[data-testid="stSidebar"] hr {
         border: none !important;
-        border-top: 1px solid #1f1f25 !important;
+        border-top: 1px solid var(--panel-border, rgba(250, 250, 250, 0.12)) !important;
         margin: 12px 0 16px 0 !important;
     }
     section[data-testid="stSidebar"] h3,
@@ -1394,20 +1492,6 @@ st.markdown("""
         text-transform: uppercase !important;
         color: #71717a !important;
         margin: 14px 0 8px 0 !important;
-    }
-    button[data-testid="stSidebarCollapseButton"],
-    [data-testid="collapsedControl"] button {
-        background: #18181c !important;
-        border: 1px solid #27272f !important;
-        border-radius: 6px !important;
-        color: #a1a1aa !important;
-        transition: all 0.15s ease !important;
-    }
-    button[data-testid="stSidebarCollapseButton"]:hover,
-    [data-testid="collapsedControl"] button:hover {
-        background: #222228 !important;
-        border-color: #3f3f46 !important;
-        color: #ffffff !important;
     }
 
     /* Modern Expander matching reference sections */
@@ -1488,60 +1572,6 @@ st.markdown("""
         padding: 4px 0;
     }
 
-    /* Header Breadcrumb Toggle Button & Panel Close Button */
-    .wb-toggle-btn button,
-    div[data-testid="column"]:has(.wb-toggle-btn) button,
-    div.stColumn:has(.wb-toggle-btn) button {
-        background: #18181c !important;
-        border: 1px solid #27272f !important;
-        color: #e4e4e7 !important;
-        font-size: 15px !important;
-        font-weight: 600 !important;
-        border-radius: 6px !important;
-        padding: 4px 8px !important;
-        min-height: 34px !important;
-        height: 34px !important;
-        line-height: 1 !important;
-        transition: all 0.15s ease !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        width: 100% !important;
-    }
-    .wb-toggle-btn button:hover,
-    div[data-testid="column"]:has(.wb-toggle-btn) button:hover,
-    div.stColumn:has(.wb-toggle-btn) button:hover {
-        background: #222228 !important;
-        border-color: #3f3f46 !important;
-        color: #ffffff !important;
-    }
-
-    .panel-close-btn button,
-    div[data-testid="column"]:has(.panel-close-btn) button,
-    div.stColumn:has(.panel-close-btn) button {
-        background: #18181c !important;
-        border: 1px solid #27272f !important;
-        color: #a1a1aa !important;
-        font-size: 14px !important;
-        font-weight: 500 !important;
-        border-radius: 6px !important;
-        padding: 2px 6px !important;
-        min-height: 28px !important;
-        height: 28px !important;
-        line-height: 1 !important;
-        transition: all 0.15s ease !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        width: 100% !important;
-    }
-    .panel-close-btn button:hover,
-    div[data-testid="column"]:has(.panel-close-btn) button:hover,
-    div.stColumn:has(.panel-close-btn) button:hover {
-        color: #ffffff !important;
-        border-color: #3f3f46 !important;
-        background: #222228 !important;
-    }
 
     /* Modern Bubble Cards in Right Panel */
     .modern-bubble-card {
@@ -2071,38 +2101,34 @@ else:
     # Render Visual Capsule Stepper
     st.markdown(get_stepper_component(stage), unsafe_allow_html=True)
 
-    # Modern Workspace Breadcrumb + Top Toggle Button row (matching reference header)
+    # Modern Workspace Breadcrumb + Floating Symmetrical Toggle Button
     cur_doc_name = st.session_state.image_name or "comic_page"
     is_panel_open = st.session_state.get("show_editor_panel", True)
-    btn_panel_icon = "◨" if is_panel_open else "◫"
-    btn_panel_tip = "O'ng panelni yopish (Slide Close)" if is_panel_open else "O'ng panelni ochish (Slide Open)"
 
-    col_bc, col_toggle = st.columns([0.93, 0.07])
-    with col_bc:
-        st.markdown(
-            f'<div class="workspace-breadcrumb-bar">'
-            f'<div class="workspace-breadcrumb">'
-            f'<span class="wb-root">comic-lab</span>'
-            f'<span class="wb-sep">/</span>'
-            f'<span class="wb-leaf">{html.escape(cur_doc_name)}</span>'
-            f'</div>'
-            f'<div class="workspace-stage-indicator">'
-            f'<span class="wsi-dot"></span> Bosqich {stage}/3'
-            f'</div>'
-            f'</div>',
-            unsafe_allow_html=True
+    # If right inspector drawer is closed, render floating symmetrical open button at top-right
+    if not is_panel_open:
+        st.button(
+            ":material/keyboard_double_arrow_left:",
+            key="drawer_open",
+            on_click=set_drawer,
+            args=(True,),
+            help="Inspektorni ochish (Slide Open)",
         )
-    with col_toggle:
-        if not is_panel_open:
-            st.markdown('<div class="wb-toggle-btn"></div>', unsafe_allow_html=True)
-            st.button(
-                "◫",
-                key="btn_open_drawer",
-                on_click=set_drawer,
-                args=(True,),
-                help="O'ng panelni ochish (Slide Open)",
-                use_container_width=True
-            )
+
+    # Modern Workspace Breadcrumb (full width)
+    st.markdown(
+        f'<div class="workspace-breadcrumb-bar">'
+        f'<div class="workspace-breadcrumb">'
+        f'<span class="wb-root">comic-lab</span>'
+        f'<span class="wb-sep">/</span>'
+        f'<span class="wb-leaf">{html.escape(cur_doc_name)}</span>'
+        f'</div>'
+        f'<div class="workspace-stage-indicator">'
+        f'<span class="wsi-dot"></span> Bosqich {stage}/3'
+        f'</div>'
+        f'</div>',
+        unsafe_allow_html=True
+    )
 
     col_nav1, col_nav2, col_nav3 = st.columns(3)
     with col_nav1:
