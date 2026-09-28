@@ -1255,8 +1255,8 @@ def has_dark_barrier_between(clean_gray_img: Optional[np.ndarray], l1: Dict[str,
 
 def cluster_lines_into_bubbles(
     lines: List[Dict[str, Any]],
-    max_dx: int = 25,
-    max_dy: int = 30,
+    max_dx: int = 30,
+    max_dy: int = 40,
     diamond_center_tolerance: float = 0.65,
     clean_gray: Optional[np.ndarray] = None
 ) -> List[List[Dict[str, Any]]]:
@@ -2080,7 +2080,7 @@ def scan_bubbles_ocr(image: Image.Image) -> List[SpeechBubble]:
     # -----------------------------------------------------------------------
     # PASS 4: Process Independent Bubbles
     # -----------------------------------------------------------------------
-    clusters = cluster_lines_into_bubbles(independent_lines, max_dx=25, max_dy=25, clean_gray=clean_gray_barrier)
+    clusters = cluster_lines_into_bubbles(independent_lines, max_dx=30, max_dy=40, clean_gray=clean_gray_barrier)
     all_seeds_by_cluster = []
     cluster_items = []
     for cl in clusters:

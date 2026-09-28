@@ -19,6 +19,7 @@ import numpy as np
 import cv2
 import streamlit as st
 
+import importlib
 import local_translator
 import character_profiles
 import naturalization_rules
@@ -27,6 +28,16 @@ import bubble_lettering
 import bubble_mask_editor
 import history_manager
 import engine
+import sfx_engine
+
+# Dynamic cache busting: Ensure updated modules are always loaded on deploy
+try:
+    importlib.reload(engine)
+    importlib.reload(sfx_engine)
+    importlib.reload(bubble_lettering)
+    importlib.reload(quality_gates)
+except Exception:
+    pass
 
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -40,6 +51,12 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 # ------------------------------------------------------------------------
+
+# Invalidate stale session state from older deployments automatically
+APP_BUILD_VERSION = "2026.09.28.v4_precision"
+if st.session_state.get("_app_build_version") != APP_BUILD_VERSION:
+    st.session_state.clear()
+    st.session_state["_app_build_version"] = APP_BUILD_VERSION
 
 
 class BubbleDict(dict):
