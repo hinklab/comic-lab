@@ -9,6 +9,8 @@ Powered by:
 """
 
 import os
+import warnings
+warnings.filterwarnings("ignore")
 import re
 import math
 import html

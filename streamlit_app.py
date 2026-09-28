@@ -5,6 +5,8 @@ Powered by OpenCV, EasyOCR, deep-translator (Spider-Man tone), and CC Wild Words
 """
 
 import os
+import warnings
+warnings.filterwarnings("ignore")
 import io
 import re
 import html
