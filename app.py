@@ -349,17 +349,17 @@ def get_progress_bar_html(
         status_text = html.escape(complete_label) if frac >= 1.0 else f"{pct}%"
         inner_html = f'<span class="comic-progress-fill" style="width: {pct}%;"></span>'
 
-    return f'''<div class="comic-progress-wrap">
-        <div class="comic-progress-header">
-            <span class="comic-progress-label">{html.escape(label)}</span>
-            <span class="comic-progress-status">{status_text}</span>
-        </div>
-        <div class="comic-progress-track">
-            <div class="comic-progress-inner">
-                {inner_html}
-            </div>
-        </div>
-    </div>'''
+    return (
+        f'<div class="comic-progress-wrap">'
+        f'<div class="comic-progress-header">'
+        f'<span class="comic-progress-label">{html.escape(label)}</span>'
+        f'<span class="comic-progress-status">{status_text}</span>'
+        f'</div>'
+        f'<div class="comic-progress-track">'
+        f'<div class="comic-progress-inner">{inner_html}</div>'
+        f'</div>'
+        f'</div>'
+    )
 
 
 def split_bubble_action(b, bubble_id: int, live_render: bool = False):
@@ -451,18 +451,27 @@ def render_right_panel_header(title: str, badge_text: str = "", close_key: str =
     """Renders the sleek modern IDE-style right panel header matching left sidebar symmetry."""
     open_cls = "sidebar-open" if st.session_state.get("show_editor_panel", True) else "sidebar-closed"
     badge_html = f'<span class="modern-badge-pill">{html.escape(badge_text)}</span>' if badge_text else ''
-    st.markdown(
-        f'''<div id="right-sidebar-dock" class="{open_cls}"></div>
-        <div class="modern-panel-header">
-            <div class="modern-panel-title-wrap">
-                <span class="modern-panel-icon">◨</span>
-                <span class="modern-panel-title">{html.escape(title)}</span>
-                {badge_html}
-            </div>
-        </div>
-        <hr style="border: none; border-top: 1px solid #1f1f25; margin: 4px 0 14px 0;" />''',
-        unsafe_allow_html=True
-    )
+    
+    st.markdown(f'<div id="right-sidebar-dock" class="{open_cls}"></div>', unsafe_allow_html=True)
+    
+    col_rh_title, col_rh_btn = st.columns([0.86, 0.14])
+    with col_rh_title:
+        st.markdown(
+            f'<div class="modern-panel-header">'
+            f'<div class="modern-panel-title-wrap">'
+            f'<span class="modern-panel-icon">◨</span>'
+            f'<span class="modern-panel-title">{html.escape(title)}</span>'
+            f'{badge_html}'
+            f'</div></div>',
+            unsafe_allow_html=True
+        )
+    with col_rh_btn:
+        st.markdown('<div class="panel-close-btn"></div>', unsafe_allow_html=True)
+        if st.button("◨", key=f"btn_close_panel_{close_key}", help="O'ng panelni yopish (Slide Close)", use_container_width=True):
+            st.session_state.show_editor_panel = False
+            st.rerun()
+
+    st.markdown('<hr style="border: none; border-top: 1px solid #1f1f25; margin: 4px 0 14px 0;" />', unsafe_allow_html=True)
 
 
 def render_bubble_editor_panel(live_render: bool = False, key_suffix: str = ""):
@@ -478,9 +487,7 @@ def render_bubble_editor_panel(live_render: bool = False, key_suffix: str = ""):
     col_p_title, col_p_undo, col_p_redo = st.columns([0.64, 0.18, 0.18])
     with col_p_title:
         st.markdown(
-            f'''<div class="modern-panel-section-header">
-                <span>PUFAKLAR ({len(st.session_state.bubbles)})</span>
-            </div>''',
+            f'<div class="modern-panel-section-header"><span>PUFAKLAR ({len(st.session_state.bubbles)})</span></div>',
             unsafe_allow_html=True
         )
     with col_p_undo:
@@ -545,17 +552,14 @@ def render_bubble_editor_panel(live_render: bool = False, key_suffix: str = ""):
             # Review badge
             review_badge = '<span class="modern-review-pill">⚠️ KO\'RIB CHIQISH</span>' if needs_review else ''
 
-            card_html = f'''<div class="{class_str}">
-                <div class="mbc-header">
-                    <div class="mbc-tags">
-                        <span class="mbc-id">#{bubble_id}</span>
-                        {spk_html}
-                    </div>
-                    {review_badge}
-                </div>
-                <div class="mbc-orig-dialogue">
-                    <span class="mbc-orig-label">EN</span> {orig_text}
-                </div>'''
+            card_html = (
+                f'<div class="{class_str}">'
+                f'<div class="mbc-header">'
+                f'<div class="mbc-tags"><span class="mbc-id">#{bubble_id}</span>{spk_html}</div>'
+                f'{review_badge}'
+                f'</div>'
+                f'<div class="mbc-orig-dialogue"><span class="mbc-orig-label">EN</span> {orig_text}</div>'
+            )
             if needs_review:
                 card_html += f'<div class="mbc-error-notice">⚠️ {html.escape(review_reason or "Tarjima sifati tekshiruvi talab etiladi")}</div>'
             card_html += '</div>'
@@ -1400,24 +1404,43 @@ st.markdown("""
         box-shadow: none !important;
     }
 
-    /* Main content column smooth transition */
-    div[data-testid="stHorizontalBlock"]:has(#right-sidebar-dock) {
-        gap: 0 !important;
-    }
-    div[data-testid="stHorizontalBlock"]:has(#right-sidebar-dock.sidebar-open) > div[data-testid="column"]:first-child,
-    div[data-testid="stHorizontalBlock"]:has(#right-sidebar-dock.sidebar-open) > div.stColumn:first-child {
-        flex: 1 1 100% !important;
-        width: 100% !important;
+    /* Main workspace container smooth transition when right sidebar opens/closes */
+    div.main:has(#right-sidebar-dock.sidebar-open) .block-container,
+    section.main:has(#right-sidebar-dock.sidebar-open) .block-container,
+    div[data-testid="stAppViewContainer"]:has(#right-sidebar-dock.sidebar-open) .main .block-container {
         padding-right: 440px !important;
         transition: padding-right 0.35s cubic-bezier(0.16, 1, 0.3, 1) !important;
     }
+    div.main:has(#right-sidebar-dock.sidebar-closed) .block-container,
+    section.main:has(#right-sidebar-dock.sidebar-closed) .block-container,
+    div[data-testid="stAppViewContainer"]:has(#right-sidebar-dock.sidebar-closed) .main .block-container {
+        padding-right: 2rem !important;
+        transition: padding-right 0.35s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    }
 
-    div[data-testid="stHorizontalBlock"]:has(#right-sidebar-dock.sidebar-closed) > div[data-testid="column"]:first-child,
-    div[data-testid="stHorizontalBlock"]:has(#right-sidebar-dock.sidebar-closed) > div.stColumn:first-child {
+    div[data-testid="stHorizontalBlock"]:has(#right-sidebar-dock) {
+        gap: 0 !important;
+    }
+    div[data-testid="stHorizontalBlock"]:has(#right-sidebar-dock) > div[data-testid="column"]:first-child,
+    div[data-testid="stHorizontalBlock"]:has(#right-sidebar-dock) > div.stColumn:first-child {
         flex: 1 1 100% !important;
         width: 100% !important;
-        padding-right: 0px !important;
-        transition: padding-right 0.35s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        max-width: 100% !important;
+    }
+
+    @media (max-width: 992px) {
+        div.stColumn:has(#right-sidebar-dock),
+        div[data-testid="stColumn"]:has(#right-sidebar-dock),
+        div[data-testid="column"]:has(#right-sidebar-dock) {
+            width: 100vw !important;
+            max-width: 100vw !important;
+            min-width: 100vw !important;
+        }
+        div.main:has(#right-sidebar-dock.sidebar-open) .block-container,
+        section.main:has(#right-sidebar-dock.sidebar-open) .block-container,
+        div[data-testid="stAppViewContainer"]:has(#right-sidebar-dock.sidebar-open) .main .block-container {
+            padding-right: 2rem !important;
+        }
     }
     div.stColumn:has(#right-sidebar-dock)::-webkit-scrollbar,
     div[data-testid="stColumn"]:has(#right-sidebar-dock)::-webkit-scrollbar {
@@ -1487,65 +1510,59 @@ st.markdown("""
         padding: 4px 0;
     }
 
-    /* Close / Toggle Panel Button */
-    .close-sidebar-btn button {
-        background: #18181c !important;
-        border: 1px solid #27272f !important;
-        color: #a1a1aa !important;
-        font-size: 16px !important;
-        font-weight: 500 !important;
-        border-radius: 6px !important;
-        padding: 2px 8px !important;
-        min-height: 32px !important;
-        height: 32px !important;
-        line-height: 1 !important;
-        transition: all 0.15s ease !important;
-    }
-    .close-sidebar-btn button:hover {
-        color: #ffffff !important;
-        border-color: #3f3f46 !important;
-        background: #222228 !important;
-    }
-
-    /* Fixed Top-Right Panel Toggle Button (Always at the top-right spot!) */
-    div:has(> div > div > #topright-panel-toggle-dock),
-    div[data-testid="stVerticalBlock"]:has(#topright-panel-toggle-dock),
-    div.element-container:has(#topright-panel-toggle-dock),
-    div.stElementContainer:has(#topright-panel-toggle-dock) {
-        position: fixed !important;
-        top: 54px !important;
-        right: 18px !important;
-        z-index: 100000 !important;
-        width: 36px !important;
-        height: 36px !important;
-        margin: 0 !important;
-        padding: 0 !important;
-    }
-    div:has(> div > div > #topright-panel-toggle-dock) button,
-    div[data-testid="stVerticalBlock"]:has(#topright-panel-toggle-dock) button,
-    div.stElementContainer:has(#topright-panel-toggle-dock) button {
+    /* Header Breadcrumb Toggle Button & Panel Close Button */
+    .wb-toggle-btn button,
+    div[data-testid="column"]:has(.wb-toggle-btn) button,
+    div.stColumn:has(.wb-toggle-btn) button {
         background: #18181c !important;
         border: 1px solid #27272f !important;
         color: #e4e4e7 !important;
+        font-size: 15px !important;
+        font-weight: 600 !important;
         border-radius: 6px !important;
-        width: 36px !important;
-        height: 36px !important;
-        min-height: 36px !important;
-        padding: 0 !important;
+        padding: 4px 8px !important;
+        min-height: 34px !important;
+        height: 34px !important;
+        line-height: 1 !important;
+        transition: all 0.15s ease !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
-        font-size: 16px !important;
-        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.45) !important;
-        transition: all 0.15s ease !important;
+        width: 100% !important;
     }
-    div:has(> div > div > #topright-panel-toggle-dock) button:hover,
-    div[data-testid="stVerticalBlock"]:has(#topright-panel-toggle-dock) button:hover,
-    div.stElementContainer:has(#topright-panel-toggle-dock) button:hover {
+    .wb-toggle-btn button:hover,
+    div[data-testid="column"]:has(.wb-toggle-btn) button:hover,
+    div.stColumn:has(.wb-toggle-btn) button:hover {
         background: #222228 !important;
         border-color: #3f3f46 !important;
         color: #ffffff !important;
-        transform: scale(1.05) !important;
+    }
+
+    .panel-close-btn button,
+    div[data-testid="column"]:has(.panel-close-btn) button,
+    div.stColumn:has(.panel-close-btn) button {
+        background: #18181c !important;
+        border: 1px solid #27272f !important;
+        color: #a1a1aa !important;
+        font-size: 14px !important;
+        font-weight: 500 !important;
+        border-radius: 6px !important;
+        padding: 2px 6px !important;
+        min-height: 28px !important;
+        height: 28px !important;
+        line-height: 1 !important;
+        transition: all 0.15s ease !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 100% !important;
+    }
+    .panel-close-btn button:hover,
+    div[data-testid="column"]:has(.panel-close-btn) button:hover,
+    div.stColumn:has(.panel-close-btn) button:hover {
+        color: #ffffff !important;
+        border-color: #3f3f46 !important;
+        background: #222228 !important;
     }
 
     /* Modern Bubble Cards in Right Panel */
@@ -1944,12 +1961,13 @@ if "show_editor_panel" not in st.session_state:
 # Sidebar Controls
 with st.sidebar:
     star_b64 = get_comic_star_b64()
-    st.markdown(f"""
-    <a href="/?reset=1" target="_self" class="comic-site-logo" title="Bosh sahifaga qaytish">
-        <img src="data:image/png;base64,{star_b64}" class="comic-logo-icon" alt="Logo" />
-        <span class="comic-logo-text">COMIC-LAB</span>
-    </a>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        f'<a href="/?reset=1" target="_self" class="comic-site-logo" title="Bosh sahifaga qaytish">'
+        f'<img src="data:image/png;base64,{star_b64}" class="comic-logo-icon" alt="Logo" />'
+        f'<span class="comic-logo-text">COMIC-LAB</span>'
+        f'</a>',
+        unsafe_allow_html=True
+    )
 
     st.markdown("---")
     st.markdown("### Tipografiya va Lettering")
@@ -1978,23 +1996,17 @@ with st.sidebar:
     line_gap_mult = f"{1.15 + (cur_line_gap / max(1, cur_font_size)):.2f}"
     escaped_text = html.escape(preview_text or "QOYIL QOLDINGMI?!").upper()
 
-    st.markdown(f"""
-    <div style="background: #141418; border: 1px solid #23232a; border-radius: 8px; padding: 14px; text-align: center; margin: 10px 0 14px 0;">
-      <div style="display: inline-flex; align-items: center; gap: 6px; font-size: 10px; color: #a1a1aa; background: #1c1c22; border: 1px solid #272730; padding: 2px 8px; border-radius: 9999px; margin-bottom: 8px; font-family: ui-monospace, monospace; letter-spacing: 0.5px;">
-        {clean_font_name.upper()} · {cur_font_size}PX · GAP {cur_line_gap}PX
-      </div>
-      <div class="comic-preview-text" style="
-        font-size: {cur_font_size}px;
-        line-height: {line_gap_mult};
-        color: #ffffff;
-        text-shadow: 2px 2px 0px #000000, -1px -1px 0px #000000, 1px -1px 0px #000000, -1px 1px 0px #000000;
-        word-break: break-word;
-        text-transform: uppercase;
-      ">
-        {escaped_text}
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        f'<div style="background: #141418; border: 1px solid #23232a; border-radius: 8px; padding: 14px; text-align: center; margin: 10px 0 14px 0;">'
+        f'<div style="display: inline-flex; align-items: center; gap: 6px; font-size: 10px; color: #a1a1aa; background: #1c1c22; border: 1px solid #272730; padding: 2px 8px; border-radius: 9999px; margin-bottom: 8px; font-family: ui-monospace, monospace; letter-spacing: 0.5px;">'
+        f'{clean_font_name.upper()} · {cur_font_size}PX · GAP {cur_line_gap}PX'
+        f'</div>'
+        f'<div class="comic-preview-text" style="font-size: {cur_font_size}px; line-height: {line_gap_mult}; color: #ffffff; text-shadow: 2px 2px 0px #000000, -1px -1px 0px #000000, 1px -1px 0px #000000, -1px 1px 0px #000000; word-break: break-word; text-transform: uppercase;">'
+        f'{escaped_text}'
+        f'</div>'
+        f'</div>',
+        unsafe_allow_html=True
+    )
 
     with st.expander("Qahramon Shaxsiyati (Voice)", expanded=False):
         st.caption("Avtomatik xarakter aniqlash (Classical CV) faol.")
@@ -2036,25 +2048,25 @@ with st.sidebar:
 if st.session_state.image is None:
     star_b64 = get_comic_star_b64()
     st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
-    st.markdown(f"""
-    <div style="text-align: center; margin-bottom: 24px;">
-        <div style="display: inline-flex; align-items: center; justify-content: center; gap: 16px;">
-            <img src="data:image/png;base64,{star_b64}" style="height: 80px; width: 80px; object-fit: contain;" />
-            <span style="font-family: 'Bangers', cursive, sans-serif; font-style: italic; font-size: 3.8rem; color: #FF3366; letter-spacing: 3px; text-shadow: 3px 3px 0px #000000; line-height: 1;">
-                COMIC-LAB
-            </span>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        f'<div style="text-align: center; margin-bottom: 24px;">'
+        f'<div style="display: inline-flex; align-items: center; justify-content: center; gap: 16px;">'
+        f'<img src="data:image/png;base64,{star_b64}" style="height: 80px; width: 80px; object-fit: contain;" />'
+        f'<span style="font-family: \'Bangers\', cursive, sans-serif; font-style: italic; font-size: 3.8rem; color: #FF3366; letter-spacing: 3px; text-shadow: 3px 3px 0px #000000; line-height: 1;">COMIC-LAB</span>'
+        f'</div>'
+        f'</div>',
+        unsafe_allow_html=True
+    )
 
-    st.markdown("""
-    <div class="home-uploader-zone">
-        <div class="uploader-badges-wrap">
-            <span class="uploader-pill">PNG, JPG, WEBP</span>
-            <span class="uploader-pill">200MB gacha</span>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="home-uploader-zone">'
+        f'<div class="uploader-badges-wrap">'
+        f'<span class="uploader-pill">PNG, JPG, WEBP</span>'
+        f'<span class="uploader-pill">200MB gacha</span>'
+        f'</div>'
+        f'</div>',
+        unsafe_allow_html=True
+    )
 
     st.markdown('<div class="home-uploader-zone">', unsafe_allow_html=True)
     home_file = st.file_uploader(
@@ -2078,32 +2090,32 @@ else:
     # Render Visual Capsule Stepper
     st.markdown(get_stepper_component(stage), unsafe_allow_html=True)
 
-    # Dedicated Fixed Top-Right Panel Toggle Button (Always in the same top-right spot!)
+    # Modern Workspace Breadcrumb + Top Toggle Button row (matching reference header)
+    cur_doc_name = st.session_state.image_name or "comic_page"
     is_panel_open = st.session_state.get("show_editor_panel", True)
-    btn_panel_icon = "◧" if is_panel_open else "◫"
+    btn_panel_icon = "◨" if is_panel_open else "◫"
     btn_panel_tip = "O'ng panelni yopish (Slide Close)" if is_panel_open else "O'ng panelni ochish (Slide Open)"
 
-    with st.container():
-        st.markdown('<div id="topright-panel-toggle-dock"></div>', unsafe_allow_html=True)
-        if st.button(btn_panel_icon, key="btn_fixed_panel_toggle", help=btn_panel_tip):
+    col_bc, col_toggle = st.columns([0.93, 0.07])
+    with col_bc:
+        st.markdown(
+            f'<div class="workspace-breadcrumb-bar">'
+            f'<div class="workspace-breadcrumb">'
+            f'<span class="wb-root">comic-lab</span>'
+            f'<span class="wb-sep">/</span>'
+            f'<span class="wb-leaf">{html.escape(cur_doc_name)}</span>'
+            f'</div>'
+            f'<div class="workspace-stage-indicator">'
+            f'<span class="wsi-dot"></span> Bosqich {stage}/3'
+            f'</div>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
+    with col_toggle:
+        st.markdown('<div class="wb-toggle-btn"></div>', unsafe_allow_html=True)
+        if st.button(btn_panel_icon, key="btn_topbar_toggle", help=btn_panel_tip, use_container_width=True):
             st.session_state.show_editor_panel = not is_panel_open
             st.rerun()
-
-    # Modern Workspace Breadcrumb + Status Indicator matching reference header
-    cur_doc_name = st.session_state.image_name or "comic_page"
-    st.markdown(
-        f'''<div class="workspace-breadcrumb-bar">
-            <div class="workspace-breadcrumb">
-                <span class="wb-root">comic-lab</span>
-                <span class="wb-sep">/</span>
-                <span class="wb-leaf">{html.escape(cur_doc_name)}</span>
-            </div>
-            <div class="workspace-stage-indicator">
-                <span class="wsi-dot"></span> Bosqich {stage}/3
-            </div>
-        </div>''',
-        unsafe_allow_html=True
-    )
 
     col_nav1, col_nav2, col_nav3 = st.columns(3)
     with col_nav1:
@@ -2242,9 +2254,7 @@ else:
                     st.success(f"Tozalash muvaffaqiyatli! {len(st.session_state.raw_bubbles)} ta pufak topildi va matnlar to'liq o'chirildi.", icon=":material/check_circle:")
                     
                     st.markdown(
-                        f'''<div class="modern-panel-section-header">
-                            <span>ANIQLANGAN MATNLAR ({len(st.session_state.raw_bubbles)})</span>
-                        </div>''',
+                        f'<div class="modern-panel-section-header"><span>ANIQLANGAN MATNLAR ({len(st.session_state.raw_bubbles)})</span></div>',
                         unsafe_allow_html=True
                     )
                     for b in st.session_state.raw_bubbles:
@@ -2386,11 +2396,12 @@ else:
                     st.session_state.saved_file_path = out_path
                     st.success(f"Komiks saqlandi: output/{dl_filename}", icon=":material/check_circle:")
 
-            st.markdown("""
-            <div style="background: #16161a; border: 1px solid #23232a; border-left: 3px solid #b62b1a; border-radius: 6px; padding: 8px 12px; margin: 12px 0 10px 0; font-size: 12px; line-height: 1.4; color: #a1a1aa;">
-                <strong style="color: #ffffff;">Jonli Tahrirlash:</strong> Matnni yoki shrift o'lchamini o'zgartirsangiz, komiks sahifasi avtomatik qayta chiziladi.
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(
+                '<div style="background: #16161a; border: 1px solid #23232a; border-left: 3px solid #b62b1a; border-radius: 6px; padding: 8px 12px; margin: 12px 0 10px 0; font-size: 12px; line-height: 1.4; color: #a1a1aa;">'
+                '<strong style="color: #ffffff;">Jonli Tahrirlash:</strong> Matnni yoki shrift o\'lchamini o\'zgartirsangiz, komiks sahifasi avtomatik qayta chiziladi.'
+                '</div>',
+                unsafe_allow_html=True
+            )
 
             render_bubble_editor_panel(live_render=True, key_suffix="st3")
 
