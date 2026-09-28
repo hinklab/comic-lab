@@ -429,10 +429,7 @@ def process_page_sfx(
     img_cv = cv2.cvtColor(np.array(image.convert("RGB")), cv2.COLOR_RGB2BGR)
 
     if raw_ocr_results is None:
-        reader = engine.get_ocr_reader()
-        raw_ocr_results = reader.readtext(np.array(image.convert("RGB")), paragraph=False)
-        import gc
-        gc.collect()
+        raw_ocr_results = engine.run_tiled_easyocr(image, canvas_size=2048)
 
     sfx_elements = extract_sfx_elements(raw_ocr_results, img_cv.shape[:2], image_bgr=img_cv)
     if not sfx_elements:
