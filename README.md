@@ -1,3 +1,14 @@
+---
+title: Comic Lab
+emoji: ⚡
+colorFrom: red
+colorTo: purple
+sdk: streamlit
+sdk_version: "1.30.0"
+app_file: streamlit_app.py
+pinned: false
+---
+
 # 💥 100% Local Comic Book Translation & Typesetting Studio
 
 A standalone, local & free comic book translation and typesetting web application built with **Streamlit**, **OpenCV**, **EasyOCR**, **deep-translator**, and **Pillow (PIL)**.
