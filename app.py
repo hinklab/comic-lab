@@ -83,11 +83,11 @@ def reset_page_state(image: Optional[Image.Image], image_name: str):
     for k in keys_to_clear:
         del st.session_state[k]
 
-    # Memory guard: clamp massive images to max 2560px to prevent Out-Of-Memory (OOM) on Streamlit Cloud (1GB RAM limit)
+    # Memory guard: clamp extreme poster-sized images to max 4096px to prevent Out-Of-Memory (OOM)
     if image is not None:
         max_dim = max(image.size)
-        if max_dim > 2560:
-            scale = 2560.0 / max_dim
+        if max_dim > 4096:
+            scale = 4096.0 / max_dim
             new_size = (int(image.width * scale), int(image.height * scale))
             image = image.resize(new_size, Image.Resampling.LANCZOS)
 

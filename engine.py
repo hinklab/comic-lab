@@ -1695,7 +1695,7 @@ def scan_bubbles_ocr(image: Image.Image) -> List[SpeechBubble]:
     clean_gray_barrier = bubble_lettering._suppress_text_for_barrier(gray, 35, ink_thresh=120)
 
     reader = get_ocr_reader()
-    raw_results = reader.readtext(np.array(image.convert("RGB")), paragraph=False, canvas_size=1536)
+    raw_results = reader.readtext(np.array(image.convert("RGB")), paragraph=False)
     import gc
     gc.collect()
 
@@ -3120,7 +3120,7 @@ def extract_page_sfx(
     img_cv = cv2.cvtColor(np.array(image.convert("RGB")), cv2.COLOR_RGB2BGR)
     if raw_ocr_results is None:
         reader = get_ocr_reader()
-        raw_ocr_results = reader.readtext(np.array(image.convert("RGB")), paragraph=False, canvas_size=1536)
+        raw_ocr_results = reader.readtext(np.array(image.convert("RGB")), paragraph=False)
         import gc
         gc.collect()
     return sfx_engine.extract_sfx_elements(raw_ocr_results, img_cv.shape[:2], image_bgr=img_cv)

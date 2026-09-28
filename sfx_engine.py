@@ -430,7 +430,7 @@ def process_page_sfx(
 
     if raw_ocr_results is None:
         reader = engine.get_ocr_reader()
-        raw_ocr_results = reader.readtext(np.array(image.convert("RGB")), paragraph=False, canvas_size=1536)
+        raw_ocr_results = reader.readtext(np.array(image.convert("RGB")), paragraph=False)
         import gc
         gc.collect()
 
