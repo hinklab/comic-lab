@@ -447,12 +447,86 @@ def split_bubble_action(b, bubble_id: int, live_render: bool = False):
     st.rerun()
 
 
+DRAWER_W = 440                       # px
+ANIM = "0.35s cubic-bezier(.4,0,.2,1)"
+
+def set_drawer(value: bool):
+    """Callback triggered before rerun to update drawer state."""
+    st.session_state.show_editor_panel = value
+
+def inject_drawer_css():
+    """Dynamically injects CSS for drawer push/shrink behavior on stAppViewContainer."""
+    is_open = bool(st.session_state.get("show_editor_panel", True) and st.session_state.get("image") is not None)
+    css = """
+<style>
+:root { --drawer-w: __W__px; --drawer-pad: __PAD__px; --drawer-anim: __ANIM__; }
+
+/* 1) PUSH/SHRINK: [sidebar | main] qatorining o'ng tomoniga joy ochamiz */
+[data-testid="stAppViewContainer"] {
+  box-sizing: border-box !important;
+  padding-right: var(--drawer-pad) !important;
+  transition: padding-right var(--drawer-anim) !important;
+}
+
+/* 2) Yuqoridagi fixed header ham qisqaradi (Deploy tugmasi panel tagida qolmasin) */
+[data-testid="stHeader"] {
+  width: calc(100% - var(--drawer-pad)) !important;
+  transition: width var(--drawer-anim) !important;
+}
+
+/* 3) Drawer: st.container(key="right_drawer") -> .st-key-right_drawer */
+.st-key-right_drawer {
+  position: fixed !important; top: 0 !important; right: 0 !important; bottom: 0 !important;
+  width: var(--drawer-w) !important; max-width: 100vw !important;
+  overflow-y: auto !important; padding: 58px 1.25rem 2rem 1.25rem !important;
+  background: #111114 !important; border-left: 1px solid #1f1f25 !important;
+  border-right: none !important; border-top: none !important; border-bottom: none !important;
+  border-radius: 0 !important;
+  z-index: 1000001 !important;                         /* stHeader (999990) dan yuqori */
+  box-shadow: -4px 0 28px rgba(0, 0, 0, 0.55) !important;
+  transform: translateX(__TX__) !important;
+  visibility: __VIS__ !important;
+  /* yopilganda visibility slide tugagach o'chadi; ochilganda darrov yoqiladi */
+  transition: transform var(--drawer-anim), visibility 0s linear __VISDELAY__ !important;
+}
+
+.st-key-right_drawer::-webkit-scrollbar {
+  width: 5px;
+}
+.st-key-right_drawer::-webkit-scrollbar-track {
+  background: transparent;
+}
+.st-key-right_drawer::-webkit-scrollbar-thumb {
+  background: #27272f;
+  border-radius: 9999px;
+}
+.st-key-right_drawer::-webkit-scrollbar-thumb:hover {
+  background: #b62b1a;
+}
+
+/* rerun paytida Streamlit elementlarni xiralashtirmasin (flicker) */
+[data-stale="true"] { opacity: 1 !important; }
+
+/* tor ekranlarda push yo'q, panel ustidan chiqadi */
+@media (max-width: 900px) {
+  [data-testid="stAppViewContainer"] { padding-right: 0 !important; }
+  [data-testid="stHeader"] { width: 100% !important; }
+  .st-key-right_drawer { width: 100vw !important; }
+}
+</style>
+"""
+    css = (css.replace("__W__", str(DRAWER_W))
+              .replace("__PAD__", str(DRAWER_W if is_open else 0))
+              .replace("__ANIM__", ANIM)
+              .replace("__TX__", "0" if is_open else "105%")
+              .replace("__VIS__", "visible" if is_open else "hidden")
+              .replace("__VISDELAY__", "0s" if is_open else "0.35s"))
+    st.markdown(css, unsafe_allow_html=True)
+
+
 def render_right_panel_header(title: str, badge_text: str = "", close_key: str = "close_panel"):
     """Renders the sleek modern IDE-style right panel header matching left sidebar symmetry."""
-    open_cls = "sidebar-open" if st.session_state.get("show_editor_panel", True) else "sidebar-closed"
     badge_html = f'<span class="modern-badge-pill">{html.escape(badge_text)}</span>' if badge_text else ''
-    
-    st.markdown(f'<div id="right-sidebar-dock" class="{open_cls}"></div>', unsafe_allow_html=True)
     
     col_rh_title, col_rh_btn = st.columns([0.86, 0.14])
     with col_rh_title:
@@ -467,9 +541,14 @@ def render_right_panel_header(title: str, badge_text: str = "", close_key: str =
         )
     with col_rh_btn:
         st.markdown('<div class="panel-close-btn"></div>', unsafe_allow_html=True)
-        if st.button("◨", key=f"btn_close_panel_{close_key}", help="O'ng panelni yopish (Slide Close)", use_container_width=True):
-            st.session_state.show_editor_panel = False
-            st.rerun()
+        st.button(
+            "◨",
+            key=f"btn_close_panel_{close_key}",
+            on_click=set_drawer,
+            args=(False,),
+            help="O'ng panelni yopish (Slide Close)",
+            use_container_width=True
+        )
 
     st.markdown('<hr style="border: none; border-top: 1px solid #1f1f25; margin: 4px 0 14px 0;" />', unsafe_allow_html=True)
 
@@ -1357,108 +1436,7 @@ st.markdown("""
         border-top: 1px solid #1f1f25 !important;
     }
 
-    /* --- True Edge-to-Edge Right Sidebar with Smooth Slide Animation --- */
-    div.stColumn:has(#right-sidebar-dock),
-    div[data-testid="stColumn"]:has(#right-sidebar-dock),
-    div[data-testid="column"]:has(#right-sidebar-dock) {
-        position: fixed !important;
-        top: 0 !important;
-        right: 0 !important;
-        bottom: 0 !important;
-        width: 420px !important;
-        max-width: 420px !important;
-        min-width: 360px !important;
-        height: 100vh !important;
-        max-height: 100vh !important;
-        background-color: #111114 !important;
-        border-left: 1px solid #1f1f25 !important;
-        border-right: none !important;
-        border-top: none !important;
-        border-bottom: none !important;
-        border-radius: 0 !important;
-        padding: 58px 18px 24px 18px !important;
-        overflow-y: auto !important;
-        z-index: 9999 !important;
-        box-shadow: -4px 0 28px rgba(0, 0, 0, 0.55) !important;
-        transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease !important;
-    }
 
-    /* Open state: slide in */
-    div.stColumn:has(#right-sidebar-dock.sidebar-open),
-    div[data-testid="stColumn"]:has(#right-sidebar-dock.sidebar-open),
-    div[data-testid="column"]:has(#right-sidebar-dock.sidebar-open) {
-        transform: translateX(0%) !important;
-        opacity: 1 !important;
-        pointer-events: auto !important;
-        visibility: visible !important;
-    }
-
-    /* Closed state: slide out */
-    div.stColumn:has(#right-sidebar-dock.sidebar-closed),
-    div[data-testid="stColumn"]:has(#right-sidebar-dock.sidebar-closed),
-    div[data-testid="column"]:has(#right-sidebar-dock.sidebar-closed) {
-        transform: translateX(105%) !important;
-        opacity: 0 !important;
-        pointer-events: none !important;
-        visibility: hidden !important;
-        box-shadow: none !important;
-    }
-
-    /* Main workspace container smooth transition when right sidebar opens/closes */
-    div.main:has(#right-sidebar-dock.sidebar-open) .block-container,
-    section.main:has(#right-sidebar-dock.sidebar-open) .block-container,
-    div[data-testid="stAppViewContainer"]:has(#right-sidebar-dock.sidebar-open) .main .block-container {
-        padding-right: 440px !important;
-        transition: padding-right 0.35s cubic-bezier(0.16, 1, 0.3, 1) !important;
-    }
-    div.main:has(#right-sidebar-dock.sidebar-closed) .block-container,
-    section.main:has(#right-sidebar-dock.sidebar-closed) .block-container,
-    div[data-testid="stAppViewContainer"]:has(#right-sidebar-dock.sidebar-closed) .main .block-container {
-        padding-right: 2rem !important;
-        transition: padding-right 0.35s cubic-bezier(0.16, 1, 0.3, 1) !important;
-    }
-
-    div[data-testid="stHorizontalBlock"]:has(#right-sidebar-dock) {
-        gap: 0 !important;
-    }
-    div[data-testid="stHorizontalBlock"]:has(#right-sidebar-dock) > div[data-testid="column"]:first-child,
-    div[data-testid="stHorizontalBlock"]:has(#right-sidebar-dock) > div.stColumn:first-child {
-        flex: 1 1 100% !important;
-        width: 100% !important;
-        max-width: 100% !important;
-    }
-
-    @media (max-width: 992px) {
-        div.stColumn:has(#right-sidebar-dock),
-        div[data-testid="stColumn"]:has(#right-sidebar-dock),
-        div[data-testid="column"]:has(#right-sidebar-dock) {
-            width: 100vw !important;
-            max-width: 100vw !important;
-            min-width: 100vw !important;
-        }
-        div.main:has(#right-sidebar-dock.sidebar-open) .block-container,
-        section.main:has(#right-sidebar-dock.sidebar-open) .block-container,
-        div[data-testid="stAppViewContainer"]:has(#right-sidebar-dock.sidebar-open) .main .block-container {
-            padding-right: 2rem !important;
-        }
-    }
-    div.stColumn:has(#right-sidebar-dock)::-webkit-scrollbar,
-    div[data-testid="stColumn"]:has(#right-sidebar-dock)::-webkit-scrollbar {
-        width: 5px;
-    }
-    div.stColumn:has(#right-sidebar-dock)::-webkit-scrollbar-track,
-    div[data-testid="stColumn"]:has(#right-sidebar-dock)::-webkit-scrollbar-track {
-        background: transparent;
-    }
-    div.stColumn:has(#right-sidebar-dock)::-webkit-scrollbar-thumb,
-    div[data-testid="stColumn"]:has(#right-sidebar-dock)::-webkit-scrollbar-thumb {
-        background: #27272f;
-        border-radius: 9999px;
-    }
-    div.stColumn:has(#right-sidebar-dock)::-webkit-scrollbar-thumb:hover,
-    div[data-testid="stColumn"]:has(#right-sidebar-dock)::-webkit-scrollbar-thumb:hover {
-        background: #b62b1a;
-    }
 
     /* Modern Panel Header */
     .modern-panel-header {
@@ -1956,6 +1934,9 @@ if "last_render_hash" not in st.session_state:
 if "show_editor_panel" not in st.session_state:
     st.session_state.show_editor_panel = True
 
+# Inject modern Right Drawer CSS on stAppViewContainer
+inject_drawer_css()
+
 
 
 # Sidebar Controls
@@ -2112,10 +2093,16 @@ else:
             unsafe_allow_html=True
         )
     with col_toggle:
-        st.markdown('<div class="wb-toggle-btn"></div>', unsafe_allow_html=True)
-        if st.button(btn_panel_icon, key="btn_topbar_toggle", help=btn_panel_tip, use_container_width=True):
-            st.session_state.show_editor_panel = not is_panel_open
-            st.rerun()
+        if not is_panel_open:
+            st.markdown('<div class="wb-toggle-btn"></div>', unsafe_allow_html=True)
+            st.button(
+                "◫",
+                key="btn_open_drawer",
+                on_click=set_drawer,
+                args=(True,),
+                help="O'ng panelni ochish (Slide Open)",
+                use_container_width=True
+            )
 
     col_nav1, col_nav2, col_nav3 = st.columns(3)
     with col_nav1:
@@ -2161,136 +2148,134 @@ else:
     # STAGE 1: SCAN & CLEAN (Skanerlash va Tozalash)
     # ----------------------------------------------------
     if stage == 1:
-        col_left, col_right = st.columns([1.25, 0.75])
+        # --- Main Workspace: Full Width Canvas ---
+        st.markdown("### Sahifa Ko'rinishi")
+        if st.session_state.cleaned_page is not None:
+            tab_clean, tab_orig = st.tabs([":material/cleaning_services: Tozalangan Sahifa", ":material/image: Asl Sahifa"])
+            with tab_clean:
+                show_markers = st.checkbox("Pufak chegaralarini ko'rsatish (Green Markers)", value=True, key="markers_st1")
+                if show_markers and st.session_state.raw_bubbles:
+                    overlay_key = f"overlay_st1_{len(st.session_state.raw_bubbles)}_{st.session_state.get('analysis_version', 0)}"
+                    if overlay_key not in st.session_state:
+                        st.session_state[overlay_key] = engine.draw_bounding_box_overlay(st.session_state.cleaned_page, st.session_state.raw_bubbles)
+                    annotated = st.session_state[overlay_key]
+                    st.image(annotated, use_container_width=True, caption=f"Tozalangan sahifa ({len(st.session_state.raw_bubbles)} ta pufak)")
+                else:
+                    st.image(st.session_state.cleaned_page, use_container_width=True, caption="Tozalangan sahifa (Siyoh Telea orqali tozalangan, to'rtburchak oq dog'siz)")
+            with tab_orig:
+                st.image(st.session_state.image, use_container_width=True, caption=st.session_state.image_name)
+        else:
+            st.image(st.session_state.image, use_container_width=True, caption="Asl sahifa (Hali skanerlanmagan)")
 
-        with col_left:
-            st.markdown("### Sahifa Ko'rinishi")
-            if st.session_state.cleaned_page is not None:
-                tab_clean, tab_orig = st.tabs([":material/cleaning_services: Tozalangan Sahifa", ":material/image: Asl Sahifa"])
-                with tab_clean:
-                    show_markers = st.checkbox("Pufak chegaralarini ko'rsatish (Green Markers)", value=True, key="markers_st1")
-                    if show_markers and st.session_state.raw_bubbles:
-                        overlay_key = f"overlay_st1_{len(st.session_state.raw_bubbles)}_{st.session_state.get('analysis_version', 0)}"
-                        if overlay_key not in st.session_state:
-                            st.session_state[overlay_key] = engine.draw_bounding_box_overlay(st.session_state.cleaned_page, st.session_state.raw_bubbles)
-                        annotated = st.session_state[overlay_key]
-                        st.image(annotated, use_container_width=True, caption=f"Tozalangan sahifa ({len(st.session_state.raw_bubbles)} ta pufak)")
-                    else:
-                        st.image(st.session_state.cleaned_page, use_container_width=True, caption="Tozalangan sahifa (Siyoh Telea orqali tozalangan, to'rtburchak oq dog'siz)")
-                with tab_orig:
-                    st.image(st.session_state.image, use_container_width=True, caption=st.session_state.image_name)
-            else:
-                st.image(st.session_state.image, use_container_width=True, caption="Asl sahifa (Hali skanerlanmagan)")
+        # --- Right Drawer: Push/Slide Container ---
+        with st.container(key="right_drawer"):
+            p_cnt_str = f"{len(st.session_state.raw_bubbles)} ta pufak" if st.session_state.raw_bubbles else ""
+            render_right_panel_header("Skanerlash & Tozalash", p_cnt_str, close_key="btn_close_panel_1")
 
-        if col_right is not None:
-            with col_right:
-                p_cnt_str = f"{len(st.session_state.raw_bubbles)} ta pufak" if st.session_state.raw_bubbles else ""
-                render_right_panel_header("Skanerlash & Tozalash", p_cnt_str, close_key="btn_close_panel_1")
+            st.caption("EasyOCR pufaklarni aniqlaydi va qog'oz teksturasini buzmasdan faqat qora siyohni tozalaydi (Pure Ink Inpainting).")
 
-                st.caption("EasyOCR pufaklarni aniqlaydi va qog'oz teksturasini buzmasdan faqat qora siyohni tozalaydi (Pure Ink Inpainting).")
+            scan_label = "Qayta Skanerlash va Tozalash" if st.session_state.cleaned_page is not None else "1. Sahifani Skanerlash va Pufaklarni Tozalash"
+            scan_type = "secondary" if st.session_state.cleaned_page is not None else "primary"
+            scan_btn = st.button(scan_label, type=scan_type, use_container_width=True)
 
-                scan_label = "Qayta Skanerlash va Tozalash" if st.session_state.cleaned_page is not None else "1. Sahifani Skanerlash va Pufaklarni Tozalash"
-                scan_type = "secondary" if st.session_state.cleaned_page is not None else "primary"
-                scan_btn = st.button(scan_label, type=scan_type, use_container_width=True)
+            if scan_btn:
+                p_slot = st.empty()
+                p_slot.markdown(
+                    get_progress_bar_html(None, label=st.session_state.image_name or "Komiks sahifasi", pending_label="EasyOCR matnlarni tahlil qilmoqda..."),
+                    unsafe_allow_html=True
+                )
+                raw_bubbles = engine.scan_bubbles_ocr(st.session_state.image)
+                if not raw_bubbles:
+                    p_slot.empty()
+                    st.error("Hech qanday pufak aniqlanmadi!")
+                else:
+                    p_slot.markdown(
+                        get_progress_bar_html(65, label=st.session_state.image_name or "Komiks sahifasi", pending_label="Siyoh Telea orqali tozalanmoqda..."),
+                        unsafe_allow_html=True
+                    )
+                    keys_to_clear = [k for k in list(st.session_state.keys()) if k.startswith("overlay_")]
+                    for k in keys_to_clear:
+                        del st.session_state[k]
+                    st.session_state.analysis_version = st.session_state.get("analysis_version", 0) + 1
+                    st.session_state.raw_bubbles = raw_bubbles
+                    cleaned = engine.clean_page_ink_telea(st.session_state.image, raw_bubbles)
+                    st.session_state.cleaned_page = cleaned
+                    st.session_state.bubbles = []
+                    st.session_state.rendered_image = None
+                    st.session_state.rendered_image_bytes = None
+                    p_slot.markdown(
+                        get_progress_bar_html(100, label=st.session_state.image_name or "Komiks sahifasi", complete_label=f"{len(raw_bubbles)} ta pufak tozalandi"),
+                        unsafe_allow_html=True
+                    )
+                    time.sleep(0.3)
+                    p_slot.empty()
+                    st.toast(f"{len(raw_bubbles)} ta pufak topildi va sahifa tozalandi!", icon=":material/check_circle:")
+                    st.rerun()
 
-                if scan_btn:
+            if st.session_state.cleaned_page is not None and st.session_state.raw_bubbles:
+                if st.button("2-bosqich: Matnlarni Ko'rish va Tahrirlash", type="primary", use_container_width=True):
                     p_slot = st.empty()
                     p_slot.markdown(
-                        get_progress_bar_html(None, label=st.session_state.image_name or "Komiks sahifasi", pending_label="EasyOCR matnlarni tahlil qilmoqda..."),
+                        get_progress_bar_html(None, label="NLLB-200 AI Model", pending_label="O'zbek tiliga tarjima qilinmoqda..."),
                         unsafe_allow_html=True
                     )
-                    raw_bubbles = engine.scan_bubbles_ocr(st.session_state.image)
-                    if not raw_bubbles:
-                        p_slot.empty()
-                        st.error("Hech qanday pufak aniqlanmadi!")
-                    else:
-                        p_slot.markdown(
-                            get_progress_bar_html(65, label=st.session_state.image_name or "Komiks sahifasi", pending_label="Siyoh Telea orqali tozalanmoqda..."),
-                            unsafe_allow_html=True
-                        )
-                        keys_to_clear = [k for k in list(st.session_state.keys()) if k.startswith("overlay_")]
-                        for k in keys_to_clear:
-                            del st.session_state[k]
-                        st.session_state.analysis_version = st.session_state.get("analysis_version", 0) + 1
-                        st.session_state.raw_bubbles = raw_bubbles
-                        cleaned = engine.clean_page_ink_telea(st.session_state.image, raw_bubbles)
-                        st.session_state.cleaned_page = cleaned
-                        st.session_state.bubbles = []
-                        st.session_state.rendered_image = None
-                        st.session_state.rendered_image_bytes = None
-                        p_slot.markdown(
-                            get_progress_bar_html(100, label=st.session_state.image_name or "Komiks sahifasi", complete_label=f"{len(raw_bubbles)} ta pufak tozalandi"),
-                            unsafe_allow_html=True
-                        )
-                        time.sleep(0.3)
-                        p_slot.empty()
-                        st.toast(f"{len(raw_bubbles)} ta pufak topildi va sahifa tozalandi!", icon=":material/check_circle:")
-                        st.rerun()
-
-                if st.session_state.cleaned_page is not None and st.session_state.raw_bubbles:
-                    if st.button("2-bosqich: Matnlarni Ko'rish va Tahrirlash", type="primary", use_container_width=True):
-                        p_slot = st.empty()
-                        p_slot.markdown(
-                            get_progress_bar_html(None, label="NLLB-200 AI Model", pending_label="O'zbek tiliga tarjima qilinmoqda..."),
-                            unsafe_allow_html=True
-                        )
-                        translated = engine.translate_bubbles_list(st.session_state.raw_bubbles)
-                        st.session_state.bubbles = [BubbleDict(b.model_dump()) for b in translated]
-                        for b in st.session_state.bubbles:
-                            b["pipeline_uzbek_translation"] = b.get("pipeline_uzbek_translation") or b.get("uzbek_translation", "")
-                            b["last_captured_uzbek"] = b["pipeline_uzbek_translation"]
-                            st.session_state[f"trans_{b.bubble_id}"] = b.uzbek_translation
-                            st.session_state[f"active_{b.bubble_id}"] = b.is_active
-                            st.session_state[f"nudge_{b.bubble_id}"] = b.font_size_offset
-                        p_slot.markdown(
-                            get_progress_bar_html(100, label="NLLB-200 AI Model", complete_label="Tarjima yakunlandi"),
-                            unsafe_allow_html=True
-                        )
-                        time.sleep(0.3)
-                        p_slot.empty()
-                        st.session_state.current_stage = 2
-                        st.rerun()
-
-                    st.success(f"Tozalash muvaffaqiyatli! {len(st.session_state.raw_bubbles)} ta pufak topildi va matnlar to'liq o'chirildi.", icon=":material/check_circle:")
-                    
-                    st.markdown(
-                        f'<div class="modern-panel-section-header"><span>ANIQLANGAN MATNLAR ({len(st.session_state.raw_bubbles)})</span></div>',
+                    translated = engine.translate_bubbles_list(st.session_state.raw_bubbles)
+                    st.session_state.bubbles = [BubbleDict(b.model_dump()) for b in translated]
+                    for b in st.session_state.bubbles:
+                        b["pipeline_uzbek_translation"] = b.get("pipeline_uzbek_translation") or b.get("uzbek_translation", "")
+                        b["last_captured_uzbek"] = b["pipeline_uzbek_translation"]
+                        st.session_state[f"trans_{b.bubble_id}"] = b.uzbek_translation
+                        st.session_state[f"active_{b.bubble_id}"] = b.is_active
+                        st.session_state[f"nudge_{b.bubble_id}"] = b.font_size_offset
+                    p_slot.markdown(
+                        get_progress_bar_html(100, label="NLLB-200 AI Model", complete_label="Tarjima yakunlandi"),
                         unsafe_allow_html=True
                     )
-                    for b in st.session_state.raw_bubbles:
-                        esc_orig = html.escape(b.original_text)
-                        card_html = (
-                            f'<div class="modern-bubble-card">'
-                            f'<div class="mbc-header"><div class="mbc-tags"><span class="mbc-id">#{b.bubble_id}</span></div></div>'
-                            f'<div class="mbc-orig-dialogue"><span class="mbc-orig-label">EN</span>{esc_orig}</div>'
-                            f'</div>'
-                        )
-                        st.markdown(card_html, unsafe_allow_html=True)
+                    time.sleep(0.3)
+                    p_slot.empty()
+                    st.session_state.current_stage = 2
+                    st.rerun()
+
+                st.success(f"Tozalash muvaffaqiyatli! {len(st.session_state.raw_bubbles)} ta pufak topildi va matnlar to'liq o'chirildi.", icon=":material/check_circle:")
+                
+                st.markdown(
+                    f'<div class="modern-panel-section-header"><span>ANIQLANGAN MATNLAR ({len(st.session_state.raw_bubbles)})</span></div>',
+                    unsafe_allow_html=True
+                )
+                for b in st.session_state.raw_bubbles:
+                    esc_orig = html.escape(b.original_text)
+                    card_html = (
+                        f'<div class="modern-bubble-card">'
+                        f'<div class="mbc-header"><div class="mbc-tags"><span class="mbc-id">#{b.bubble_id}</span></div></div>'
+                        f'<div class="mbc-orig-dialogue"><span class="mbc-orig-label">EN</span>{esc_orig}</div>'
+                        f'</div>'
+                    )
+                    st.markdown(card_html, unsafe_allow_html=True)
 
     # ----------------------------------------------------
     # STAGE 2: TRANSLATE & REVIEW (Tarjima va Tahrir)
     # ----------------------------------------------------
     elif stage == 2:
         sync_bubble_widgets()
-        col_left, col_right = st.columns([1.25, 0.75])
 
-        with col_left:
-            canvas = st.session_state.cleaned_page if st.session_state.cleaned_page is not None else st.session_state.image
-            active_sig = tuple((b.get("is_active", True) if isinstance(b, dict) else getattr(b, "is_active", True)) for b in st.session_state.bubbles)
-            overlay_st2_key = f"overlay_st2_{len(st.session_state.bubbles)}_{hash(active_sig)}_{st.session_state.get('analysis_version', 0)}"
-            if overlay_st2_key not in st.session_state:
-                st.session_state[overlay_st2_key] = engine.draw_bounding_box_overlay(canvas, st.session_state.bubbles)
-            annotated = st.session_state[overlay_st2_key]
+        # --- Main Workspace: Full Width Mask Editor ---
+        canvas = st.session_state.cleaned_page if st.session_state.cleaned_page is not None else st.session_state.image
+        active_sig = tuple((b.get("is_active", True) if isinstance(b, dict) else getattr(b, "is_active", True)) for b in st.session_state.bubbles)
+        overlay_st2_key = f"overlay_st2_{len(st.session_state.bubbles)}_{hash(active_sig)}_{st.session_state.get('analysis_version', 0)}"
+        if overlay_st2_key not in st.session_state:
+            st.session_state[overlay_st2_key] = engine.draw_bounding_box_overlay(canvas, st.session_state.bubbles)
+        annotated = st.session_state[overlay_st2_key]
 
-            page_bgr = cv2.cvtColor(np.array(st.session_state.image), cv2.COLOR_RGB2BGR)
-            cur_page_name = st.session_state.get("uploaded_file_name", "page.png")
-            bubble_mask_editor.render_stage2_mask_editor(
-                annotated_page_image=annotated,
-                page_bgr=page_bgr,
-                page_name=cur_page_name
-            )
+        page_bgr = cv2.cvtColor(np.array(st.session_state.image), cv2.COLOR_RGB2BGR)
+        cur_page_name = st.session_state.get("uploaded_file_name", "page.png")
+        bubble_mask_editor.render_stage2_mask_editor(
+            annotated_page_image=annotated,
+            page_bgr=page_bgr,
+            page_name=cur_page_name
+        )
 
-        with col_right:
+        # --- Right Drawer: Push/Slide Container ---
+        with st.container(key="right_drawer"):
             p_cnt_str = f"{len(st.session_state.bubbles)} ta pufak" if st.session_state.bubbles else ""
             render_right_panel_header("Tarjima & Tahrirlash", p_cnt_str, close_key="btn_close_panel_2")
 
@@ -2331,20 +2316,19 @@ else:
         if st.session_state.rendered_image is None:
             trigger_render()
 
-        col_left, col_right = st.columns([1.25, 0.75])
+        # --- Main Workspace: Full Width Lettering Result ---
+        st.markdown("### Yakuniy Lettering Natijasi")
+        tab_res, tab_clean, tab_orig = st.tabs([":material/auto_awesome: Jonli Natija", ":material/cleaning_services: Tozalangan Sahifa", ":material/image: Asl Sahifa"])
+        with tab_res:
+            img_data = st.session_state.get("rendered_image_bytes") or st.session_state.rendered_image
+            st.image(img_data, use_container_width=True, caption="Jonli Lettering (CC Wild Words, Solid Black, Zero Stroke)")
+        with tab_clean:
+            st.image(st.session_state.cleaned_page, use_container_width=True, caption="1-bosqichda tozalangan sahifa")
+        with tab_orig:
+            st.image(st.session_state.image, use_container_width=True, caption="Asl sahifa")
 
-        with col_left:
-            st.markdown("### Yakuniy Lettering Natijasi")
-            tab_res, tab_clean, tab_orig = st.tabs([":material/auto_awesome: Jonli Natija", ":material/cleaning_services: Tozalangan Sahifa", ":material/image: Asl Sahifa"])
-            with tab_res:
-                img_data = st.session_state.get("rendered_image_bytes") or st.session_state.rendered_image
-                st.image(img_data, use_container_width=True, caption="Jonli Lettering (CC Wild Words, Solid Black, Zero Stroke)")
-            with tab_clean:
-                st.image(st.session_state.cleaned_page, use_container_width=True, caption="1-bosqichda tozalangan sahifa")
-            with tab_orig:
-                st.image(st.session_state.image, use_container_width=True, caption="Asl sahifa")
-
-        with col_right:
+        # --- Right Drawer: Push/Slide Container ---
+        with st.container(key="right_drawer"):
             p_cnt_str = f"{len(st.session_state.bubbles)} ta pufak" if st.session_state.bubbles else ""
             render_right_panel_header("Shriftlar & Jonli Tahrir", p_cnt_str, close_key="btn_close_panel_3")
 
