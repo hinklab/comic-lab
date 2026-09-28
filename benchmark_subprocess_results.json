@@ -1,0 +1,37 @@
+[
+  {
+    "step": "1_STARTUP",
+    "description": "Sof Python va psutil",
+    "rss_mb": 17.51
+  },
+  {
+    "step": "2_ENGINE_IMPORTED",
+    "description": "engine, cv2, PIL import qilinganda",
+    "rss_mb": 125.88
+  },
+  {
+    "step": "3_AFTER_SUBPROCESS_EXIT",
+    "description": "Subprocess tugagach va 14 ta pufak o'qilganda",
+    "rss_mb": 127.37
+  },
+  {
+    "step": "4_INPAINTING_FINISHED",
+    "description": "Telea algoritmi orqali matnlar tozalanganda",
+    "rss_mb": 205.59
+  },
+  {
+    "step": "5_NLLB_LOADED",
+    "description": "CTranslate2 NLLB-200 int8 modeli yuklanganda",
+    "rss_mb": 879.26
+  },
+  {
+    "step": "6_TRANSLATE_FINISHED",
+    "description": "14 ta pufak o'zbek tiliga tarjima qilinganda",
+    "rss_mb": 885.86
+  },
+  {
+    "step": "7_AFTER_RELEASE_TRANSLATOR",
+    "description": "NLLB modeli bo'shatilib gc.collect() qilinganda",
+    "rss_mb": 885.86
+  }
+]

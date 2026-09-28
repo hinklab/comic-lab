@@ -1794,17 +1794,61 @@ def sort_reading_order(lines: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return ordered
 
 
-def scan_bubbles_ocr(image: Image.Image) -> List[SpeechBubble]:
+def scan_bubbles_ocr_subprocess(image: Image.Image) -> List[SpeechBubble]:
+    """
+    Executes OCR in an isolated OS subprocess to guarantee 100% memory reclamation.
+    When the child process exits, Linux/Windows OS fully recovers its memory.
+    """
+    import tempfile
+    import subprocess
+    import sys
+
+    tmp_img = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+    tmp_img_path = tmp_img.name
+    tmp_img.close()
+    image.save(tmp_img_path, format="PNG")
+
+    tmp_json = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
+    tmp_json_path = tmp_json.name
+    tmp_json.close()
+
+    worker_script = os.path.join(os.path.dirname(__file__), "scripts", "ocr_worker.py")
+    try:
+        subprocess.run(
+            [sys.executable, "-u", worker_script, tmp_img_path, tmp_json_path],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        with open(tmp_json_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return [SpeechBubble(**d) for d in data]
+    finally:
+        for p in [tmp_img_path, tmp_json_path]:
+            try:
+                if os.path.exists(p):
+                    os.remove(p)
+            except Exception:
+                pass
+
+
+def scan_bubbles_ocr(image: Image.Image, use_subprocess: bool = True) -> List[SpeechBubble]:
     """
     Stage 1 OCR-First Detection & SFX Filtering Pipeline:
-    1. Rectangle-first isolation: detects earpiece boxes by red-brown border color mask,
-       claims their OCR lines exclusively before oval clustering runs.
-    2. Oval pass with occluder subtraction: remaining lines are clustered into oval bubbles;
-       each oval with overlapping rectangles gets a visible_mask (oval minus rect) and
-       fragments (connected components of visible_mask).
-    3. Z-order: ovals are z_order=0 (rendered behind), rectangles are z_order=1 (on top).
-    4. Returns List[SpeechBubble] sorted z_order=0 first.
+    When use_subprocess=True, executes OCR in an isolated worker process so that
+    PyTorch/CRAFT/EasyOCR memory is 100% returned to the OS upon process exit.
+    Falls back gracefully to in-process execution if subprocess fails.
     """
+    if use_subprocess:
+        try:
+            return scan_bubbles_ocr_subprocess(image)
+        except Exception as err:
+            print(f"[SCAN_SUBPROCESS_WARN] Subprocess OCR failed ({err}), falling back to in-process OCR.", flush=True)
+    return _scan_bubbles_ocr_core(image)
+
+
+def _scan_bubbles_ocr_core(image: Image.Image) -> List[SpeechBubble]:
+    """Core in-process OCR scanning implementation."""
     img_cv = cv2.cvtColor(np.array(image.convert("RGB")), cv2.COLOR_RGB2BGR)
     h, w = img_cv.shape[:2]
     gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)

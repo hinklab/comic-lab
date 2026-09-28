@@ -1,0 +1,47 @@
+[
+  {
+    "step": "1_STARTUP",
+    "description": "Sof Python va psutil yuklanganda",
+    "rss_mb": 17.61
+  },
+  {
+    "step": "2_ENGINE_IMPORTED",
+    "description": "engine, cv2, PIL, naturalization_rules import qilinganda",
+    "rss_mb": 125.86
+  },
+  {
+    "step": "3_EASYOCR_CREATED",
+    "description": "EasyOCR Reader(['en'], gpu=False) yaratilganda",
+    "rss_mb": 564.9
+  },
+  {
+    "step": "4_SCAN_FINISHED",
+    "description": "Tiled OCR orqali 14 ta pufak topilganda",
+    "rss_mb": 605.32
+  },
+  {
+    "step": "5_INPAINTING_FINISHED",
+    "description": "Telea algoritmi orqali matnlar tozalanganda",
+    "rss_mb": 641.64
+  },
+  {
+    "step": "6_AFTER_RELEASE_OCR",
+    "description": "EasyOCR reader xotiradan bo'shatilib gc.collect() qilinganda",
+    "rss_mb": 583.45
+  },
+  {
+    "step": "7_NLLB_LOADED",
+    "description": "CTranslate2 NLLB-200 int8 modeli yuklanganda",
+    "rss_mb": 1244.67
+  },
+  {
+    "step": "8_TRANSLATE_FINISHED",
+    "description": "14 ta pufak o'zbek tiliga tarjima qilinganda",
+    "rss_mb": 1260.4
+  },
+  {
+    "step": "9_AFTER_RELEASE_TRANSLATOR",
+    "description": "NLLB modeli bo'shatilib gc.collect() qilinganda",
+    "rss_mb": 1260.4
+  }
+]
