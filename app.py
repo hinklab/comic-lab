@@ -475,10 +475,11 @@ def inject_drawer_css():
   transition: padding-right var(--panel-anim) !important;
 }
 
-/* 2) Yuqoridagi fixed header ham qisqaradi (Deploy/Toolbar panel tagida qolmasin) */
+/* 2) Header boshqaruvi: stHeader stAppViewContainer ichida joylashgani sababli
+      padding-right hisobiga uning kengligi o'zi to'g'ri chegaralanadi.
+      Ikki marta qisqarib taskbar markazga surilib ketmasligi uchun width: 100% o'rnatiladi. */
 [data-testid="stHeader"] {
-  width: calc(100% - var(--drawer-pad)) !important;
-  transition: width var(--panel-anim) !important;
+  width: 100% !important;
 }
 [data-testid="stToolbar"] {
   margin-right: __TB__ !important;
