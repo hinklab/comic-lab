@@ -430,7 +430,9 @@ def process_page_sfx(
 
     if raw_ocr_results is None:
         reader = engine.get_ocr_reader()
-        raw_ocr_results = reader.readtext(np.array(image.convert("RGB")), paragraph=False)
+        raw_ocr_results = reader.readtext(np.array(image.convert("RGB")), paragraph=False, canvas_size=1536)
+        import gc
+        gc.collect()
 
     sfx_elements = extract_sfx_elements(raw_ocr_results, img_cv.shape[:2], image_bgr=img_cv)
     if not sfx_elements:

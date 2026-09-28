@@ -77,11 +77,20 @@ def get_comic_star_b64() -> str:
 
 
 
-def reset_page_state(image: Image.Image, image_name: str):
+def reset_page_state(image: Optional[Image.Image], image_name: str):
     """Resets all per-page analysis, cleaning, and rendering state for a new image."""
     keys_to_clear = [k for k in list(st.session_state.keys()) if k.startswith(("trans_", "font_size_", "line_spacing_", "pad_", "overlay_"))]
     for k in keys_to_clear:
         del st.session_state[k]
+
+    # Memory guard: clamp massive images to max 2560px to prevent Out-Of-Memory (OOM) on Streamlit Cloud (1GB RAM limit)
+    if image is not None:
+        max_dim = max(image.size)
+        if max_dim > 2560:
+            scale = 2560.0 / max_dim
+            new_size = (int(image.width * scale), int(image.height * scale))
+            image = image.resize(new_size, Image.Resampling.LANCZOS)
+
     st.session_state.image = image
     st.session_state.image_name = image_name
     st.session_state.raw_bubbles = []
@@ -2213,33 +2222,39 @@ else:
                     get_progress_bar_html(None, label=st.session_state.image_name or "Komiks sahifasi", pending_label="EasyOCR matnlarni tahlil qilmoqda..."),
                     unsafe_allow_html=True
                 )
-                raw_bubbles = engine.scan_bubbles_ocr(st.session_state.image)
-                if not raw_bubbles:
+                try:
+                    raw_bubbles = engine.scan_bubbles_ocr(st.session_state.image)
+                    if not raw_bubbles:
+                        p_slot.empty()
+                        st.error("Hech qanday pufak aniqlanmadi!")
+                    else:
+                        p_slot.markdown(
+                            get_progress_bar_html(65, label=st.session_state.image_name or "Komiks sahifasi", pending_label="Siyoh Telea orqali tozalanmoqda..."),
+                            unsafe_allow_html=True
+                        )
+                        keys_to_clear = [k for k in list(st.session_state.keys()) if k.startswith("overlay_")]
+                        for k in keys_to_clear:
+                            del st.session_state[k]
+                        st.session_state.analysis_version = st.session_state.get("analysis_version", 0) + 1
+                        st.session_state.raw_bubbles = raw_bubbles
+                        cleaned = engine.clean_page_ink_telea(st.session_state.image, raw_bubbles)
+                        st.session_state.cleaned_page = cleaned
+                        st.session_state.bubbles = []
+                        st.session_state.rendered_image = None
+                        st.session_state.rendered_image_bytes = None
+                        import gc
+                        gc.collect()
+                        p_slot.markdown(
+                            get_progress_bar_html(100, label=st.session_state.image_name or "Komiks sahifasi", complete_label=f"{len(raw_bubbles)} ta pufak tozalandi"),
+                            unsafe_allow_html=True
+                        )
+                        time.sleep(0.3)
+                        p_slot.empty()
+                        st.toast(f"{len(raw_bubbles)} ta pufak topildi va sahifa tozalandi!", icon=":material/check_circle:")
+                        st.rerun()
+                except Exception as ex:
                     p_slot.empty()
-                    st.error("Hech qanday pufak aniqlanmadi!")
-                else:
-                    p_slot.markdown(
-                        get_progress_bar_html(65, label=st.session_state.image_name or "Komiks sahifasi", pending_label="Siyoh Telea orqali tozalanmoqda..."),
-                        unsafe_allow_html=True
-                    )
-                    keys_to_clear = [k for k in list(st.session_state.keys()) if k.startswith("overlay_")]
-                    for k in keys_to_clear:
-                        del st.session_state[k]
-                    st.session_state.analysis_version = st.session_state.get("analysis_version", 0) + 1
-                    st.session_state.raw_bubbles = raw_bubbles
-                    cleaned = engine.clean_page_ink_telea(st.session_state.image, raw_bubbles)
-                    st.session_state.cleaned_page = cleaned
-                    st.session_state.bubbles = []
-                    st.session_state.rendered_image = None
-                    st.session_state.rendered_image_bytes = None
-                    p_slot.markdown(
-                        get_progress_bar_html(100, label=st.session_state.image_name or "Komiks sahifasi", complete_label=f"{len(raw_bubbles)} ta pufak tozalandi"),
-                        unsafe_allow_html=True
-                    )
-                    time.sleep(0.3)
-                    p_slot.empty()
-                    st.toast(f"{len(raw_bubbles)} ta pufak topildi va sahifa tozalandi!", icon=":material/check_circle:")
-                    st.rerun()
+                    st.error(f"Skanerlashda xatolik yuz berdi: {ex}")
 
             if st.session_state.cleaned_page is not None and st.session_state.raw_bubbles:
                 if st.button("2-bosqich: Matnlarni Ko'rish va Tahrirlash", type="primary", use_container_width=True):
