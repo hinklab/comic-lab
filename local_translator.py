@@ -125,9 +125,50 @@ class OfflineNLLBTranslator:
         return outputs
 
 
+def get_process_rss_mb() -> float:
+    """Returns current process Resident Set Size (RSS) memory in megabytes."""
+    try:
+        import psutil
+        return psutil.Process(os.getpid()).memory_info().rss / (1024 * 1024)
+    except Exception:
+        return 0.0
+
+try:
+    import streamlit as st
+    @st.cache_resource(show_spinner=False)
+    def _cached_nllb_translator(model_dir: Optional[str] = None):
+        t = OfflineNLLBTranslator(model_dir)
+        print(f"[DIAGNOSTIKA 4] NLLB modeli yuklangandan keyin (RAM RSS): {get_process_rss_mb():.1f} MB", flush=True)
+        return t
+except Exception:
+    _cached_nllb_translator = None
+
+
+def get_translator(model_dir: Optional[str] = None) -> OfflineNLLBTranslator:
+    """Returns a singleton CTranslate2 NLLB translator cached by Streamlit."""
+    if _cached_nllb_translator is not None:
+        return _cached_nllb_translator(model_dir)
+    t = OfflineNLLBTranslator.get_instance(model_dir)
+    print(f"[DIAGNOSTIKA 4] NLLB modeli yuklangandan keyin (RAM RSS): {get_process_rss_mb():.1f} MB", flush=True)
+    return t
+
+
+def release_translator():
+    """Releases CTranslate2 translator from memory and runs garbage collection."""
+    try:
+        if _cached_nllb_translator is not None and hasattr(_cached_nllb_translator, "clear"):
+            _cached_nllb_translator.clear()
+    except Exception:
+        pass
+    OfflineNLLBTranslator._instance = None
+    import gc
+    gc.collect()
+    print(f"[DIAGNOSTIKA] NLLB translator xotiradan bo'shatildi (RAM RSS): {get_process_rss_mb():.1f} MB", flush=True)
+
+
 def translate_offline(text_or_texts: Union[str, List[str]]) -> Union[str, List[str]]:
     """Convenience functional wrapper for offline translation."""
-    translator = OfflineNLLBTranslator.get_instance()
+    translator = get_translator()
     if isinstance(text_or_texts, str):
         return translator.translate_single(text_or_texts)
     elif isinstance(text_or_texts, list):

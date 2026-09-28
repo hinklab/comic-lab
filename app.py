@@ -42,6 +42,9 @@ st.set_page_config(
 )
 # ------------------------------------------------------------------------
 
+print(f"[DIAGNOSTIKA 1] Ilova ishga tushganda (RAM RSS): {engine.get_process_rss_mb():.1f} MB", flush=True)
+
+
 
 class BubbleDict(dict):
 
@@ -2069,6 +2072,10 @@ with st.sidebar:
             st.toast("Shrift va sozlamalar sahifaga muvaffaqiyatli qo'llandi", icon=":material/check_circle:")
             st.rerun()
 
+    cur_rss = engine.get_process_rss_mb()
+    st.sidebar.markdown("---")
+    st.sidebar.caption(f":material/memory: Operativ xotira (RAM RSS): **{cur_rss:.1f} MB** / 1024 MB")
+
 if st.session_state.image is None:
     star_b64 = get_comic_star_b64()
     st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
@@ -2146,12 +2153,16 @@ else:
     col_nav1, col_nav2, col_nav3 = st.columns(3)
     with col_nav1:
         if st.button("1. Skanerlash & Tozalash", type="primary" if stage == 1 else "secondary", use_container_width=True):
+            local_translator.release_translator()
             st.session_state.current_stage = 1
             st.rerun()
     with col_nav2:
         if st.button("2. Tarjima & Tahrir", type="primary" if stage == 2 else "secondary", disabled=not has_raw, use_container_width=True):
             need_translate = not has_trans or (len(st.session_state.get("bubbles", [])) != len(st.session_state.raw_bubbles))
             if need_translate and has_raw:
+                engine.release_ocr_reader()
+                import gc
+                gc.collect()
                 p_slot = st.empty()
                 p_slot.markdown(
                     get_progress_bar_html(None, label="NLLB-200 AI Model", pending_label="O'zbek tiliga tarjima qilinmoqda..."),
@@ -2176,10 +2187,13 @@ else:
             st.rerun()
     with col_nav3:
         if st.button("3. Shriftlarni Yozish", type="primary" if stage == 3 else "secondary", disabled=not has_trans, use_container_width=True):
+            local_translator.release_translator()
             sync_bubble_widgets()
             trigger_render()
             st.session_state.current_stage = 3
             st.rerun()
+
+    st.caption(f":material/memory: Operativ xotira (RAM RSS): **{engine.get_process_rss_mb():.1f} MB** / 1024 MB")
 
     st.markdown("---")
 
@@ -2216,8 +2230,10 @@ else:
             scan_label = "Qayta Skanerlash va Tozalash" if st.session_state.cleaned_page is not None else "1. Sahifani Skanerlash va Pufaklarni Tozalash"
             scan_type = "secondary" if st.session_state.cleaned_page is not None else "primary"
             scan_btn = st.button(scan_label, type=scan_type, use_container_width=True)
+            st.caption(f":material/memory: Operativ xotira (RAM RSS): **{engine.get_process_rss_mb():.1f} MB** / 1024 MB")
 
             if scan_btn:
+                local_translator.release_translator()
                 p_slot = st.empty()
                 p_slot.markdown(
                     get_progress_bar_html(None, label=st.session_state.image_name or "Komiks sahifasi", pending_label="EasyOCR matnlarni tahlil qilmoqda..."),
@@ -2240,6 +2256,7 @@ else:
                         st.session_state.raw_bubbles = raw_bubbles
                         cleaned = engine.clean_page_ink_telea(st.session_state.image, raw_bubbles)
                         st.session_state.cleaned_page = cleaned
+                        print(f"[DIAGNOSTIKA 3] Inpainting'dan keyin (RAM RSS): {engine.get_process_rss_mb():.1f} MB", flush=True)
                         st.session_state.bubbles = []
                         st.session_state.rendered_image = None
                         st.session_state.rendered_image_bytes = None
@@ -2259,6 +2276,9 @@ else:
 
             if st.session_state.cleaned_page is not None and st.session_state.raw_bubbles:
                 if st.button("2-bosqich: Matnlarni Ko'rish va Tahrirlash", type="primary", use_container_width=True):
+                    engine.release_ocr_reader()
+                    import gc
+                    gc.collect()
                     p_slot = st.empty()
                     p_slot.markdown(
                         get_progress_bar_html(None, label="NLLB-200 AI Model", pending_label="O'zbek tiliga tarjima qilinmoqda..."),
@@ -2325,10 +2345,12 @@ else:
             render_right_panel_header("Tarjima & Tahrirlash", p_cnt_str, close_key="btn_close_panel_2")
 
             st.caption("Tarjimalarni ko'rib chiqing va tahrirlang. Bu bosqichda og'ir grafik qayta ishlanmaydi.")
+            st.caption(f":material/memory: Operativ xotira (RAM RSS): **{engine.get_process_rss_mb():.1f} MB** / 1024 MB")
 
             col_btn1, col_btn2 = st.columns(2)
             with col_btn1:
                 if st.button("1-bosqichga qaytish", use_container_width=True):
+                    local_translator.release_translator()
                     st.session_state.current_stage = 1
                     st.rerun()
             with col_btn2:
@@ -2345,6 +2367,7 @@ else:
                         unsafe_allow_html=True
                     )
                 if st.button("3-bosqich: Shriftlarni Yozish", type="primary", use_container_width=True):
+                    local_translator.release_translator()
                     sync_bubble_widgets()
                     trigger_render()
                     st.session_state.current_stage = 3

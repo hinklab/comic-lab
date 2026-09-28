@@ -407,12 +407,38 @@ class FragmentGroup(BaseModel):
 
 
 # Cached EasyOCR Reader
+def get_process_rss_mb() -> float:
+    """Returns current process Resident Set Size (RSS) memory in megabytes."""
+    try:
+        import psutil
+        return psutil.Process(os.getpid()).memory_info().rss / (1024 * 1024)
+    except Exception:
+        return 0.0
+
+try:
+    import streamlit as st
+    @st.cache_resource(show_spinner=False)
+    def _cached_easyocr_reader():
+        import easyocr
+        import torch
+        try:
+            torch.set_num_threads(1)
+        except Exception:
+            pass
+        return easyocr.Reader(['en'], gpu=False, verbose=False)
+except Exception:
+    _cached_easyocr_reader = None
+
 _OCR_READER = None
 
 
 def get_ocr_reader():
     """Returns a singleton EasyOCR reader with memory-optimized defaults."""
     global _OCR_READER
+    if _cached_easyocr_reader is not None:
+        reader = _cached_easyocr_reader()
+        print(f"[DIAGNOSTIKA 2] EasyOCR reader yaratilgandan keyin (RAM RSS): {get_process_rss_mb():.1f} MB", flush=True)
+        return reader
     if _OCR_READER is None:
         import easyocr
         import torch
@@ -421,7 +447,28 @@ def get_ocr_reader():
         except Exception:
             pass
         _OCR_READER = easyocr.Reader(['en'], gpu=False, verbose=False)
+        print(f"[DIAGNOSTIKA 2] EasyOCR reader yaratilgandan keyin (RAM RSS): {get_process_rss_mb():.1f} MB", flush=True)
     return _OCR_READER
+
+
+def release_ocr_reader():
+    """Explicitly releases EasyOCR reader from memory and triggers garbage collection."""
+    global _OCR_READER
+    try:
+        if _cached_easyocr_reader is not None and hasattr(_cached_easyocr_reader, "clear"):
+            _cached_easyocr_reader.clear()
+    except Exception:
+        pass
+    _OCR_READER = None
+    import gc
+    gc.collect()
+    try:
+        import torch
+        if hasattr(torch, "cuda") and torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except Exception:
+        pass
+    print(f"[DIAGNOSTIKA] EasyOCR reader xotiradan bo'shatildi (RAM RSS): {get_process_rss_mb():.1f} MB", flush=True)
 
 
 def run_tiled_easyocr(image: Image.Image, reader=None, canvas_size: int = 2048) -> List[Any]:
