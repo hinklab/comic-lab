@@ -406,14 +406,105 @@ class FragmentGroup(BaseModel):
     parent_box: Optional[List[int]] = Field(default=None, description="Original parent bounding box [x0, y0, x1, y1]")
 
 
-# Cached EasyOCR Reader
-def get_process_rss_mb() -> float:
-    """Returns current process Resident Set Size (RSS) memory in megabytes."""
+def get_memory_stats() -> Dict[str, Any]:
+    """
+    Returns comprehensive memory statistics:
+    1. Process tree RSS (parent + all recursive children) in MB.
+    2. Linux cgroup v1/v2 memory metrics if available:
+       - cgroup_limit_mb: cgroup hard limit (or None if unlimited / not in cgroup)
+       - cgroup_current_mb: current cgroup memory usage
+       - cgroup_peak_mb: max peak cgroup memory usage observed by OS
+    """
+    import os
+    import psutil
+
+    total_rss = 0.0
     try:
-        import psutil
-        return psutil.Process(os.getpid()).memory_info().rss / (1024 * 1024)
+        proc = psutil.Process(os.getpid())
+        total_rss += proc.memory_info().rss
+        for child in proc.children(recursive=True):
+            try:
+                total_rss += child.memory_info().rss
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
     except Exception:
-        return 0.0
+        pass
+    process_rss_mb = total_rss / (1024 * 1024)
+
+    cgroup_limit_mb = None
+    cgroup_current_mb = None
+    cgroup_peak_mb = None
+
+    def _read_cg_bytes(path: str) -> Optional[float]:
+        if os.path.exists(path):
+            try:
+                with open(path, "r") as f:
+                    val = f.read().strip()
+                if val and val != "max":
+                    b = int(val)
+                    if b < 10**15:  # Filter out ~9e18 representing unlimited
+                        return b / (1024 * 1024)
+            except Exception:
+                pass
+        return None
+
+    # Check cgroup v2
+    cg2_cur = "/sys/fs/cgroup/memory.current"
+    cg2_max = "/sys/fs/cgroup/memory.max"
+    cg2_peak = "/sys/fs/cgroup/memory.peak"
+
+    # Check cgroup v1
+    cg1_cur = "/sys/fs/cgroup/memory/memory.usage_in_bytes"
+    cg1_lim = "/sys/fs/cgroup/memory/memory.limit_in_bytes"
+    cg1_peak = "/sys/fs/cgroup/memory/memory.max_usage_in_bytes"
+
+    if os.path.exists(cg2_cur):
+        cgroup_current_mb = _read_cg_bytes(cg2_cur)
+        cgroup_limit_mb = _read_cg_bytes(cg2_max)
+        cgroup_peak_mb = _read_cg_bytes(cg2_peak)
+    elif os.path.exists(cg1_cur):
+        cgroup_current_mb = _read_cg_bytes(cg1_cur)
+        cgroup_limit_mb = _read_cg_bytes(cg1_lim)
+        cgroup_peak_mb = _read_cg_bytes(cg1_peak)
+
+    return {
+        "rss_mb": round(process_rss_mb, 1),
+        "cgroup_current_mb": round(cgroup_current_mb, 1) if cgroup_current_mb is not None else None,
+        "cgroup_limit_mb": round(cgroup_limit_mb, 1) if cgroup_limit_mb is not None else None,
+        "cgroup_peak_mb": round(cgroup_peak_mb, 1) if cgroup_peak_mb is not None else None,
+    }
+
+
+def format_memory_summary(stats: Optional[Dict[str, Any]] = None) -> str:
+    """Formats memory stats into a readable string for logs and UI widgets."""
+    if stats is None:
+        stats = get_memory_stats()
+
+    parts = [f"Tree RSS: {stats['rss_mb']:.1f} MB"]
+
+    if stats.get("cgroup_limit_mb") is not None:
+        cur = stats.get("cgroup_current_mb", stats["rss_mb"])
+        lim = stats["cgroup_limit_mb"]
+        pct = (cur / lim * 100) if lim > 0 else 0
+        parts.append(f"cgroup: {cur:.1f}/{lim:.1f} MB ({pct:.0f}%)")
+    elif stats.get("cgroup_current_mb") is not None:
+        parts.append(f"cgroup: {stats['cgroup_current_mb']:.1f} MB")
+
+    if stats.get("cgroup_peak_mb") is not None:
+        peak_val = stats["cgroup_peak_mb"]
+        peak_str = f"Peak: {peak_val:.1f} MB"
+        if stats.get("cgroup_limit_mb"):
+            peak_pct = peak_val / stats["cgroup_limit_mb"] * 100
+            peak_str += f" ({peak_pct:.0f}%)"
+        parts.append(peak_str)
+
+    return " | ".join(parts)
+
+
+def get_process_rss_mb() -> float:
+    """Returns current process tree Resident Set Size (RSS) memory in megabytes."""
+    return get_memory_stats()["rss_mb"]
+
 
 try:
     import streamlit as st
@@ -1794,14 +1885,16 @@ def sort_reading_order(lines: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return ordered
 
 
-def scan_bubbles_ocr_subprocess(image: Image.Image) -> List[SpeechBubble]:
+def scan_bubbles_ocr_subprocess(image: Image.Image, timeout_seconds: int = 120) -> List[SpeechBubble]:
     """
-    Executes OCR in an isolated OS subprocess to guarantee 100% memory reclamation.
+    Executes OCR in an isolated OS subprocess with strict timeout protection.
     When the child process exits, Linux/Windows OS fully recovers its memory.
+    If the child process hangs past timeout_seconds, it is killed forcefully and raises TimeoutError.
     """
     import tempfile
     import subprocess
     import sys
+    import psutil
 
     tmp_img = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
     tmp_img_path = tmp_img.name
@@ -1813,13 +1906,35 @@ def scan_bubbles_ocr_subprocess(image: Image.Image) -> List[SpeechBubble]:
     tmp_json.close()
 
     worker_script = os.path.join(os.path.dirname(__file__), "scripts", "ocr_worker.py")
+    subproc = None
     try:
-        subprocess.run(
+        subproc = subprocess.Popen(
             [sys.executable, "-u", worker_script, tmp_img_path, tmp_json_path],
-            capture_output=True,
-            text=True,
-            check=True
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
         )
+        try:
+            stdout, stderr = subproc.communicate(timeout=timeout_seconds)
+        except subprocess.TimeoutExpired:
+            print(f"[OCR_SUBPROCESS_TIMEOUT] OCR bola jarayoni {timeout_seconds}s ichida javob bermadi! Majburiy to'xtatilyapti...", flush=True)
+            try:
+                p = psutil.Process(subproc.pid)
+                for child in p.children(recursive=True):
+                    try:
+                        child.kill()
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        pass
+                p.kill()
+            except Exception:
+                subproc.kill()
+            subproc.communicate()
+            raise TimeoutError(f"EasyOCR bola jarayoni {timeout_seconds} soniya ichida yakunlanmadi va majburiy to'xtatildi (Timeout).")
+
+        if subproc.returncode != 0:
+            err_msg = stderr.strip() if stderr else f"Exit code {subproc.returncode}"
+            raise RuntimeError(f"EasyOCR bola jarayonida xatolik yuz berdi: {err_msg}")
+
         with open(tmp_json_path, "r", encoding="utf-8") as f:
             data = json.load(f)
         return [SpeechBubble(**d) for d in data]
@@ -1832,19 +1947,22 @@ def scan_bubbles_ocr_subprocess(image: Image.Image) -> List[SpeechBubble]:
                 pass
 
 
-def scan_bubbles_ocr(image: Image.Image, use_subprocess: bool = True) -> List[SpeechBubble]:
+def scan_bubbles_ocr(image: Image.Image, use_subprocess: bool = True, timeout_seconds: int = 120) -> List[SpeechBubble]:
     """
     Stage 1 OCR-First Detection & SFX Filtering Pipeline:
     When use_subprocess=True, executes OCR in an isolated worker process so that
     PyTorch/CRAFT/EasyOCR memory is 100% returned to the OS upon process exit.
-    Falls back gracefully to in-process execution if subprocess fails.
+    If the worker hangs, it is terminated forcefully to prevent orphaned processes.
     """
     if use_subprocess:
         try:
-            return scan_bubbles_ocr_subprocess(image)
+            return scan_bubbles_ocr_subprocess(image, timeout_seconds=timeout_seconds)
+        except TimeoutError:
+            raise
         except Exception as err:
             print(f"[SCAN_SUBPROCESS_WARN] Subprocess OCR failed ({err}), falling back to in-process OCR.", flush=True)
     return _scan_bubbles_ocr_core(image)
+
 
 
 def _scan_bubbles_ocr_core(image: Image.Image) -> List[SpeechBubble]:

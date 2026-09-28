@@ -42,7 +42,7 @@ st.set_page_config(
 )
 # ------------------------------------------------------------------------
 
-print(f"[DIAGNOSTIKA 1] Ilova ishga tushganda (RAM RSS): {engine.get_process_rss_mb():.1f} MB", flush=True)
+print(f"[XOTIRA_DIAGNOSTIKA] Ilova ishga tushganda: {engine.format_memory_summary()}", flush=True)
 
 
 
@@ -2072,9 +2072,8 @@ with st.sidebar:
             st.toast("Shrift va sozlamalar sahifaga muvaffaqiyatli qo'llandi", icon=":material/check_circle:")
             st.rerun()
 
-    cur_rss = engine.get_process_rss_mb()
     st.sidebar.markdown("---")
-    st.sidebar.caption(f":material/memory: Operativ xotira (RAM RSS): **{cur_rss:.1f} MB** / 1024 MB")
+    st.sidebar.caption(f":material/memory: **Xotira (RAM / cgroup):**<br>`{engine.format_memory_summary()}`", unsafe_allow_html=True)
 
 if st.session_state.image is None:
     star_b64 = get_comic_star_b64()
@@ -2176,6 +2175,7 @@ else:
                     st.session_state[f"trans_{b.bubble_id}"] = b.uzbek_translation
                     st.session_state[f"active_{b.bubble_id}"] = b.is_active
                     st.session_state[f"nudge_{b.bubble_id}"] = b.font_size_offset
+                print(f"[XOTIRA_DIAGNOSTIKA] 2-bosqich yakunlandi (Tarjima): {engine.format_memory_summary()}", flush=True)
                 p_slot.markdown(
                     get_progress_bar_html(100, label="NLLB-200 AI Model", complete_label="Tarjima yakunlandi"),
                     unsafe_allow_html=True
@@ -2193,7 +2193,7 @@ else:
             st.session_state.current_stage = 3
             st.rerun()
 
-    st.caption(f":material/memory: Operativ xotira (RAM RSS): **{engine.get_process_rss_mb():.1f} MB** / 1024 MB")
+    st.caption(f":material/memory: **Xotira holati:** `{engine.format_memory_summary()}`", unsafe_allow_html=True)
 
     st.markdown("---")
 
@@ -2230,7 +2230,7 @@ else:
             scan_label = "Qayta Skanerlash va Tozalash" if st.session_state.cleaned_page is not None else "1. Sahifani Skanerlash va Pufaklarni Tozalash"
             scan_type = "secondary" if st.session_state.cleaned_page is not None else "primary"
             scan_btn = st.button(scan_label, type=scan_type, use_container_width=True)
-            st.caption(f":material/memory: Operativ xotira (RAM RSS): **{engine.get_process_rss_mb():.1f} MB** / 1024 MB")
+            st.caption(f":material/memory: **Xotira holati:** `{engine.format_memory_summary()}`", unsafe_allow_html=True)
 
             if scan_btn:
                 local_translator.release_translator()
@@ -2256,7 +2256,7 @@ else:
                         st.session_state.raw_bubbles = raw_bubbles
                         cleaned = engine.clean_page_ink_telea(st.session_state.image, raw_bubbles)
                         st.session_state.cleaned_page = cleaned
-                        print(f"[DIAGNOSTIKA 3] Inpainting'dan keyin (RAM RSS): {engine.get_process_rss_mb():.1f} MB", flush=True)
+                        print(f"[XOTIRA_DIAGNOSTIKA] 1-bosqich yakunlandi (Inpainting): {engine.format_memory_summary()}", flush=True)
                         st.session_state.bubbles = []
                         st.session_state.rendered_image = None
                         st.session_state.rendered_image_bytes = None
@@ -2292,6 +2292,7 @@ else:
                         st.session_state[f"trans_{b.bubble_id}"] = b.uzbek_translation
                         st.session_state[f"active_{b.bubble_id}"] = b.is_active
                         st.session_state[f"nudge_{b.bubble_id}"] = b.font_size_offset
+                    print(f"[XOTIRA_DIAGNOSTIKA] 2-bosqich yakunlandi (Tarjima): {engine.format_memory_summary()}", flush=True)
                     p_slot.markdown(
                         get_progress_bar_html(100, label="NLLB-200 AI Model", complete_label="Tarjima yakunlandi"),
                         unsafe_allow_html=True
@@ -2345,7 +2346,7 @@ else:
             render_right_panel_header("Tarjima & Tahrirlash", p_cnt_str, close_key="btn_close_panel_2")
 
             st.caption("Tarjimalarni ko'rib chiqing va tahrirlang. Bu bosqichda og'ir grafik qayta ishlanmaydi.")
-            st.caption(f":material/memory: Operativ xotira (RAM RSS): **{engine.get_process_rss_mb():.1f} MB** / 1024 MB")
+            st.caption(f":material/memory: **Xotira holati:** `{engine.format_memory_summary()}`", unsafe_allow_html=True)
 
             col_btn1, col_btn2 = st.columns(2)
             with col_btn1:
@@ -2383,6 +2384,7 @@ else:
         sync_bubble_widgets()
         if st.session_state.rendered_image is None:
             trigger_render()
+        print(f"[XOTIRA_DIAGNOSTIKA] 3-bosqich yakunlandi (Lettering): {engine.format_memory_summary()}", flush=True)
 
         # --- Main Workspace: Full Width Lettering Result ---
         st.markdown("### Yakuniy Lettering Natijasi")
