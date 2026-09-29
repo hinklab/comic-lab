@@ -2116,6 +2116,28 @@ with st.sidebar:
             })
         st.dataframe(proc_rows, use_container_width=True, hide_index=True)
 
+        try:
+            import scripts.import_profiler as profiler
+            prof_data = profiler.get_cached_profile()
+            if prof_data:
+                st.markdown("**📊 Kutubxonalar Import Profileri (Step 1):**")
+                table_rows = []
+                for item in prof_data:
+                    df = f"+{item['delta_file_mb']:.1f}" if item['delta_file_mb'] > 0 else "-"
+                    da = f"+{item['delta_anon_mb']:.1f}" if item['delta_anon_mb'] > 0 else "-"
+                    table_rows.append({
+                        "Kutubxona": item["library"],
+                        "file (MB)": item["file_mb"],
+                        "+file": df,
+                        "anon (MB)": item["anon_mb"],
+                        "+anon": da,
+                        "RSS (MB)": item["rss_mb"],
+                        "Disk (MB)": item["disk_size_mb"],
+                    })
+                st.dataframe(table_rows, use_container_width=True, hide_index=True)
+        except Exception:
+            pass
+
 if st.session_state.image is None:
     star_b64 = get_comic_star_b64()
     st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
