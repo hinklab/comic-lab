@@ -414,6 +414,9 @@ def get_memory_stats() -> Dict[str, Any]:
        - cgroup_limit_mb: cgroup hard limit (or None if unlimited / not in cgroup)
        - cgroup_current_mb: current cgroup memory usage
        - cgroup_peak_mb: max peak cgroup memory usage observed by OS
+       - cgroup_anon_mb: anonymous memory (real resident process heap/stack)
+       - cgroup_file_mb: file cache/page cache (reclaimable under memory pressure)
+       - cgroup_shmem_mb: shared memory / tmpfs
     """
     import os
     import psutil
@@ -434,6 +437,10 @@ def get_memory_stats() -> Dict[str, Any]:
     cgroup_limit_mb = None
     cgroup_current_mb = None
     cgroup_peak_mb = None
+    anon_mb = None
+    file_mb = None
+    shmem_mb = None
+    cgroup_stat = {}
 
     def _read_cg_bytes(path: str) -> Optional[float]:
         if os.path.exists(path):
@@ -452,26 +459,69 @@ def get_memory_stats() -> Dict[str, Any]:
     cg2_cur = "/sys/fs/cgroup/memory.current"
     cg2_max = "/sys/fs/cgroup/memory.max"
     cg2_peak = "/sys/fs/cgroup/memory.peak"
+    cg2_stat = "/sys/fs/cgroup/memory.stat"
 
     # Check cgroup v1
     cg1_cur = "/sys/fs/cgroup/memory/memory.usage_in_bytes"
     cg1_lim = "/sys/fs/cgroup/memory/memory.limit_in_bytes"
     cg1_peak = "/sys/fs/cgroup/memory/memory.max_usage_in_bytes"
+    cg1_stat = "/sys/fs/cgroup/memory/memory.stat"
 
+    stat_file = None
     if os.path.exists(cg2_cur):
         cgroup_current_mb = _read_cg_bytes(cg2_cur)
         cgroup_limit_mb = _read_cg_bytes(cg2_max)
         cgroup_peak_mb = _read_cg_bytes(cg2_peak)
+        if os.path.exists(cg2_stat):
+            stat_file = cg2_stat
     elif os.path.exists(cg1_cur):
         cgroup_current_mb = _read_cg_bytes(cg1_cur)
         cgroup_limit_mb = _read_cg_bytes(cg1_lim)
         cgroup_peak_mb = _read_cg_bytes(cg1_peak)
+        if os.path.exists(cg1_stat):
+            stat_file = cg1_stat
+
+    if stat_file:
+        try:
+            with open(stat_file, "r") as f:
+                for line in f:
+                    parts = line.strip().split()
+                    if len(parts) >= 2:
+                        try:
+                            cgroup_stat[parts[0]] = int(parts[1])
+                        except ValueError:
+                            pass
+
+            if "anon" in cgroup_stat:
+                anon_mb = cgroup_stat["anon"] / (1024 * 1024)
+            elif "total_rss" in cgroup_stat:
+                anon_mb = cgroup_stat["total_rss"] / (1024 * 1024)
+            elif "rss" in cgroup_stat:
+                anon_mb = cgroup_stat["rss"] / (1024 * 1024)
+
+            if "file" in cgroup_stat:
+                file_mb = cgroup_stat["file"] / (1024 * 1024)
+            elif "total_cache" in cgroup_stat:
+                file_mb = cgroup_stat["total_cache"] / (1024 * 1024)
+            elif "cache" in cgroup_stat:
+                file_mb = cgroup_stat["cache"] / (1024 * 1024)
+
+            if "shmem" in cgroup_stat:
+                shmem_mb = cgroup_stat["shmem"] / (1024 * 1024)
+            elif "total_shmem" in cgroup_stat:
+                shmem_mb = cgroup_stat["total_shmem"] / (1024 * 1024)
+        except Exception:
+            pass
 
     return {
         "rss_mb": round(process_rss_mb, 1),
         "cgroup_current_mb": round(cgroup_current_mb, 1) if cgroup_current_mb is not None else None,
         "cgroup_limit_mb": round(cgroup_limit_mb, 1) if cgroup_limit_mb is not None else None,
         "cgroup_peak_mb": round(cgroup_peak_mb, 1) if cgroup_peak_mb is not None else None,
+        "cgroup_anon_mb": round(anon_mb, 1) if anon_mb is not None else None,
+        "cgroup_file_mb": round(file_mb, 1) if file_mb is not None else None,
+        "cgroup_shmem_mb": round(shmem_mb, 1) if shmem_mb is not None else None,
+        "cgroup_stat": cgroup_stat,
     }
 
 
@@ -482,13 +532,23 @@ def format_memory_summary(stats: Optional[Dict[str, Any]] = None) -> str:
 
     parts = [f"Tree RSS: {stats['rss_mb']:.1f} MB"]
 
+    cg_breakdown = []
+    if stats.get("cgroup_anon_mb") is not None:
+        cg_breakdown.append(f"anon: {stats['cgroup_anon_mb']:.0f}M")
+    if stats.get("cgroup_file_mb") is not None:
+        cg_breakdown.append(f"file: {stats['cgroup_file_mb']:.0f}M")
+    if stats.get("cgroup_shmem_mb") is not None and stats["cgroup_shmem_mb"] >= 1.0:
+        cg_breakdown.append(f"shmem: {stats['cgroup_shmem_mb']:.0f}M")
+
+    breakdown_str = f" ({', '.join(cg_breakdown)})" if cg_breakdown else ""
+
     if stats.get("cgroup_limit_mb") is not None:
         cur = stats.get("cgroup_current_mb", stats["rss_mb"])
         lim = stats["cgroup_limit_mb"]
         pct = (cur / lim * 100) if lim > 0 else 0
-        parts.append(f"cgroup: {cur:.1f}/{lim:.1f} MB ({pct:.0f}%)")
+        parts.append(f"cgroup: {cur:.1f}/{lim:.1f} MB ({pct:.0f}%){breakdown_str}")
     elif stats.get("cgroup_current_mb") is not None:
-        parts.append(f"cgroup: {stats['cgroup_current_mb']:.1f} MB")
+        parts.append(f"cgroup: {stats['cgroup_current_mb']:.1f} MB{breakdown_str}")
 
     if stats.get("cgroup_peak_mb") is not None:
         peak_val = stats["cgroup_peak_mb"]
@@ -499,6 +559,97 @@ def format_memory_summary(stats: Optional[Dict[str, Any]] = None) -> str:
         parts.append(peak_str)
 
     return " | ".join(parts)
+
+
+def get_container_processes() -> List[Dict[str, Any]]:
+    """Returns a list of all processes in the container/system with PID, PPID, RSS, and command."""
+    import psutil
+    import time
+    procs = []
+    current_pid = os.getpid()
+    for p in psutil.process_iter(['pid', 'ppid', 'name', 'memory_info', 'cmdline', 'status', 'create_time']):
+        try:
+            info = p.info
+            rss_mb = round(info['memory_info'].rss / (1024 * 1024), 1) if info.get('memory_info') else 0.0
+            cmd_list = info.get('cmdline') or [info.get('name') or '']
+            cmd = " ".join(cmd_list)
+            uptime_s = round(time.time() - info.get('create_time', time.time()), 1)
+            procs.append({
+                "pid": info.get('pid'),
+                "ppid": info.get('ppid'),
+                "name": info.get('name', ''),
+                "rss_mb": rss_mb,
+                "status": info.get('status', ''),
+                "uptime_s": uptime_s,
+                "cmd": cmd,
+                "is_current": (info.get('pid') == current_pid),
+            })
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            pass
+    procs.sort(key=lambda x: x["rss_mb"], reverse=True)
+    return procs
+
+
+def log_container_processes():
+    """Prints all running container processes to console log for diagnostics."""
+    procs = get_container_processes()
+    total_rss = sum(p["rss_mb"] for p in procs)
+    print(f"[CONTAINER_PROCS] Total {len(procs)} processes | Sum RSS: {total_rss:.1f} MB", flush=True)
+    for p in procs:
+        cur_marker = " [CURRENT_PROCESS]" if p.get("is_current") else ""
+        cmd_snippet = p['cmd'][:100] + ("..." if len(p['cmd']) > 100 else "")
+        print(f"  PID {p['pid']} (PPID {p['ppid']}) | RSS: {p['rss_mb']:.1f} MB | {p['status']} | {cmd_snippet}{cur_marker}", flush=True)
+
+
+def get_disk_cache_diagnostics() -> Dict[str, Any]:
+    """Returns disk usage of models, huggingface, torch, and easyocr cache directories."""
+    import tempfile
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    paths_to_check = {
+        "models_repo": os.path.join(base_dir, "models"),
+        "hf_cache": os.path.expanduser("~/.cache/huggingface"),
+        "torch_cache": os.path.expanduser("~/.cache/torch"),
+        "easyocr_cache": os.path.expanduser("~/.EasyOCR"),
+        "tmp": tempfile.gettempdir(),
+    }
+
+    results = {}
+    for name, p in paths_to_check.items():
+        exists = os.path.exists(p)
+        size_mb = 0.0
+        files_count = 0
+        if exists:
+            try:
+                if os.path.isfile(p):
+                    size_mb = os.path.getsize(p) / (1024 * 1024)
+                    files_count = 1
+                else:
+                    for root, dirs, files in os.walk(p):
+                        for f in files:
+                            fp = os.path.join(root, f)
+                            try:
+                                if not os.path.islink(fp):
+                                    size_mb += os.path.getsize(fp) / (1024 * 1024)
+                                    files_count += 1
+                            except Exception:
+                                pass
+            except Exception:
+                pass
+        results[name] = {
+            "path": p,
+            "exists": exists,
+            "size_mb": round(size_mb, 1),
+            "files": files_count,
+        }
+    return results
+
+
+def log_disk_cache_diagnostics():
+    """Prints disk usage of cache and models directories to console log."""
+    diag = get_disk_cache_diagnostics()
+    print("[DISK_CACHE_DIAGNOSTICS]", flush=True)
+    for k, v in diag.items():
+        print(f"  {k}: {v['size_mb']:.1f} MB ({v['files']} files) @ {v['path']} (exists={v['exists']})", flush=True)
 
 
 def get_process_rss_mb() -> float:
@@ -1932,8 +2083,8 @@ def scan_bubbles_ocr_subprocess(image: Image.Image, timeout_seconds: int = 120) 
             raise TimeoutError(f"EasyOCR bola jarayoni {timeout_seconds} soniya ichida yakunlanmadi va majburiy to'xtatildi (Timeout).")
 
         if subproc.returncode != 0:
-            err_msg = stderr.strip() if stderr else f"Exit code {subproc.returncode}"
-            raise RuntimeError(f"EasyOCR bola jarayonida xatolik yuz berdi: {err_msg}")
+            err_details = stderr.strip() if stderr else (stdout.strip() if stdout else f"Exit code {subproc.returncode}")
+            raise RuntimeError(f"worker process exited with code {subproc.returncode}: {err_details}")
 
         with open(tmp_json_path, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -1955,12 +2106,18 @@ def scan_bubbles_ocr(image: Image.Image, use_subprocess: bool = True, timeout_se
     If the worker hangs, it is terminated forcefully to prevent orphaned processes.
     """
     if use_subprocess:
+        import time
+        t0 = time.time()
         try:
-            return scan_bubbles_ocr_subprocess(image, timeout_seconds=timeout_seconds)
-        except TimeoutError:
+            bubbles = scan_bubbles_ocr_subprocess(image, timeout_seconds=timeout_seconds)
+            elapsed = time.time() - t0
+            print(f"[OCR] subprocess mode: SUCCESS (bubbles found: {len(bubbles)}, time: {elapsed:.2f}s)", flush=True)
+            return bubbles
+        except TimeoutError as te:
+            print(f"[OCR] subprocess FAILED, falling back to in-process: Timeout ({te})", flush=True)
             raise
         except Exception as err:
-            print(f"[SCAN_SUBPROCESS_WARN] Subprocess OCR failed ({err}), falling back to in-process OCR.", flush=True)
+            print(f"[OCR] subprocess FAILED, falling back to in-process: {err}", flush=True)
     return _scan_bubbles_ocr_core(image)
 
 

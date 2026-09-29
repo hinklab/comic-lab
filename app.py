@@ -43,6 +43,8 @@ st.set_page_config(
 # ------------------------------------------------------------------------
 
 print(f"[XOTIRA_DIAGNOSTIKA] Ilova ishga tushganda: {engine.format_memory_summary()}", flush=True)
+engine.log_container_processes()
+engine.log_disk_cache_diagnostics()
 
 
 
@@ -2075,6 +2077,45 @@ with st.sidebar:
     st.sidebar.markdown("---")
     st.sidebar.caption(f":material/memory: **Xotira (RAM / cgroup):**<br>`{engine.format_memory_summary()}`", unsafe_allow_html=True)
 
+    with st.sidebar.expander("🛠️ Konteyner & Xotira Diagnostikasi", expanded=False):
+        mem_stats = engine.get_memory_stats()
+        st.markdown(f"**Tree RSS:** `{mem_stats['rss_mb']:.1f} MB`")
+        if mem_stats.get("cgroup_current_mb") is not None:
+            st.markdown(f"**cgroup Current:** `{mem_stats['cgroup_current_mb']:.1f} MB`")
+            if mem_stats.get("cgroup_limit_mb") is not None:
+                st.markdown(f"**cgroup Limit:** `{mem_stats['cgroup_limit_mb']:.1f} MB`")
+            if mem_stats.get("cgroup_peak_mb") is not None:
+                st.markdown(f"**cgroup Peak:** `{mem_stats['cgroup_peak_mb']:.1f} MB`")
+            if mem_stats.get("cgroup_anon_mb") is not None:
+                st.markdown(f"**cgroup Anon (Haqiqiy RAM):** `{mem_stats['cgroup_anon_mb']:.1f} MB`")
+            if mem_stats.get("cgroup_file_mb") is not None:
+                st.markdown(f"**cgroup File (Page Cache):** `{mem_stats['cgroup_file_mb']:.1f} MB`")
+            if mem_stats.get("cgroup_shmem_mb") is not None:
+                st.markdown(f"**cgroup Shmem:** `{mem_stats['cgroup_shmem_mb']:.1f} MB`")
+
+        if st.button("🔄 Diagnostikani yangilash", key="refresh_diag_btn", use_container_width=True):
+            engine.log_container_processes()
+            engine.log_disk_cache_diagnostics()
+            st.rerun()
+
+        st.markdown("**Disk keshlar / Modellar:**")
+        cache_diag = engine.get_disk_cache_diagnostics()
+        for c_name, c_info in cache_diag.items():
+            status_txt = f"{c_info['size_mb']:.1f} MB ({c_info['files']} fayl)" if c_info["exists"] else "mavjud emas"
+            st.caption(f"- `{c_name}`: {status_txt}")
+
+        procs = engine.get_container_processes()
+        st.markdown(f"**Jarayonlar ({len(procs)} ta):**")
+        proc_rows = []
+        for p in procs:
+            proc_rows.append({
+                "PID": p["pid"],
+                "RSS (MB)": p["rss_mb"],
+                "Holat": p["status"],
+                "Buyruq": p["cmd"][:50] + ("..." if len(p["cmd"]) > 50 else "")
+            })
+        st.dataframe(proc_rows, use_container_width=True, hide_index=True)
+
 if st.session_state.image is None:
     star_b64 = get_comic_star_b64()
     st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
@@ -2234,6 +2275,7 @@ else:
 
             if scan_btn:
                 local_translator.release_translator()
+                print(f"[XOTIRA_DIAGNOSTIKA] 1-bosqich boshlanmoqda (Scan oldidan): {engine.format_memory_summary()}", flush=True)
                 p_slot = st.empty()
                 p_slot.markdown(
                     get_progress_bar_html(None, label=st.session_state.image_name or "Komiks sahifasi", pending_label="EasyOCR matnlarni tahlil qilmoqda..."),
@@ -2241,6 +2283,7 @@ else:
                 )
                 try:
                     raw_bubbles = engine.scan_bubbles_ocr(st.session_state.image)
+                    print(f"[XOTIRA_DIAGNOSTIKA] 1-bosqich OCR yakunlandi (Inpainting oldidan): {engine.format_memory_summary()}", flush=True)
                     if not raw_bubbles:
                         p_slot.empty()
                         st.error("Hech qanday pufak aniqlanmadi!")
@@ -2257,6 +2300,8 @@ else:
                         cleaned = engine.clean_page_ink_telea(st.session_state.image, raw_bubbles)
                         st.session_state.cleaned_page = cleaned
                         print(f"[XOTIRA_DIAGNOSTIKA] 1-bosqich yakunlandi (Inpainting): {engine.format_memory_summary()}", flush=True)
+                        engine.log_container_processes()
+                        engine.log_disk_cache_diagnostics()
                         st.session_state.bubbles = []
                         st.session_state.rendered_image = None
                         st.session_state.rendered_image_bytes = None
@@ -2279,6 +2324,7 @@ else:
                     engine.release_ocr_reader()
                     import gc
                     gc.collect()
+                    print(f"[XOTIRA_DIAGNOSTIKA] 2-bosqich boshlanmoqda (Tarjima oldidan): {engine.format_memory_summary()}", flush=True)
                     p_slot = st.empty()
                     p_slot.markdown(
                         get_progress_bar_html(None, label="NLLB-200 AI Model", pending_label="O'zbek tiliga tarjima qilinmoqda..."),
@@ -2293,6 +2339,8 @@ else:
                         st.session_state[f"active_{b.bubble_id}"] = b.is_active
                         st.session_state[f"nudge_{b.bubble_id}"] = b.font_size_offset
                     print(f"[XOTIRA_DIAGNOSTIKA] 2-bosqich yakunlandi (Tarjima): {engine.format_memory_summary()}", flush=True)
+                    engine.log_container_processes()
+                    engine.log_disk_cache_diagnostics()
                     p_slot.markdown(
                         get_progress_bar_html(100, label="NLLB-200 AI Model", complete_label="Tarjima yakunlandi"),
                         unsafe_allow_html=True
