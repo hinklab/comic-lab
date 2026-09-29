@@ -8,8 +8,6 @@ import os
 import re
 import threading
 from typing import List, Optional, Union
-import ctranslate2
-import sentencepiece as spm
 
 # Default local model directory
 DEFAULT_MODEL_DIR = os.path.join(
@@ -53,6 +51,9 @@ class OfflineNLLBTranslator:
 
         if not os.path.exists(sp_path):
             raise FileNotFoundError(f"SentencePiece model file missing at: {sp_path}")
+
+        import sentencepiece as spm
+        import ctranslate2
 
         self.sp = spm.SentencePieceProcessor()
         self.sp.load(sp_path)
