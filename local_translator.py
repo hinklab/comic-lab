@@ -64,7 +64,7 @@ class OfflineNLLBTranslator:
             device="cpu",
             compute_type="int8",
             inter_threads=1,
-            intra_threads=4
+            intra_threads=2
         )
 
     @classmethod

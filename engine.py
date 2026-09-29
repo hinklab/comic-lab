@@ -2763,13 +2763,121 @@ def assign_speakers(
     return bubbles
 
 
+def translate_bubbles_list_subprocess(
+    bubbles: List[SpeechBubble],
+    default_speaker: Optional[str] = None,
+    page_name: str = "auto",
+    timeout_seconds: int = 120
+) -> List[SpeechBubble]:
+    """
+    Executes NLLB translation in an isolated OS subprocess with strict timeout protection.
+    When the child process exits, Linux/Windows OS fully recovers its memory (~700 MB).
+    If the child process hangs past timeout_seconds, it is killed forcefully.
+    """
+    if not bubbles:
+        return []
+
+    import tempfile
+    import subprocess
+    import sys
+    import psutil
+    import json
+
+    tmp_in = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
+    tmp_in_path = tmp_in.name
+    tmp_in.close()
+
+    in_data = [b.model_dump() for b in bubbles]
+    with open(tmp_in_path, "w", encoding="utf-8") as f:
+        json.dump(in_data, f, ensure_ascii=False)
+
+    tmp_out = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
+    tmp_out_path = tmp_out.name
+    tmp_out.close()
+
+    worker_script = os.path.join(os.path.dirname(__file__), "scripts", "translation_worker.py")
+    subproc = None
+    try:
+        subproc = subprocess.Popen(
+            [sys.executable, "-u", worker_script, tmp_in_path, tmp_out_path, str(default_speaker), str(page_name)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        try:
+            stdout, stderr = subproc.communicate(timeout=timeout_seconds)
+        except subprocess.TimeoutExpired:
+            print(f"[TRANSLATE_SUBPROCESS_TIMEOUT] Translation bola jarayoni {timeout_seconds}s ichida javob bermadi! Majburiy to'xtatilyapti...", flush=True)
+            try:
+                p = psutil.Process(subproc.pid)
+                for child in p.children(recursive=True):
+                    try:
+                        child.kill()
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        pass
+                p.kill()
+            except Exception:
+                subproc.kill()
+            subproc.communicate()
+            raise TimeoutError(f"NLLB translation bola jarayoni {timeout_seconds} soniya ichida yakunlanmadi va majburiy to'xtatildi (Timeout).")
+
+        if subproc.returncode != 0:
+            err_details = stderr.strip() if stderr else (stdout.strip() if stdout else f"Exit code {subproc.returncode}")
+            raise RuntimeError(f"Translation worker process failed (code {subproc.returncode}): {err_details}")
+
+        with open(tmp_out_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return [SpeechBubble(**d) for d in data]
+    finally:
+        for p in [tmp_in_path, tmp_out_path]:
+            try:
+                if os.path.exists(p):
+                    os.remove(p)
+            except Exception:
+                pass
+
+
 def translate_bubbles_list(
+    bubbles: List[SpeechBubble],
+    default_speaker: Optional[str] = None,
+    page_name: str = "auto",
+    use_subprocess: bool = True,
+    timeout_seconds: int = 120
+) -> List[SpeechBubble]:
+    """
+    Stage 2: Translates each bubble's complete sentence dialogue into colloquial superhero Uzbek.
+    When use_subprocess=True, executes NLLB translation in an isolated worker process so that
+    CTranslate2 model memory (~700 MB) is 100% returned to the OS upon process exit.
+    If the worker hangs, it is terminated forcefully to prevent orphaned processes.
+    """
+    if use_subprocess:
+        import time
+        t0 = time.time()
+        try:
+            res = translate_bubbles_list_subprocess(
+                bubbles,
+                default_speaker=default_speaker,
+                page_name=page_name,
+                timeout_seconds=timeout_seconds
+            )
+            elapsed = time.time() - t0
+            print(f"[TRANSLATE] subprocess mode: SUCCESS (bubbles translated: {len(res)}, time: {elapsed:.2f}s)", flush=True)
+            return res
+        except TimeoutError as te:
+            print(f"[TRANSLATE] subprocess FAILED, falling back to in-process: Timeout ({te})", flush=True)
+            raise
+        except Exception as err:
+            print(f"[TRANSLATE] subprocess FAILED, falling back to in-process: {err}", flush=True)
+    return _translate_bubbles_list_core(bubbles, default_speaker=default_speaker, page_name=page_name)
+
+
+def _translate_bubbles_list_core(
     bubbles: List[SpeechBubble],
     default_speaker: Optional[str] = None,
     page_name: str = "auto"
 ) -> List[SpeechBubble]:
     """
-    Stage 2: Translates each bubble's complete sentence dialogue into colloquial superhero Uzbek.
+    Core in-process Stage 2 translation logic.
     - Multi-lobe clusters: Entire cluster unified dialogue is translated ONCE in full before
       being partitioned across lobes, preventing pronoun/clause destruction.
     - For occluded ovals, also translates each fragment's original_text.
