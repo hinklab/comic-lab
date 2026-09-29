@@ -1,0 +1,42 @@
+[
+  {
+    "step": "1_STARTUP",
+    "description": "Sof Python runtime va psutil",
+    "rss_mb": 17.5
+  },
+  {
+    "step": "2_ENGINE_IMPORTED",
+    "description": "engine, cv2, PIL, naturalization_rules yuklanganda",
+    "rss_mb": 126.31
+  },
+  {
+    "step": "3_IMAGE_LOADED",
+    "description": "Komiks sahifasi yuklanganda (2480x3814)",
+    "rss_mb": 126.6
+  },
+  {
+    "step": "4_STAGE1_OCR_DONE",
+    "description": "Subprocess OCR yakunlandi (14 ta pufak, 104.2s)",
+    "rss_mb": 164.39
+  },
+  {
+    "step": "5_STAGE1_INPAINT_DONE",
+    "description": "Siyoh Telea orqali tozalandi (12.4s)",
+    "rss_mb": 205.79
+  },
+  {
+    "step": "6_STAGE2_TRANSLATE_DONE",
+    "description": "Subprocess NLLB tarjima yakunlandi (14 ta pufak, 35.7s)",
+    "rss_mb": 207.63
+  },
+  {
+    "step": "7_STAGE3_LETTERING_DONE",
+    "description": "Lettering bosqichi yakunlandi (0.01s)",
+    "rss_mb": 243.72
+  },
+  {
+    "step": "8_FINAL_IDLE",
+    "description": "gc.collect() chaqirilgandan keyin",
+    "rss_mb": 243.72
+  }
+]
