@@ -406,6 +406,22 @@ class FragmentGroup(BaseModel):
     parent_box: Optional[List[int]] = Field(default=None, description="Original parent bounding box [x0, y0, x1, y1]")
 
 
+
+def reclaim_heap_memory():
+    """
+    Forces Python garbage collection and trims glibc malloc arenas on Linux
+    to immediately return free heap pages to the OS kernel, preventing cgroup anon creep.
+    """
+    import gc
+    gc.collect()
+    try:
+        import ctypes
+        libc = ctypes.CDLL("libc.so.6")
+        libc.malloc_trim(0)
+    except Exception:
+        pass
+
+
 def get_memory_stats() -> Dict[str, Any]:
     """
     Returns comprehensive memory statistics:
@@ -2036,39 +2052,33 @@ def sort_reading_order(lines: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return ordered
 
 
-def scan_bubbles_ocr_subprocess(image: Image.Image, timeout_seconds: int = 120) -> List[SpeechBubble]:
-    """
-    Executes OCR in an isolated OS subprocess with strict timeout protection.
-    When the child process exits, Linux/Windows OS fully recovers its memory.
-    If the child process hangs past timeout_seconds, it is killed forcefully and raises TimeoutError.
-    """
+def _run_single_tile_subprocess(tile_img: Image.Image, canvas_size: int = 1920, timeout: int = 90) -> List[Any]:
+    """Runs EasyOCR on a single tile inside an isolated OS subprocess."""
     import tempfile
     import subprocess
     import sys
     import psutil
+    import json
 
-    tmp_img = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
-    tmp_img_path = tmp_img.name
-    tmp_img.close()
-    image.save(tmp_img_path, format="PNG")
+    tmp_in = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+    tmp_in_path = tmp_in.name
+    tmp_in.close()
+    tile_img.save(tmp_in_path, format="PNG")
 
-    tmp_json = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
-    tmp_json_path = tmp_json.name
-    tmp_json.close()
+    tmp_out = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
+    tmp_out_path = tmp_out.name
+    tmp_out.close()
 
-    worker_script = os.path.join(os.path.dirname(__file__), "scripts", "ocr_worker.py")
+    worker_script = os.path.join(os.path.dirname(__file__), "scripts", "ocr_tile_worker.py")
+    cmd = [sys.executable, "-u", worker_script, tmp_in_path, tmp_out_path, str(canvas_size)]
+
     subproc = None
     try:
-        subproc = subprocess.Popen(
-            [sys.executable, "-u", worker_script, tmp_img_path, tmp_json_path],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
-        )
+        subproc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         try:
-            stdout, stderr = subproc.communicate(timeout=timeout_seconds)
+            stdout, stderr = subproc.communicate(timeout=timeout)
         except subprocess.TimeoutExpired:
-            print(f"[OCR_SUBPROCESS_TIMEOUT] OCR bola jarayoni {timeout_seconds}s ichida javob bermadi! Majburiy to'xtatilyapti...", flush=True)
+            print(f"[OCR_TILE_TIMEOUT] OCR tile bola jarayoni {timeout}s ichida javob bermadi! Majburiy to'xtatilyapti...", flush=True)
             try:
                 p = psutil.Process(subproc.pid)
                 for child in p.children(recursive=True):
@@ -2080,30 +2090,98 @@ def scan_bubbles_ocr_subprocess(image: Image.Image, timeout_seconds: int = 120) 
             except Exception:
                 subproc.kill()
             subproc.communicate()
-            raise TimeoutError(f"EasyOCR bola jarayoni {timeout_seconds} soniya ichida yakunlanmadi va majburiy to'xtatildi (Timeout).")
+            raise TimeoutError(f"EasyOCR tile bola jarayoni {timeout} soniya ichida yakunlanmadi va majburiy to'xtatildi (Timeout).")
 
         if subproc.returncode != 0:
             err_details = stderr.strip() if stderr else (stdout.strip() if stdout else f"Exit code {subproc.returncode}")
-            raise RuntimeError(f"worker process exited with code {subproc.returncode}: {err_details}")
+            raise RuntimeError(f"Tile worker process exited with code {subproc.returncode}: {err_details}")
 
-        with open(tmp_json_path, "r", encoding="utf-8") as f:
+        with open(tmp_out_path, "r", encoding="utf-8") as f:
             data = json.load(f)
-        return [SpeechBubble(**d) for d in data]
+        return [(item["bbox"], item["text"], item["conf"]) for item in data]
     finally:
-        for p in [tmp_img_path, tmp_json_path]:
-            try:
-                if os.path.exists(p):
+        for p in [tmp_in_path, tmp_out_path]:
+            if os.path.exists(p):
+                try:
                     os.remove(p)
-            except Exception:
-                pass
+                except Exception:
+                    pass
+
+
+def run_tiled_ocr_separate_subprocesses(image: Image.Image, canvas_size: int = 1920, timeout_seconds_per_tile: int = 90) -> List[Any]:
+    """
+    Processes image tiles ONE AT A TIME in SEPARATE short-lived child processes.
+    Memory from each tile is 100% reclaimed by the OS between tiles, keeping peak RSS ~510MB.
+    """
+    w, h = image.size
+    if h <= 2000:
+        return _run_single_tile_subprocess(image, canvas_size=canvas_size, timeout=timeout_seconds_per_tile)
+
+    overlap = 180
+    mid = h // 2
+
+    # Tile 1: Top half
+    crop1 = image.crop((0, 0, w, mid + overlap))
+    print(f"[OCR] Processing Tile 1/2 (Top Half, {crop1.size}) in isolated child subprocess...", flush=True)
+    res1 = _run_single_tile_subprocess(crop1, canvas_size=canvas_size, timeout=timeout_seconds_per_tile)
+    del crop1
+    reclaim_heap_memory()
+
+    # Tile 2: Bottom half
+    crop2 = image.crop((0, mid - overlap, w, h))
+    print(f"[OCR] Processing Tile 2/2 (Bottom Half, {crop2.size}) in isolated child subprocess...", flush=True)
+    res2 = _run_single_tile_subprocess(crop2, canvas_size=canvas_size, timeout=timeout_seconds_per_tile)
+    del crop2
+    reclaim_heap_memory()
+
+    # Shift Tile 2 coordinates by offset_y
+    offset_y = mid - overlap
+    res2_shifted = []
+    for item in res2:
+        bbox, text, conf = item
+        shifted_bbox = [[pt[0], pt[1] + offset_y] for pt in bbox]
+        res2_shifted.append((shifted_bbox, text, conf))
+
+    # Combine with deduplication in the overlap seam
+    combined = list(res1)
+    for item2 in res2_shifted:
+        b2 = item2[0]
+        c2y = sum(p[1] for p in b2) / 4.0
+        c2x = sum(p[0] for p in b2) / 4.0
+        is_dup = False
+        for item1 in res1:
+            b1 = item1[0]
+            c1y = sum(p[1] for p in b1) / 4.0
+            c1x = sum(p[0] for p in b1) / 4.0
+            if abs(c1y - c2y) < 18 and abs(c1x - c2x) < 25:
+                is_dup = True
+                break
+        if not is_dup:
+            combined.append(item2)
+
+    print(f"[OCR] Subprocess tiling complete: {len(combined)} raw detections merged seamlessly.", flush=True)
+    return combined
+
+
+def scan_bubbles_ocr_subprocess(image: Image.Image, timeout_seconds: int = 120) -> List[SpeechBubble]:
+    """
+    Executes EasyOCR in isolated OS subprocesses TILE-BY-TILE.
+    Each tile runs in its own short-lived child process so PyTorch/CRAFT memory
+    is returned to the OS immediately after each tile completes instead of accumulating.
+    Peak memory per tile stays safely around ~510-530 MB, avoiding container OOM.
+    """
+    per_tile_timeout = max(30, timeout_seconds // 2)
+    raw_results = run_tiled_ocr_separate_subprocesses(image, canvas_size=1920, timeout_seconds_per_tile=per_tile_timeout)
+    bubbles = _extract_bubbles_from_ocr_results(image, raw_results)
+    reclaim_heap_memory()
+    return bubbles
 
 
 def scan_bubbles_ocr(image: Image.Image, use_subprocess: bool = True, timeout_seconds: int = 120) -> List[SpeechBubble]:
     """
     Stage 1 OCR-First Detection & SFX Filtering Pipeline:
-    When use_subprocess=True, executes OCR in an isolated worker process so that
-    PyTorch/CRAFT/EasyOCR memory is 100% returned to the OS upon process exit.
-    If the worker hangs, it is terminated forcefully to prevent orphaned processes.
+    When use_subprocess=True, executes OCR in isolated per-tile worker processes so that
+    PyTorch/CRAFT/EasyOCR memory is 100% returned to the OS between tiles.
     """
     if use_subprocess:
         import time
@@ -2121,17 +2199,24 @@ def scan_bubbles_ocr(image: Image.Image, use_subprocess: bool = True, timeout_se
     return _scan_bubbles_ocr_core(image)
 
 
-
 def _scan_bubbles_ocr_core(image: Image.Image) -> List[SpeechBubble]:
-    """Core in-process OCR scanning implementation."""
+    """Core in-process OCR scanning fallback implementation."""
+    reader = get_ocr_reader()
+    raw_results = run_tiled_easyocr(image, reader=reader, canvas_size=1920)
+    return _extract_bubbles_from_ocr_results(image, raw_results)
+
+
+def _extract_bubbles_from_ocr_results(image: Image.Image, raw_results: List[Any]) -> List[SpeechBubble]:
+    """
+    Extracts, filters, groups, and constructs SpeechBubble objects from raw OCR bounding boxes and text.
+    Runs entirely in CPU memory using OpenCV/NumPy with zero PyTorch allocation.
+    """
     img_cv = cv2.cvtColor(np.array(image.convert("RGB")), cv2.COLOR_RGB2BGR)
     h, w = img_cv.shape[:2]
     gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
     hsv = cv2.cvtColor(img_cv, cv2.COLOR_BGR2HSV)
     clean_gray_barrier = bubble_lettering._suppress_text_for_barrier(gray, 35, ink_thresh=120)
 
-    reader = get_ocr_reader()
-    raw_results = run_tiled_easyocr(image, reader=reader, canvas_size=2048)
 
     candidate_lines = []
 

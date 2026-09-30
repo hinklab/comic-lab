@@ -42,9 +42,8 @@ st.set_page_config(
 )
 # ------------------------------------------------------------------------
 
+engine.reclaim_heap_memory()
 print(f"[XOTIRA_DIAGNOSTIKA] Ilova ishga tushganda: {engine.format_memory_summary()}", flush=True)
-engine.log_container_processes()
-engine.log_disk_cache_diagnostics()
 
 
 
@@ -2106,35 +2105,20 @@ with st.sidebar:
 
         procs = engine.get_container_processes()
         st.markdown(f"**Jarayonlar ({len(procs)} ta):**")
-        proc_rows = []
-        for p in procs:
-            proc_rows.append({
-                "PID": p["pid"],
-                "RSS (MB)": p["rss_mb"],
-                "Holat": p["status"],
-                "Buyruq": p["cmd"][:50] + ("..." if len(p["cmd"]) > 50 else "")
-            })
-        st.dataframe(proc_rows, use_container_width=True, hide_index=True)
+        proc_md = ["| PID | RSS (MB) | Holat | Buyruq |", "|---|---|---|---|"]
+        for p in procs[:6]:
+            proc_md.append(f"| {p['pid']} | {p['rss_mb']:.1f} | {p['status']} | {html.escape(p['cmd'][:35])} |")
+        st.markdown("\n".join(proc_md))
 
         try:
             import scripts.import_profiler as profiler
             prof_data = profiler.get_cached_profile()
             if prof_data:
-                st.markdown("**📊 Kutubxonalar Import Profileri (Step 1):**")
-                table_rows = []
+                st.markdown("**📊 Kutubxonalar Import Profileri:**")
+                t_md = ["| Kutubxona | file | anon | RSS |", "|---|---|---|---|"]
                 for item in prof_data:
-                    df = f"+{item['delta_file_mb']:.1f}" if item['delta_file_mb'] > 0 else "-"
-                    da = f"+{item['delta_anon_mb']:.1f}" if item['delta_anon_mb'] > 0 else "-"
-                    table_rows.append({
-                        "Kutubxona": item["library"],
-                        "file (MB)": item["file_mb"],
-                        "+file": df,
-                        "anon (MB)": item["anon_mb"],
-                        "+anon": da,
-                        "RSS (MB)": item["rss_mb"],
-                        "Disk (MB)": item["disk_size_mb"],
-                    })
-                st.dataframe(table_rows, use_container_width=True, hide_index=True)
+                    t_md.append(f"| {item['library']} | {item['file_mb']:.1f}M | {item['anon_mb']:.1f}M | {item['rss_mb']:.1f}M |")
+                st.markdown("\n".join(t_md))
         except Exception:
             pass
 
@@ -2273,6 +2257,9 @@ else:
                 if show_markers and st.session_state.raw_bubbles:
                     overlay_key = f"overlay_st1_{len(st.session_state.raw_bubbles)}_{st.session_state.get('analysis_version', 0)}"
                     if overlay_key not in st.session_state:
+                        for k in list(st.session_state.keys()):
+                            if k.startswith("overlay_"):
+                                del st.session_state[k]
                         st.session_state[overlay_key] = engine.draw_bounding_box_overlay(st.session_state.cleaned_page, st.session_state.raw_bubbles)
                     annotated = st.session_state[overlay_key]
                     st.image(annotated, use_container_width=True, caption=f"Tozalangan sahifa ({len(st.session_state.raw_bubbles)} ta pufak)")
@@ -2399,6 +2386,9 @@ else:
         active_sig = tuple((b.get("is_active", True) if isinstance(b, dict) else getattr(b, "is_active", True)) for b in st.session_state.bubbles)
         overlay_st2_key = f"overlay_st2_{len(st.session_state.bubbles)}_{hash(active_sig)}_{st.session_state.get('analysis_version', 0)}"
         if overlay_st2_key not in st.session_state:
+            for k in list(st.session_state.keys()):
+                if k.startswith("overlay_"):
+                    del st.session_state[k]
             st.session_state[overlay_st2_key] = engine.draw_bounding_box_overlay(canvas, st.session_state.bubbles)
         annotated = st.session_state[overlay_st2_key]
 
