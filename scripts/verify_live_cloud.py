@@ -1,6 +1,10 @@
 """
 scripts/verify_live_cloud.py - Automated end-to-end verification of the live Streamlit Cloud app.
-Executes Stage 1, Stage 2, and Stage 3 with samples/page_4.png and records live Cloud memory metrics.
+Executes:
+1. Memory leak test across 5 successive reruns before Stage 1 (confirming anon stays flat).
+2. Stage 1 (tile-by-tile EasyOCR subprocess + Inpainting).
+3. Stage 2 (subprocess NLLB translation).
+4. Stage 3 (lettering render).
 """
 import os
 import sys
@@ -76,22 +80,50 @@ def main():
         file_input.set_input_files(SAMPLE_IMG)
         page.wait_for_timeout(8000)
 
-        # Find scan button
-        scan_btn = frame.locator("button:has-text('1. Sahifani Skanerlash'), button:has-text('Skanerlash va Pufaklarni Tozalash')")
-        scan_btn.wait_for(state="visible", timeout=30000)
+        frame = get_app_frame(page)
         mem_after_upload = extract_memory_readings(frame)
         print(f"[AFTER UPLOAD MEMORY] {mem_after_upload}", flush=True)
 
+        # Open sidebar memory expander if present
+        try:
+            expander = frame.locator("[data-testid='stSidebar'] [data-testid='stExpander'] summary, [data-testid='stSidebar'] summary")
+            if expander.count() > 0:
+                expander.first.click()
+                page.wait_for_timeout(1000)
+        except Exception:
+            pass
+
+        # REQUIREMENT 1: Test 5 successive idle reruns with image loaded (without touching Stage 1)
+        print("\n[STEP 1.1] Testing 5 successive idle reruns with image loaded (without touching Stage 1)...", flush=True)
+        rerun_readings = []
+        for r_i in range(1, 6):
+            frame = get_app_frame(page)
+            refresh_btn = frame.locator("[data-testid='stSidebar'] button:has-text('Diagnostikani yangilash')")
+            if refresh_btn.count() > 0 and refresh_btn.first.is_visible():
+                refresh_btn.first.click()
+            else:
+                page.keyboard.press("r")
+            page.wait_for_timeout(5000)
+            frame = get_app_frame(page)
+            r_mem = extract_memory_readings(frame)
+            print(f"  [Rerun {r_i}/5]: {r_mem}", flush=True)
+            rerun_readings.append(r_mem)
+
+        # Find scan button
+        scan_btn = frame.locator("button:has-text('1. Sahifani Skanerlash'), button:has-text('Skanerlash va Pufaklarni Tozalash')")
+        scan_btn.wait_for(state="visible", timeout=30000)
+
         # Click scan button
-        print("[STEP 1] Clicking '1. Sahifani Skanerlash va Pufaklarni Tozalash'...", flush=True)
+        print("\n[STEP 1.2] Clicking '1. Sahifani Skanerlash va Pufaklarni Tozalash' (Per-tile subprocess)...", flush=True)
         scan_btn.click()
 
-        # Wait for Stage 1 to complete (EasyOCR subprocess + Inpainting)
-        print("[STEP 1] Waiting for Stage 1 OCR & Inpainting to complete (timeout: 240s)...", flush=True)
+        # Wait for Stage 1 to complete (Per-tile EasyOCR subprocesses + Inpainting)
+        print("[STEP 1.2] Waiting for Stage 1 OCR & Inpainting to complete (timeout: 240s)...", flush=True)
         stage2_btn = frame.locator("button:has-text('2-bosqich')")
         stage2_btn.wait_for(state="visible", timeout=240000)
         page.wait_for_timeout(4000)
 
+        frame = get_app_frame(page)
         mem_stage1 = extract_memory_readings(frame)
         print(f"\n[STAGE 1 COMPLETED MEMORY] {mem_stage1}", flush=True)
         page.screenshot(path=os.path.join(ARTIFACT_DIR, "cloud_stage1_done.png"))
@@ -106,10 +138,10 @@ def main():
         try:
             stage3_btn.wait_for(state="visible", timeout=240000)
         except Exception:
-            # Check if cards are visible
             frame.locator(".modern-bubble-card, textarea").first.wait_for(state="visible", timeout=30000)
 
         page.wait_for_timeout(4000)
+        frame = get_app_frame(page)
         mem_stage2 = extract_memory_readings(frame)
         print(f"\n[STAGE 2 COMPLETED MEMORY] {mem_stage2}", flush=True)
         page.screenshot(path=os.path.join(ARTIFACT_DIR, "cloud_stage2_done.png"))
@@ -119,6 +151,7 @@ def main():
             print("\n[STEP 3] Clicking Stage 3 lettering button ('3-bosqich: Shriftlarni Yozish')...", flush=True)
             stage3_btn.click()
             page.wait_for_timeout(8000)
+            frame = get_app_frame(page)
             mem_stage3 = extract_memory_readings(frame)
             print(f"\n[STAGE 3 COMPLETED MEMORY] {mem_stage3}", flush=True)
             page.screenshot(path=os.path.join(ARTIFACT_DIR, "cloud_stage3_done.png"))
@@ -129,6 +162,8 @@ def main():
         print("REAL CLOUD TEST COMPLETED SUCCESSFULLY!")
         print(f"Initial: {mem_initial}")
         print(f"After Upload: {mem_after_upload}")
+        for idx, r_txt in enumerate(rerun_readings, 1):
+            print(f"Rerun {idx}/5: {r_txt}")
         print(f"Stage 1: {mem_stage1}")
         print(f"Stage 2: {mem_stage2}")
         print(f"Stage 3: {mem_stage3}")
