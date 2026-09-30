@@ -83,7 +83,7 @@ def get_comic_star_b64() -> str:
 
 
 
-def reset_page_state(image: Optional[Image.Image], image_name: str):
+def reset_page_state(image: Optional[Image.Image], image_name: str, image_bytes: Optional[bytes] = None):
     """Resets all per-page analysis, cleaning, and rendering state for a new image."""
     keys_to_clear = [k for k in list(st.session_state.keys()) if k.startswith(("trans_", "font_size_", "line_spacing_", "pad_", "overlay_"))]
     for k in keys_to_clear:
@@ -96,8 +96,12 @@ def reset_page_state(image: Optional[Image.Image], image_name: str):
             scale = 4096.0 / max_dim
             new_size = (int(image.width * scale), int(image.height * scale))
             image = image.resize(new_size, Image.Resampling.LANCZOS)
+            buf = io.BytesIO()
+            image.save(buf, format="PNG")
+            image_bytes = buf.getvalue()
 
     st.session_state.image = image
+    st.session_state.image_bytes = image_bytes
     st.session_state.image_name = image_name
     st.session_state.raw_bubbles = []
     st.session_state.bubbles = []
@@ -110,6 +114,8 @@ def reset_page_state(image: Optional[Image.Image], image_name: str):
     st.session_state.last_render_hash = ""
     st.session_state.current_stage = 1
     st.session_state.analysis_version = st.session_state.get("analysis_version", 0) + 1
+    if hasattr(engine, "reclaim_heap_memory"):
+        engine.reclaim_heap_memory()
 
 
 def capture_bubble_edits_into_memory(page_name: str = "auto"):
@@ -2094,8 +2100,8 @@ with st.sidebar:
                 st.markdown(f"**cgroup Shmem:** `{mem_stats['cgroup_shmem_mb']:.1f} MB`")
 
         if st.button("🔄 Diagnostikani yangilash", key="refresh_diag_btn", use_container_width=True):
-            engine.log_container_processes()
-            engine.log_disk_cache_diagnostics()
+            if hasattr(engine, "reclaim_heap_memory"):
+                engine.reclaim_heap_memory()
             st.rerun()
 
         st.markdown("**Disk keshlar / Modellar:**")
@@ -2157,7 +2163,9 @@ if st.session_state.image is None:
     st.markdown('</div>', unsafe_allow_html=True)
 
     if home_file is not None:
-        reset_page_state(Image.open(home_file).convert("RGB"), home_file.name)
+        raw_bytes = home_file.getvalue()
+        im = Image.open(io.BytesIO(raw_bytes)).convert("RGB")
+        reset_page_state(im, home_file.name, raw_bytes)
         st.rerun()
 else:
     # 3-Stage Visual Stepper Header matching reference pill design
@@ -2265,11 +2273,11 @@ else:
                     annotated = st.session_state[overlay_key]
                     st.image(annotated, use_container_width=True, caption=f"Tozalangan sahifa ({len(st.session_state.raw_bubbles)} ta pufak)")
                 else:
-                    st.image(st.session_state.cleaned_page, use_container_width=True, caption="Tozalangan sahifa (Siyoh Telea orqali tozalangan, to'rtburchak oq dog'siz)")
+                    st.image(st.session_state.get("cleaned_page_bytes") or st.session_state.cleaned_page, use_container_width=True, caption="Tozalangan sahifa (Siyoh Telea orqali tozalangan, to'rtburchak oq dog'siz)")
             with tab_orig:
-                st.image(st.session_state.image, use_container_width=True, caption=st.session_state.image_name)
+                st.image(st.session_state.get("image_bytes") or st.session_state.image, use_container_width=True, caption=st.session_state.image_name)
         else:
-            st.image(st.session_state.image, use_container_width=True, caption="Asl sahifa (Hali skanerlanmagan)")
+            st.image(st.session_state.get("image_bytes") or st.session_state.image, use_container_width=True, caption="Asl sahifa (Hali skanerlanmagan)")
 
         # --- Right Drawer: Push/Slide Container ---
         with st.container(key="right_drawer"):
@@ -2309,14 +2317,15 @@ else:
                         st.session_state.raw_bubbles = raw_bubbles
                         cleaned = engine.clean_page_ink_telea(st.session_state.image, raw_bubbles)
                         st.session_state.cleaned_page = cleaned
+                        buf = io.BytesIO()
+                        cleaned.save(buf, format="PNG")
+                        st.session_state.cleaned_page_bytes = buf.getvalue()
                         print(f"[XOTIRA_DIAGNOSTIKA] 1-bosqich yakunlandi (Inpainting): {engine.format_memory_summary()}", flush=True)
-                        engine.log_container_processes()
-                        engine.log_disk_cache_diagnostics()
                         st.session_state.bubbles = []
                         st.session_state.rendered_image = None
                         st.session_state.rendered_image_bytes = None
-                        import gc
-                        gc.collect()
+                        if hasattr(engine, "reclaim_heap_memory"):
+                            engine.reclaim_heap_memory()
                         p_slot.markdown(
                             get_progress_bar_html(100, label=st.session_state.image_name or "Komiks sahifasi", complete_label=f"{len(raw_bubbles)} ta pufak tozalandi"),
                             unsafe_allow_html=True
@@ -2454,9 +2463,9 @@ else:
             img_data = st.session_state.get("rendered_image_bytes") or st.session_state.rendered_image
             st.image(img_data, use_container_width=True, caption="Jonli Lettering (CC Wild Words, Solid Black, Zero Stroke)")
         with tab_clean:
-            st.image(st.session_state.cleaned_page, use_container_width=True, caption="1-bosqichda tozalangan sahifa")
+            st.image(st.session_state.get("cleaned_page_bytes") or st.session_state.cleaned_page, use_container_width=True, caption="1-bosqichda tozalangan sahifa")
         with tab_orig:
-            st.image(st.session_state.image, use_container_width=True, caption="Asl sahifa")
+            st.image(st.session_state.get("image_bytes") or st.session_state.image, use_container_width=True, caption="Asl sahifa")
 
         # --- Right Drawer: Push/Slide Container ---
         with st.container(key="right_drawer"):
@@ -2520,4 +2529,5 @@ else:
 
             render_bubble_editor_panel(live_render=True, key_suffix="st3")
 
-
+if hasattr(engine, "reclaim_heap_memory"):
+    engine.reclaim_heap_memory()
