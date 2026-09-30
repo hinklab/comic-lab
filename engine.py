@@ -617,16 +617,23 @@ def log_container_processes():
         print(f"  PID {p['pid']} (PPID {p['ppid']}) | RSS: {p['rss_mb']:.1f} MB | {p['status']} | {cmd_snippet}{cur_marker}", flush=True)
 
 
+_cached_disk_diag = None
+_cached_disk_diag_time = 0.0
+
 def get_disk_cache_diagnostics() -> Dict[str, Any]:
     """Returns disk usage of models, huggingface, torch, and easyocr cache directories."""
-    import tempfile
+    global _cached_disk_diag, _cached_disk_diag_time
+    import time
+    now = time.time()
+    if _cached_disk_diag is not None and (now - _cached_disk_diag_time) < 60.0:
+        return _cached_disk_diag
+
     base_dir = os.path.dirname(os.path.abspath(__file__))
     paths_to_check = {
         "models_repo": os.path.join(base_dir, "models"),
         "hf_cache": os.path.expanduser("~/.cache/huggingface"),
         "torch_cache": os.path.expanduser("~/.cache/torch"),
         "easyocr_cache": os.path.expanduser("~/.EasyOCR"),
-        "tmp": tempfile.gettempdir(),
     }
 
     results = {}
@@ -657,6 +664,8 @@ def get_disk_cache_diagnostics() -> Dict[str, Any]:
             "size_mb": round(size_mb, 1),
             "files": files_count,
         }
+    _cached_disk_diag = results
+    _cached_disk_diag_time = now
     return results
 
 
