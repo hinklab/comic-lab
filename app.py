@@ -2066,6 +2066,42 @@ with st.sidebar:
             help="Explicit spacing added between lines to completely prevent line collision."
         )
 
+    with st.expander("⚡ Google Cloud API (Vision & Translate)", expanded=False):
+        st.caption("Google Cloud Vision (OCR) va Translate API'lari ulanishi bilan ilova mahalliy og'ir modellarsiz (0 MB RAM) juda tez ishlaydi.")
+        import cloud_enhancements
+        import api_quota_tracker
+
+        stored_key = os.getenv("GOOGLE_VISION_API_KEY") or os.getenv("GOOGLE_API_KEY") or st.session_state.get("GOOGLE_API_KEY", "")
+        entered_key = st.text_input(
+            "Google API Key",
+            value=stored_key,
+            type="password",
+            key="ui_google_api_key",
+            help="Google Cloud Console'dan olingan API kalit (Cloud Vision va Cloud Translation API yoqilgan bo'lishi lozim)."
+        )
+        if entered_key != stored_key:
+            st.session_state["GOOGLE_API_KEY"] = entered_key
+            st.session_state["GOOGLE_VISION_API_KEY"] = entered_key
+            st.session_state["GOOGLE_TRANSLATE_API_KEY"] = entered_key
+            os.environ["GOOGLE_API_KEY"] = entered_key
+            os.environ["GOOGLE_VISION_API_KEY"] = entered_key
+            os.environ["GOOGLE_TRANSLATE_API_KEY"] = entered_key
+            st.toast("Google API kaliti yangilandi!", icon=":material/key:")
+            st.rerun()
+
+        q_status = api_quota_tracker.get_quota_status()
+        v_info = q_status.get("google_vision", {})
+        t_info = q_status.get("google_translate", {})
+
+        v_active = bool(entered_key) and not v_info.get("cap_reached", False)
+        t_active = bool(entered_key) and not t_info.get("cap_reached", False)
+
+        v_badge = f":material/check_circle: Faol (ishlatilgan: {v_info.get('used', 0)}/900)" if v_active else (":material/info: Kalit yo'q (EasyOCR fallback)" if not entered_key else ":material/error: Kvota to'lgan (90% cap)")
+        t_badge = f":material/check_circle: Faol (ishlatilgan: {t_info.get('used', 0)}/450k belgi)" if t_active else (":material/info: Kalit yo'q (NLLB fallback)" if not entered_key else ":material/error: Kvota to'lgan (90% cap)")
+
+        st.markdown(f"**Vision OCR (1-bosqich):**<br>{v_badge}", unsafe_allow_html=True)
+        st.markdown(f"**Google Translate (2-bosqich):**<br>{t_badge}", unsafe_allow_html=True)
+
     # Dedicated Re-render Action (only shown when comic is loaded and bubbles exist)
     if st.session_state.image is not None and st.session_state.get("bubbles"):
         apply_settings_btn = st.button(

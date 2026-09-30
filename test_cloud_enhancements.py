@@ -247,5 +247,66 @@ class TestNaturalnessScoredBaseTranslation(unittest.TestCase):
                 self.assertIn("Xayrli kech", base)
 
 
+class TestGoogleVisionFullPageOcr(unittest.TestCase):
+    """Verifies full page Google Vision OCR execution and parsing."""
+
+    def setUp(self):
+        api_quota_tracker.reset_quota()
+
+    def test_full_page_inert_without_key(self):
+        from PIL import Image
+        im = Image.new("RGB", (100, 100), (255, 255, 255))
+        with patch.dict(os.environ, {}, clear=True):
+            res = cloud_enhancements.google_vision_ocr_full_page(im)
+            self.assertIsNone(res)
+
+    def test_full_page_parses_lines(self):
+        from PIL import Image
+        im = Image.new("RGB", (200, 200), (255, 255, 255))
+        fake_api_response = {
+            "responses": [
+                {
+                    "textAnnotations": [
+                        {"description": "HELLO WORLD\nTHIS IS A TEST"},
+                        {"description": "HELLO", "boundingPoly": {"vertices": [{"x": 10, "y": 10}, {"x": 50, "y": 10}, {"x": 50, "y": 30}, {"x": 10, "y": 30}]}},
+                        {"description": "WORLD", "boundingPoly": {"vertices": [{"x": 60, "y": 10}, {"x": 100, "y": 10}, {"x": 100, "y": 30}, {"x": 60, "y": 30}]}}
+                    ],
+                    "fullTextAnnotation": {
+                        "pages": [
+                            {
+                                "blocks": [
+                                    {
+                                        "paragraphs": [
+                                            {
+                                                "words": [
+                                                    {"symbols": [{"text": "H"}, {"text": "E"}, {"text": "L"}, {"text": "L"}, {"text": "O", "property": {"detectedBreak": {"type": "SPACE"}}}], "boundingBox": {"vertices": [{"x": 10, "y": 10}, {"x": 50, "y": 10}, {"x": 50, "y": 30}, {"x": 10, "y": 30}]}},
+                                                    {"symbols": [{"text": "W"}, {"text": "O"}, {"text": "R"}, {"text": "L"}, {"text": "D", "property": {"detectedBreak": {"type": "LINE_BREAK"}}}], "boundingBox": {"vertices": [{"x": 60, "y": 10}, {"x": 100, "y": 10}, {"x": 100, "y": 30}, {"x": 60, "y": 30}]}}
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+        with patch.dict(os.environ, {"GOOGLE_VISION_API_KEY": "dummy_key"}):
+            with patch("urllib.request.urlopen") as mock_url:
+                mock_resp = MagicMock()
+                mock_resp.read.return_value = json.dumps(fake_api_response).encode("utf-8")
+                mock_resp.__enter__.return_value = mock_resp
+                mock_url.return_value = mock_resp
+
+                res = cloud_enhancements.google_vision_ocr_full_page(im)
+                self.assertIsNotNone(res)
+                self.assertEqual(len(res), 1)
+                bbox, text, conf = res[0]
+                self.assertEqual(text, "HELLO WORLD")
+                self.assertEqual(bbox[0], [10.0, 10.0])
+                self.assertEqual(bbox[2], [100.0, 30.0])
+
+
 if __name__ == "__main__":
     unittest.main()
