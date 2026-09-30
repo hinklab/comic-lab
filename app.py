@@ -42,7 +42,8 @@ st.set_page_config(
 )
 # ------------------------------------------------------------------------
 
-engine.reclaim_heap_memory()
+if hasattr(engine, "reclaim_heap_memory"):
+    engine.reclaim_heap_memory()
 print(f"[XOTIRA_DIAGNOSTIKA] Ilova ishga tushganda: {engine.format_memory_summary()}", flush=True)
 
 
