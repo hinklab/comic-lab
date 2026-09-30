@@ -1027,16 +1027,29 @@ def is_sfx_or_junk(text: str, conf: float = 1.0, is_on_bubble_paper: bool = Fals
 
 def free_web_translate(text: str) -> str:
     """
-    100% Offline translation via local CTranslate2 NLLB-200 model.
-    Zero external network calls or cloud APIs.
+    Primary: Google Cloud Translation API (0 MB model RAM, instant, high fluency).
+    Fallback: 100% Offline translation via local CTranslate2 NLLB-200 model.
     """
     cleaned = text.strip()
     if not cleaned:
         return ""
+
+    # 1. Primary: Google Cloud Translation API
+    try:
+        import cloud_enhancements
+        if cloud_enhancements.is_translate_enabled():
+            g_trans = cloud_enhancements.fetch_google_translation(cleaned)
+            if g_trans:
+                print(f"[TRANSLATE_CLOUD] Google Translate API: '{cleaned}' -> '{g_trans}'", flush=True)
+                return g_trans
+    except Exception as e:
+        print(f"[TRANSLATE_CLOUD_WARN] Google Translate API failed: {e}. Falling back to offline model.", flush=True)
+
+    # 2. Fallback: Offline local CTranslate2 NLLB-200 model
     try:
         return local_translator.translate_offline(cleaned)
     except Exception as e:
-        print(f"[TRANSLATE_WARN] Offline translation fallback: {e}")
+        print(f"[TRANSLATE_WARN] Offline translation fallback: {e}", flush=True)
         return cleaned
 
 
@@ -2189,9 +2202,29 @@ def scan_bubbles_ocr_subprocess(image: Image.Image, timeout_seconds: int = 120) 
 def scan_bubbles_ocr(image: Image.Image, use_subprocess: bool = True, timeout_seconds: int = 120) -> List[SpeechBubble]:
     """
     Stage 1 OCR-First Detection & SFX Filtering Pipeline:
-    When use_subprocess=True, executes OCR in isolated per-tile worker processes so that
-    PyTorch/CRAFT/EasyOCR memory is 100% returned to the OS between tiles.
+    1. Primary: Google Cloud Vision API (0 MB model RAM, ~1.5s execution, 90% quota protected).
+    2. Fallback: Local isolated per-tile EasyOCR subprocesses (~530 MB RAM).
     """
+    # 1. Primary: Google Cloud Vision API
+    try:
+        import cloud_enhancements
+        if cloud_enhancements.is_vision_ocr_enabled():
+            print("[OCR] Google Cloud Vision API is ENABLED. Running primary cloud OCR...", flush=True)
+            import time
+            t0 = time.time()
+            raw_results = cloud_enhancements.google_vision_ocr_full_page(image)
+            if raw_results:
+                elapsed = time.time() - t0
+                print(f"[OCR] Google Cloud Vision API SUCCESS (raw text lines: {len(raw_results)}, time: {elapsed:.2f}s, model RAM: 0 MB)", flush=True)
+                bubbles = _extract_bubbles_from_ocr_results(image, raw_results)
+                reclaim_heap_memory()
+                return bubbles
+            else:
+                print("[OCR] Google Cloud Vision returned no results, falling back to local EasyOCR.", flush=True)
+    except Exception as e:
+        print(f"[OCR_CLOUD_WARN] Google Cloud Vision failed: {e}. Falling back to local EasyOCR.", flush=True)
+
+    # 2. Fallback: Local isolated per-tile EasyOCR subprocesses
     if use_subprocess:
         import time
         t0 = time.time()

@@ -16,6 +16,7 @@ to local processing and never crashes the pipeline.
 """
 
 import os
+import io
 import json
 import base64
 import html
@@ -26,7 +27,8 @@ import urllib.request
 import urllib.parse
 import cv2
 import numpy as np
-from typing import Optional, Tuple, Dict, Any
+from PIL import Image
+from typing import Optional, Tuple, Dict, Any, List
 
 import api_quota_tracker
 
@@ -45,15 +47,32 @@ logger = logging.getLogger("cloud_enhancements")
 
 
 def _get_api_key(key_name: str) -> Optional[str]:
-    """Retrieves API key from environment or Streamlit secrets."""
-    val = os.getenv(key_name)
+    """Retrieves API key from session state, environment, or Streamlit secrets."""
+    # 1. Check session state (UI entered)
+    try:
+        import streamlit as st
+        import streamlit.runtime as runtime
+        if runtime.exists() and hasattr(st, "session_state"):
+            if key_name in st.session_state and st.session_state[key_name]:
+                return str(st.session_state[key_name]).strip()
+            if "GOOGLE_API_KEY" in st.session_state and st.session_state["GOOGLE_API_KEY"]:
+                return str(st.session_state["GOOGLE_API_KEY"]).strip()
+    except Exception:
+        pass
+
+    # 2. Check environment variables
+    val = os.getenv(key_name) or os.getenv("GOOGLE_API_KEY")
     if val and val.strip():
         return val.strip()
 
+    # 3. Check Streamlit secrets
     try:
         import streamlit as st
-        if hasattr(st, "secrets") and key_name in st.secrets:
-            return str(st.secrets[key_name]).strip()
+        if hasattr(st, "secrets"):
+            if key_name in st.secrets:
+                return str(st.secrets[key_name]).strip()
+            if "GOOGLE_API_KEY" in st.secrets:
+                return str(st.secrets["GOOGLE_API_KEY"]).strip()
     except Exception:
         pass
 
@@ -61,15 +80,171 @@ def _get_api_key(key_name: str) -> Optional[str]:
 
 
 # ==============================================================================
-# 1. GOOGLE CLOUD VISION OCR FALLBACK
+# 1. GOOGLE CLOUD VISION OCR (FULL PAGE & FALLBACK)
 # ==============================================================================
 
 def is_vision_ocr_enabled() -> bool:
-    """Returns True only if GOOGLE_VISION_API_KEY is configured and within quota."""
+    """Returns True only if GOOGLE_VISION_API_KEY (or GOOGLE_API_KEY) is configured and within quota."""
     key = _get_api_key("GOOGLE_VISION_API_KEY")
     if not key:
         return False
     return api_quota_tracker.can_consume("google_vision", 1)
+
+
+def is_translate_enabled() -> bool:
+    """Returns True if GOOGLE_TRANSLATE_API_KEY (or GOOGLE_API_KEY) is configured and within quota."""
+    key = _get_api_key("GOOGLE_TRANSLATE_API_KEY")
+    if not key:
+        return False
+    return api_quota_tracker.can_consume("google_translate", 1)
+
+
+def google_vision_ocr_full_page(
+    image: Image.Image,
+    timeout: float = 12.0
+) -> Optional[List[Tuple[List[List[float]], str, float]]]:
+    """
+    Performs full-page text detection via Google Cloud Vision API.
+    Returns a list of (bbox, text, conf) lines compatible with EasyOCR.
+    Consumes 1 unit from monthly Google Vision quota (safe cap: 900).
+    Requires zero local PyTorch/model memory!
+    """
+    if not is_vision_ocr_enabled():
+        return None
+
+    api_key = _get_api_key("GOOGLE_VISION_API_KEY")
+    if not api_key:
+        return None
+
+    if not api_quota_tracker.can_consume("google_vision", 1):
+        return None
+
+    try:
+        orig_w, orig_h = image.size
+        max_dim = max(orig_w, orig_h)
+        if max_dim > 2048:
+            scale = 2048.0 / max_dim
+            new_w, new_h = int(orig_w * scale), int(orig_h * scale)
+            send_img = image.resize((new_w, new_h), Image.Resampling.BILINEAR)
+        else:
+            scale = 1.0
+            send_img = image
+
+        buf = io.BytesIO()
+        send_img.convert("RGB").save(buf, format="JPEG", quality=88)
+        b64_content = base64.b64encode(buf.getvalue()).decode("utf-8")
+
+        url = f"https://vision.googleapis.com/v1/images:annotate?key={api_key}"
+        payload = {
+            "requests": [
+                {
+                    "image": {"content": b64_content},
+                    "features": [{"type": "TEXT_DETECTION"}]
+                }
+            ]
+        }
+
+        req_data = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(
+            url,
+            data=req_data,
+            headers={"Content-Type": "application/json"}
+        )
+
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            resp_body = response.read().decode("utf-8")
+            result = json.loads(resp_body)
+
+        api_quota_tracker.record_consumption("google_vision", 1)
+
+        responses = result.get("responses", [])
+        if not responses:
+            return None
+
+        res0 = responses[0]
+        full_ann = res0.get("fullTextAnnotation", {})
+        raw_results: List[Tuple[List[List[float]], str, float]] = []
+
+        if full_ann and "pages" in full_ann:
+            for page in full_ann.get("pages", []):
+                for block in page.get("blocks", []):
+                    for para in block.get("paragraphs", []):
+                        cur_line_words = []
+                        cur_line_text_parts = []
+                        for word in para.get("words", []):
+                            word_symbols = word.get("symbols", [])
+                            word_str = "".join(s.get("text", "") for s in word_symbols)
+                            cur_line_words.append(word)
+                            cur_line_text_parts.append(word_str)
+
+                            has_break = False
+                            if word_symbols:
+                                last_sym = word_symbols[-1]
+                                break_type = last_sym.get("property", {}).get("detectedBreak", {}).get("type", "")
+                                if break_type in ("LINE_BREAK", "EOL_SURE_SPACE"):
+                                    has_break = True
+
+                            if has_break:
+                                line_text = " ".join(cur_line_text_parts).strip()
+                                if line_text:
+                                    all_x, all_y, conf_list = [], [], []
+                                    for w in cur_line_words:
+                                        conf_list.append(float(w.get("confidence", 0.95)))
+                                        for v in w.get("boundingBox", {}).get("vertices", []):
+                                            if "x" in v: all_x.append(v["x"])
+                                            if "y" in v: all_y.append(v["y"])
+                                    if all_x and all_y:
+                                        x0 = min(all_x) / scale
+                                        y0 = min(all_y) / scale
+                                        x1 = max(all_x) / scale
+                                        y1 = max(all_y) / scale
+                                        bbox = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]
+                                        conf = float(np.mean(conf_list)) if conf_list else 0.95
+                                        raw_results.append((bbox, line_text, conf))
+                                cur_line_words = []
+                                cur_line_text_parts = []
+
+                        if cur_line_text_parts:
+                            line_text = " ".join(cur_line_text_parts).strip()
+                            if line_text:
+                                all_x, all_y, conf_list = [], [], []
+                                for w in cur_line_words:
+                                    conf_list.append(float(w.get("confidence", 0.95)))
+                                    for v in w.get("boundingBox", {}).get("vertices", []):
+                                        if "x" in v: all_x.append(v["x"])
+                                        if "y" in v: all_y.append(v["y"])
+                                if all_x and all_y:
+                                    x0 = min(all_x) / scale
+                                    y0 = min(all_y) / scale
+                                    x1 = max(all_x) / scale
+                                    y1 = max(all_y) / scale
+                                    bbox = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]
+                                    conf = float(np.mean(conf_list)) if conf_list else 0.95
+                                    raw_results.append((bbox, line_text, conf))
+
+        # Fallback to textAnnotations if fullTextAnnotation didn't yield lines
+        if not raw_results and "textAnnotations" in res0:
+            text_anns = res0.get("textAnnotations", [])
+            for ann in text_anns[1:]:
+                w_text = ann.get("description", "").strip()
+                if not w_text:
+                    continue
+                verts = ann.get("boundingPoly", {}).get("vertices", [])
+                all_x = [v.get("x", 0) for v in verts if "x" in v]
+                all_y = [v.get("y", 0) for v in verts if "y" in v]
+                if all_x and all_y:
+                    x0 = min(all_x) / scale
+                    y0 = min(all_y) / scale
+                    x1 = max(all_x) / scale
+                    y1 = max(all_y) / scale
+                    bbox = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]
+                    raw_results.append((bbox, w_text, 0.92))
+
+        return raw_results if raw_results else None
+
+    except Exception as e:
+        logger.warning(f"[GOOGLE_VISION_WARN] Full page OCR failed: {e}")
+        return None
 
 
 def google_vision_ocr_fallback(
