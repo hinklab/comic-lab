@@ -1038,15 +1038,19 @@ def free_web_translate(text: str) -> str:
         return ""
 
     # 1. Primary Default: deep_translator (free, zero model RAM)
-    try:
-        from deep_translator import GoogleTranslator
-        translator = GoogleTranslator(source="en", target="uz")
-        res = translator.translate(cleaned)
-        if res and res.strip():
-            print(f"[TRANSLATE_DEEP] deep_translator success: '{cleaned}' -> '{res.strip()}'", flush=True)
-            return res.strip()
-    except Exception as e:
-        print(f"[TRANSLATE_DEEP_WARN] deep_translator unavailable ({type(e).__name__}: {e}). Falling back to local NLLB.", flush=True)
+    simulate_fail = (os.getenv("FORCE_NLLB_FALLBACK", "0") == "1")
+    if not simulate_fail:
+        try:
+            from deep_translator import GoogleTranslator
+            translator = GoogleTranslator(source="en", target="uz")
+            res = translator.translate(cleaned)
+            if res and res.strip():
+                print(f"[TRANSLATE_DEEP] deep_translator success: '{cleaned}' -> '{res.strip()}'", flush=True)
+                return res.strip()
+        except Exception as e:
+            print(f"[TRANSLATE_DEEP_WARN] deep_translator unavailable ({type(e).__name__}: {e}). Falling back to local NLLB.", flush=True)
+    else:
+        print(f"[TRANSLATE_SIMULATED_FAIL] deep_translator simulated failure (FORCE_NLLB_FALLBACK=1). Bypassing to NLLB fallback for: '{cleaned[:30]}...'", flush=True)
 
     # 2. Fallback: Offline local CTranslate2 NLLB-200 model
     try:
@@ -3016,17 +3020,21 @@ def assign_speakers(
     return bubbles
 
 
+LAST_TRANSLATE_SUBPROCESS_MEMORY: Dict[str, Any] = {}
+
 def translate_bubbles_list_subprocess(
     bubbles: List[SpeechBubble],
     default_speaker: Optional[str] = None,
     page_name: str = "auto",
-    timeout_seconds: int = 120
+    timeout_seconds: int = 240
 ) -> List[SpeechBubble]:
     """
     Executes NLLB translation in an isolated OS subprocess with strict timeout protection.
     When the child process exits, Linux/Windows OS fully recovers its memory (~700 MB).
+    Continuously monitors and records peak Tree RSS while the child process is active.
     If the child process hangs past timeout_seconds, it is killed forcefully.
     """
+    global LAST_TRANSLATE_SUBPROCESS_MEMORY
     if not bubbles:
         return []
 
@@ -3035,6 +3043,7 @@ def translate_bubbles_list_subprocess(
     import sys
     import psutil
     import json
+    import time
 
     tmp_in = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
     tmp_in_path = tmp_in.name
@@ -3050,33 +3059,80 @@ def translate_bubbles_list_subprocess(
 
     worker_script = os.path.join(os.path.dirname(__file__), "scripts", "translation_worker.py")
     subproc = None
+    t0 = time.time()
+    pre_stats = get_memory_stats()
+    pre_tree_rss = pre_stats.get("rss_mb", 0.0)
+
+    peak_active_rss = pre_tree_rss
+    peak_active_cgroup = pre_stats.get("cgroup_current_mb", 0.0)
+    peak_active_anon = pre_stats.get("cgroup_anon_mb", 0.0)
+
     try:
+        env = os.environ.copy()
         subproc = subprocess.Popen(
             [sys.executable, "-u", worker_script, tmp_in_path, tmp_out_path, str(default_speaker), str(page_name)],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True
+            text=True,
+            env=env
         )
-        try:
-            stdout, stderr = subproc.communicate(timeout=timeout_seconds)
-        except subprocess.TimeoutExpired:
-            print(f"[TRANSLATE_SUBPROCESS_TIMEOUT] Translation bola jarayoni {timeout_seconds}s ichida javob bermadi! Majburiy to'xtatilyapti...", flush=True)
-            try:
-                p = psutil.Process(subproc.pid)
-                for child in p.children(recursive=True):
-                    try:
-                        child.kill()
-                    except (psutil.NoSuchProcess, psutil.AccessDenied):
-                        pass
-                p.kill()
-            except Exception:
-                subproc.kill()
-            subproc.communicate()
-            raise TimeoutError(f"NLLB translation bola jarayoni {timeout_seconds} soniya ichida yakunlanmadi va majburiy to'xtatildi (Timeout).")
+
+        # Monitor active Tree RSS while child process is executing
+        while subproc.poll() is None:
+            time.sleep(0.35)
+            elapsed = time.time() - t0
+            if elapsed > timeout_seconds:
+                print(f"[TRANSLATE_SUBPROCESS_TIMEOUT] Translation bola jarayoni {timeout_seconds}s ichida javob bermadi! Majburiy to'xtatilyapti...", flush=True)
+                try:
+                    p = psutil.Process(subproc.pid)
+                    for child in p.children(recursive=True):
+                        try:
+                            child.kill()
+                        except (psutil.NoSuchProcess, psutil.AccessDenied):
+                            pass
+                    p.kill()
+                except Exception:
+                    subproc.kill()
+                subproc.communicate()
+                raise TimeoutError(f"NLLB translation bola jarayoni {timeout_seconds} soniya ichida yakunlanmadi va majburiy to'xtatildi (Timeout).")
+
+            cur_stats = get_memory_stats()
+            cur_rss = cur_stats.get("rss_mb", 0.0)
+            if cur_rss > peak_active_rss:
+                peak_active_rss = cur_rss
+                peak_active_cgroup = cur_stats.get("cgroup_current_mb", 0.0)
+                peak_active_anon = cur_stats.get("cgroup_anon_mb", 0.0)
+
+        stdout, stderr = subproc.communicate()
+        total_time = time.time() - t0
 
         if subproc.returncode != 0:
             err_details = stderr.strip() if stderr else (stdout.strip() if stdout else f"Exit code {subproc.returncode}")
             raise RuntimeError(f"Translation worker process failed (code {subproc.returncode}): {err_details}")
+
+        post_stats = get_memory_stats()
+        post_tree_rss = post_stats.get("rss_mb", 0.0)
+        reclaimed_mb = max(0.0, peak_active_rss - post_tree_rss)
+
+        LAST_TRANSLATE_SUBPROCESS_MEMORY.clear()
+        LAST_TRANSLATE_SUBPROCESS_MEMORY.update({
+            "pre_tree_rss_mb": pre_tree_rss,
+            "peak_active_tree_rss_mb": peak_active_rss,
+            "peak_active_cgroup_mb": peak_active_cgroup,
+            "peak_active_anon_mb": peak_active_anon,
+            "post_tree_rss_mb": post_tree_rss,
+            "reclaimed_mb": reclaimed_mb,
+            "duration_seconds": total_time,
+            "fallback_forced": bool(os.getenv("FORCE_NLLB_FALLBACK", "0") == "1")
+        })
+
+        print(
+            f"[TRANSLATE_MEMORY_LIFECYCLE] Pre: {pre_tree_rss:.1f} MB | "
+            f"Active Peak Tree RSS: {peak_active_rss:.1f} MB (cgroup: {peak_active_cgroup:.1f} MB, anon: {peak_active_anon:.1f} MB) | "
+            f"Post: {post_tree_rss:.1f} MB (Reclaimed: {reclaimed_mb:.1f} MB) | "
+            f"Time: {total_time:.2f}s",
+            flush=True
+        )
 
         with open(tmp_out_path, "r", encoding="utf-8") as f:
             data = json.load(f)

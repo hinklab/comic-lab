@@ -35,6 +35,10 @@ def main():
 
     bubbles = [engine.SpeechBubble(**d) for d in raw_data]
 
+    import psutil
+    proc = psutil.Process()
+    print(f"[TRANSLATION_WORKER] Child PID {proc.pid} started. Initial RSS: {proc.memory_info().rss / (1024*1024):.1f} MB (FORCE_NLLB_FALLBACK={os.getenv('FORCE_NLLB_FALLBACK', '0')})", flush=True)
+
     # Execute core in-process translation inside this isolated child process
     translated = engine._translate_bubbles_list_core(
         bubbles,
@@ -42,11 +46,12 @@ def main():
         page_name=page_name
     )
 
+    peak_rss = proc.memory_info().rss / (1024 * 1024)
     out_data = [b.model_dump() for b in translated]
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(out_data, f, ensure_ascii=False)
 
-    print(f"[TRANSLATION_WORKER] Successfully translated {len(translated)} bubbles to {out_path}", flush=True)
+    print(f"[TRANSLATION_WORKER] Successfully translated {len(translated)} bubbles to {out_path}. Active Peak Child RSS: {peak_rss:.1f} MB", flush=True)
 
 
 if __name__ == "__main__":

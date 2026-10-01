@@ -2140,6 +2140,30 @@ with st.sidebar:
                 engine.reclaim_heap_memory()
             st.rerun()
 
+        force_fallback = st.checkbox(
+            "Simulate deep_translator outage (Force NLLB fallback)",
+            value=bool(os.getenv("FORCE_NLLB_FALLBACK", "0") == "1"),
+            key="ui_force_nllb_fallback",
+            help="deep_translator ishlamay qolganda (429 xatolik) mahalliy NLLB bola jarayoni qanday ishlashini tekshirish."
+        )
+        if force_fallback:
+            os.environ["FORCE_NLLB_FALLBACK"] = "1"
+        else:
+            os.environ.pop("FORCE_NLLB_FALLBACK", None)
+
+        if getattr(engine, "LAST_TRANSLATE_SUBPROCESS_MEMORY", None):
+            t_mem = engine.LAST_TRANSLATE_SUBPROCESS_MEMORY
+            fb_tag = " (NLLB Fallback Sinovi)" if t_mem.get("fallback_forced") else ""
+            st.info(
+                f"**NLLB Bola Jarayoni Xotirasi{fb_tag}:**\n\n"
+                f"- **Boshlang'ich Tree RSS:** `{t_mem.get('pre_tree_rss_mb', 0):.1f} MB`\n"
+                f"- **Faol Cho'qqi (Active Peak Tree RSS):** `{t_mem.get('peak_active_tree_rss_mb', 0):.1f} MB`\n"
+                f"- **cgroup Anon (Faol paytda):** `{t_mem.get('peak_active_anon_mb', 0):.1f} MB`\n"
+                f"- **Tugagach (Post Tree RSS):** `{t_mem.get('post_tree_rss_mb', 0):.1f} MB`\n"
+                f"- **Qaytarilgan xotira (Reclaimed):** `{t_mem.get('reclaimed_mb', 0):.1f} MB`\n"
+                f"- **Davomiyligi:** `{t_mem.get('duration_seconds', 0):.1f}s`"
+            )
+
         st.markdown("**Disk keshlar / Modellar:**")
         cache_diag = engine.get_disk_cache_diagnostics()
         for c_name, c_info in cache_diag.items():
