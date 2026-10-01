@@ -1822,25 +1822,29 @@ def render_stage2_mask_editor(
         stroke_width = max(8, int(brush_size))
         fill_color = "rgba(0, 0, 0, 0)"
     else:  # "view"
-        draw_mode = "transform"
+        draw_mode = "freedraw"
         stroke_color = "rgba(0, 0, 0, 0)"
-        stroke_width = 1
+        stroke_width = 0
         fill_color = "rgba(0, 0, 0, 0)"
 
     canvas_version = st.session_state.get("analysis_version", 0)
     canvas_key = f"stage2_main_page_canvas_{canvas_version}"
 
-    canvas_res = st_canvas(
-        fill_color=fill_color,
-        stroke_width=stroke_width,
-        stroke_color=stroke_color,
-        background_image=bg_disp_pil,
-        update_streamlit=True,
-        height=disp_h,
-        width=disp_w,
-        drawing_mode=draw_mode,
-        key=canvas_key
-    )
+    if active_mode in ("scissors", "quick_select"):
+        canvas_res = st_canvas(
+            fill_color=fill_color,
+            stroke_width=stroke_width,
+            stroke_color=stroke_color,
+            background_image=bg_disp_pil,
+            update_streamlit=True,
+            height=disp_h,
+            width=disp_w,
+            drawing_mode="freedraw",
+            key=canvas_key
+        )
+    else:
+        st.image(bg_disp_pil, use_container_width=True)
+        canvas_res = None
 
     # Check for drawn stroke on canvas
     has_drawn_stroke = (
