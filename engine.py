@@ -9,6 +9,7 @@ Powered by:
 """
 
 import os
+import sys
 import warnings
 warnings.filterwarnings("ignore")
 import re
@@ -1027,30 +1028,35 @@ def is_sfx_or_junk(text: str, conf: float = 1.0, is_on_bubble_paper: bool = Fals
 
 def free_web_translate(text: str) -> str:
     """
-    Primary: Google Cloud Translation API (0 MB model RAM, instant, high fluency).
-    Fallback: 100% Offline translation via local CTranslate2 NLLB-200 model.
+    Stage 2 Translation Priority Order:
+    1. Primary Default: deep_translator (free GoogleTranslator web scraping, 0 MB model RAM, no API key, no card).
+    2. Fallback: Local offline CTranslate2 NLLB-200 model (via local_translator.translate_offline).
+    3. Advisory Cross-Check: Official Google Cloud Translation API (optional, gated behind sidebar API key).
     """
     cleaned = text.strip()
     if not cleaned:
         return ""
 
-    # 1. Primary: Google Cloud Translation API
+    # 1. Primary Default: deep_translator (free, zero model RAM)
     try:
-        import cloud_enhancements
-        if cloud_enhancements.is_translate_enabled():
-            g_trans = cloud_enhancements.fetch_google_translation(cleaned)
-            if g_trans:
-                print(f"[TRANSLATE_CLOUD] Google Translate API: '{cleaned}' -> '{g_trans}'", flush=True)
-                return g_trans
+        from deep_translator import GoogleTranslator
+        translator = GoogleTranslator(source="en", target="uz")
+        res = translator.translate(cleaned)
+        if res and res.strip():
+            print(f"[TRANSLATE_DEEP] deep_translator success: '{cleaned}' -> '{res.strip()}'", flush=True)
+            return res.strip()
     except Exception as e:
-        print(f"[TRANSLATE_CLOUD_WARN] Google Translate API failed: {e}. Falling back to offline model.", flush=True)
+        print(f"[TRANSLATE_DEEP_WARN] deep_translator unavailable ({type(e).__name__}: {e}). Falling back to local NLLB.", flush=True)
 
     # 2. Fallback: Offline local CTranslate2 NLLB-200 model
     try:
-        return local_translator.translate_offline(cleaned)
+        nllb_res = local_translator.translate_offline(cleaned)
+        if nllb_res and nllb_res.strip():
+            return nllb_res.strip()
     except Exception as e:
         print(f"[TRANSLATE_WARN] Offline translation fallback: {e}", flush=True)
-        return cleaned
+
+    return cleaned
 
 
 def translate_spiderman_uzbek(en_text: str, speaker: Optional[str] = None) -> str:
@@ -2199,17 +2205,123 @@ def scan_bubbles_ocr_subprocess(image: Image.Image, timeout_seconds: int = 120) 
     return bubbles
 
 
+import shutil
+
+_TESSERACT_INITIALIZED = False
+
+def init_tesseract() -> bool:
+    """Detects and initializes Tesseract OCR binary on Windows or Linux."""
+    global _TESSERACT_INITIALIZED
+    try:
+        import pytesseract
+        if sys.platform == "win32":
+            for cand in [
+                r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+                r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+                os.path.expanduser(r"~\AppData\Local\Tesseract-OCR\tesseract.exe")
+            ]:
+                if os.path.exists(cand):
+                    pytesseract.pytesseract.tesseract_cmd = cand
+                    break
+        cmd = pytesseract.pytesseract.tesseract_cmd
+        if os.path.exists(cmd) or shutil.which(cmd):
+            _TESSERACT_INITIALIZED = True
+            return True
+        return False
+    except Exception:
+        return False
+
+
+def run_tesseract_ocr(image: Image.Image, psm: int = 3, min_conf: float = 25.0) -> List[Tuple[List[List[float]], str, float]]:
+    """
+    Runs Tesseract OCR on the page and clusters word-level detections into proper lines.
+    Returns raw line detections [(bbox, text, conf)] matching EasyOCR raw output format.
+    Consumes ~30-40 MB RAM (zero PyTorch / CUDA allocation).
+    """
+    if not init_tesseract():
+        raise RuntimeError("Tesseract OCR engine is not installed or not found in system PATH.")
+
+    import pytesseract
+    config = f"--psm {psm}"
+    d = pytesseract.image_to_data(image, config=config, output_type=pytesseract.Output.DICT)
+
+    n_boxes = len(d['text'])
+    words = []
+    for i in range(n_boxes):
+        text = d['text'][i].strip()
+        conf = float(d['conf'][i])
+        if not text or conf < min_conf:
+            continue
+        words.append({
+            'x': int(d['left'][i]),
+            'y': int(d['top'][i]),
+            'w': int(d['width'][i]),
+            'h': int(d['height'][i]),
+            'text': text,
+            'conf': conf
+        })
+
+    words.sort(key=lambda w: (w['y'], w['x']))
+
+    lines = []
+    for w in words:
+        matched = False
+        for line in lines:
+            last_w = line['words'][-1]
+            v_overlap = min(w['y'] + w['h'], last_w['y'] + last_w['h']) - max(w['y'], last_w['y'])
+            min_h = min(w['h'], last_w['h'])
+            if v_overlap > 0.35 * min_h:
+                gap = w['x'] - (last_w['x'] + last_w['w'])
+                max_gap = max(40, int(1.8 * max(w['h'], last_w['h'])))
+                if -15 <= gap <= max_gap:
+                    line['words'].append(w)
+                    line['x1'] = max(line['x1'], w['x'] + w['w'])
+                    line['y0'] = min(line['y0'], w['y'])
+                    line['y1'] = max(line['y1'], w['y'] + w['h'])
+                    matched = True
+                    break
+        if not matched:
+            lines.append({
+                'words': [w],
+                'x0': w['x'],
+                'y0': w['y'],
+                'x1': w['x'] + w['w'],
+                'y1': w['y'] + w['h']
+            })
+
+    results = []
+    for line in lines:
+        line_str = " ".join(w['text'] for w in line['words']).strip()
+        if not line_str:
+            continue
+        avg_conf = (sum(w['conf'] for w in line['words']) / len(line['words'])) / 100.0
+        x0, y0, x1, y1 = line['x0'], line['y0'], line['x1'], line['y1']
+        bbox = [[float(x0), float(y0)], [float(x1), float(y0)], [float(x1), float(y1)], [float(x0), float(y1)]]
+        results.append((bbox, line_str, avg_conf))
+
+    return results
+
+
+def scan_bubbles_ocr_tesseract(image: Image.Image) -> List[SpeechBubble]:
+    """Runs Tesseract OCR and bubble extraction pipeline."""
+    raw_results = run_tesseract_ocr(image)
+    bubbles = _extract_bubbles_from_ocr_results(image, raw_results)
+    reclaim_heap_memory()
+    return bubbles
+
+
 def scan_bubbles_ocr(image: Image.Image, use_subprocess: bool = True, timeout_seconds: int = 120) -> List[SpeechBubble]:
     """
-    Stage 1 OCR-First Detection & SFX Filtering Pipeline:
-    1. Primary: Google Cloud Vision API (0 MB model RAM, ~1.5s execution, 90% quota protected).
-    2. Fallback: Local isolated per-tile EasyOCR subprocesses (~530 MB RAM).
+    Stage 1 OCR Priority Hierarchy:
+    1. Opt-In: Google Cloud Vision API (ONLY if user manually entered API key in sidebar).
+    2. Primary Default: Tesseract OCR (~30-40 MB RAM, fast, fully local and free, zero GPU/torch tensors).
+    3. Fallback: Local isolated per-tile EasyOCR subprocess (~530 MB RAM per tile) if Tesseract fails or yields unreliable bubbles.
     """
-    # 1. Primary: Google Cloud Vision API
+    # 1. Opt-In: Google Cloud Vision API (gated behind user API key in sidebar)
     try:
         import cloud_enhancements
         if cloud_enhancements.is_vision_ocr_enabled():
-            print("[OCR] Google Cloud Vision API is ENABLED. Running primary cloud OCR...", flush=True)
+            print("[OCR] Google Cloud Vision API is ENABLED by user. Running cloud OCR...", flush=True)
             import time
             t0 = time.time()
             raw_results = cloud_enhancements.google_vision_ocr_full_page(image)
@@ -2220,18 +2332,32 @@ def scan_bubbles_ocr(image: Image.Image, use_subprocess: bool = True, timeout_se
                 reclaim_heap_memory()
                 return bubbles
             else:
-                print("[OCR] Google Cloud Vision returned no results, falling back to local EasyOCR.", flush=True)
+                print("[OCR] Google Cloud Vision returned no results, continuing to default Tesseract OCR.", flush=True)
     except Exception as e:
-        print(f"[OCR_CLOUD_WARN] Google Cloud Vision failed: {e}. Falling back to local EasyOCR.", flush=True)
+        print(f"[OCR_CLOUD_WARN] Google Cloud Vision failed: {e}. Continuing to default Tesseract OCR.", flush=True)
 
-    # 2. Fallback: Local isolated per-tile EasyOCR subprocesses
+    # 2. Primary Default: Tesseract OCR (classical, lean, zero model RAM)
+    try:
+        import time
+        t0 = time.time()
+        tess_bubbles = scan_bubbles_ocr_tesseract(image)
+        elapsed = time.time() - t0
+        avg_conf = sum(b.confidence for b in tess_bubbles) / len(tess_bubbles) if tess_bubbles else 0.0
+        print(f"[OCR] Tesseract OCR (default): SUCCESS ({len(tess_bubbles)} bubbles, avg_conf: {avg_conf*100:.1f}%, time: {elapsed:.2f}s)", flush=True)
+        if tess_bubbles and avg_conf >= 0.35:
+            return tess_bubbles
+        print(f"[OCR] Tesseract returned {len(tess_bubbles)} bubbles with avg_conf {avg_conf*100:.1f}% (< 35%), falling back to EasyOCR subprocess.", flush=True)
+    except Exception as e:
+        print(f"[OCR_TESS_WARN] Tesseract OCR failed or unavailable: {e}. Falling back to EasyOCR.", flush=True)
+
+    # 3. Fallback: Local isolated per-tile EasyOCR subprocesses
     if use_subprocess:
         import time
         t0 = time.time()
         try:
             bubbles = scan_bubbles_ocr_subprocess(image, timeout_seconds=timeout_seconds)
             elapsed = time.time() - t0
-            print(f"[OCR] subprocess mode: SUCCESS (bubbles found: {len(bubbles)}, time: {elapsed:.2f}s)", flush=True)
+            print(f"[OCR] EasyOCR subprocess fallback: SUCCESS (bubbles found: {len(bubbles)}, time: {elapsed:.2f}s)", flush=True)
             return bubbles
         except TimeoutError as te:
             print(f"[OCR] subprocess FAILED, falling back to in-process: Timeout ({te})", flush=True)
