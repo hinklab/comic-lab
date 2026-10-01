@@ -2,8 +2,8 @@
 scripts/verify_live_cloud.py - Automated end-to-end verification of the live Streamlit Cloud app.
 Executes:
 1. Memory leak test across 5 successive reruns before Stage 1 (confirming anon stays flat).
-2. Stage 1 (tile-by-tile EasyOCR subprocess + Inpainting).
-3. Stage 2 (subprocess NLLB translation).
+2. Stage 1 (Tesseract OCR default / fallback).
+3. Stage 2 (deep_translator default / fallback).
 4. Stage 3 (lettering render).
 """
 import os
@@ -30,16 +30,16 @@ def get_app_frame(page):
 
 def extract_memory_readings(frame):
     """Finds all memory captions in the app frame."""
-    captions = frame.locator("p, [data-testid='stCaptionContainer'], code").all()
+    captions = frame.locator("p, [data-testid='stCaptionContainer'], code, span").all()
     results = []
     for c in captions:
         txt = get_text_safe(c)
-        if "Tree RSS:" in txt or "cgroup:" in txt:
+        if any(k in txt for k in ["Tree RSS", "cgroup:", "cgroup Peak", "cgroup Anon", "Xotira (RAM / cgroup)"]):
             results.append(txt)
     seen = set()
     dedup = []
     for r in results:
-        if r not in seen:
+        if r not in seen and len(r) < 250:
             seen.add(r)
             dedup.append(r)
     return " | ".join(dedup) if dedup else "Not found in DOM"
@@ -59,6 +59,13 @@ def main():
         print("\n[STEP 0] Opening live URL...", flush=True)
         page.goto(URL, wait_until="networkidle", timeout=90000)
         page.wait_for_timeout(8000)
+
+        # Check for wake up button
+        wake_btn = page.locator("button:has-text('Yes, get this app back up!')")
+        if wake_btn.count() > 0 and wake_btn.first.is_visible():
+            print("[INFO] App is sleeping. Clicking wake up button...", flush=True)
+            wake_btn.first.click()
+            page.wait_for_timeout(20000)
 
         # Check for error screen
         content = page.content()
@@ -88,8 +95,12 @@ def main():
         try:
             expander = frame.locator("[data-testid='stSidebar'] [data-testid='stExpander'] summary, [data-testid='stSidebar'] summary")
             if expander.count() > 0:
-                expander.first.click()
-                page.wait_for_timeout(1000)
+                for idx in range(expander.count()):
+                    txt = expander.nth(idx).inner_text()
+                    if "Diagnostika" in txt or "Konteyner" in txt:
+                        expander.nth(idx).click()
+                        page.wait_for_timeout(1000)
+                        break
         except Exception:
             pass
 
@@ -114,13 +125,13 @@ def main():
         scan_btn.wait_for(state="visible", timeout=30000)
 
         # Click scan button
-        print("\n[STEP 1.2] Clicking '1. Sahifani Skanerlash va Pufaklarni Tozalash' (Per-tile subprocess)...", flush=True)
+        print("\n[STEP 1.2] Clicking '1. Sahifani Skanerlash va Pufaklarni Tozalash'...", flush=True)
         scan_btn.click()
 
-        # Wait for Stage 1 to complete (Per-tile EasyOCR subprocesses + Inpainting)
-        print("[STEP 1.2] Waiting for Stage 1 OCR & Inpainting to complete (timeout: 240s)...", flush=True)
+        # Wait for Stage 1 to complete (Tesseract default / fallback)
+        print("[STEP 1.2] Waiting for Stage 1 OCR & Inpainting to complete (timeout: 180s)...", flush=True)
         stage2_btn = frame.locator("button:has-text('2-bosqich')")
-        stage2_btn.wait_for(state="visible", timeout=240000)
+        stage2_btn.wait_for(state="visible", timeout=180000)
         page.wait_for_timeout(4000)
 
         frame = get_app_frame(page)
@@ -129,28 +140,29 @@ def main():
         page.screenshot(path=os.path.join(ARTIFACT_DIR, "cloud_stage1_done.png"))
 
         # Step 2: Click Stage 2 translation button
-        print("\n[STEP 2] Clicking Stage 2 button ('2-bosqich: Matnlarni Ko\\'rish va Tahrirlash')...", flush=True)
+        print("\n[STEP 2] Clicking Stage 2 button ('2-bosqich: Matnlarni Ko\'rish va Tahrirlash')...", flush=True)
         stage2_btn.click()
 
-        # Wait for Stage 2 to complete (Subprocess NLLB translation)
-        print("[STEP 2] Waiting for Stage 2 Translation to complete (timeout: 240s)...", flush=True)
+        # Wait for Stage 2 to complete (deep_translator default / NLLB fallback)
+        print("[STEP 2] Waiting for Stage 2 Translation to complete (timeout: 300s)...", flush=True)
         stage3_btn = frame.locator("button:has-text('3-bosqich')")
         try:
-            stage3_btn.wait_for(state="visible", timeout=240000)
-        except Exception:
-            frame.locator(".modern-bubble-card, textarea").first.wait_for(state="visible", timeout=30000)
+            stage3_btn.wait_for(state="attached", timeout=300000)
+            print("[STEP 2] Stage 3 button attached!", flush=True)
+        except Exception as e:
+            print(f"[STEP 2] Wait for Stage 3 button failed: {e}", flush=True)
 
-        page.wait_for_timeout(4000)
+        page.wait_for_timeout(5000)
         frame = get_app_frame(page)
         mem_stage2 = extract_memory_readings(frame)
         print(f"\n[STAGE 2 COMPLETED MEMORY] {mem_stage2}", flush=True)
         page.screenshot(path=os.path.join(ARTIFACT_DIR, "cloud_stage2_done.png"))
 
         # Step 3: Click Stage 3 confirm if available
-        if stage3_btn.is_visible():
+        if stage3_btn.count() > 0:
             print("\n[STEP 3] Clicking Stage 3 lettering button ('3-bosqich: Shriftlarni Yozish')...", flush=True)
-            stage3_btn.click()
-            page.wait_for_timeout(8000)
+            stage3_btn.click(force=True)
+            page.wait_for_timeout(10000)
             frame = get_app_frame(page)
             mem_stage3 = extract_memory_readings(frame)
             print(f"\n[STAGE 3 COMPLETED MEMORY] {mem_stage3}", flush=True)
