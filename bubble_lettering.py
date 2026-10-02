@@ -871,7 +871,10 @@ def split_multi_lobe_bubble_contour(
     if hull is None or len(hull) < 3:
         return [(cnt, lines)]
 
-    defects = cv2.convexityDefects(shifted_cnt, hull)
+    try:
+        defects = cv2.convexityDefects(shifted_cnt, hull)
+    except cv2.error:
+        return [(cnt, lines)]
     if defects is None or len(defects) < 2:
         return [(cnt, lines)]
 

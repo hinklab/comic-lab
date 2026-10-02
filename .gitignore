@@ -25,6 +25,7 @@ models/
 # Local run outputs & scratch
 output/
 scratch/
+data/full_book/
 
 # Operating system
 Thumbs.db

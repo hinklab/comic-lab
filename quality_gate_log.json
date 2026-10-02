@@ -3289,5 +3289,385 @@
       "description": "Non-speech stylized sound effect or background text on dark/colored art"
     },
     "timestamp": 1790349877.8684387
+  },
+  {
+    "page": "page_04.png",
+    "bubble_id": null,
+    "stage": "ocr_filtering",
+    "pattern_name": "sfx_false_positive",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Non-speech stylized sound effect or background text on dark/colored art"
+    },
+    "timestamp": 1790943373.2281294
+  },
+  {
+    "page": "page_04.png",
+    "bubble_id": 1,
+    "stage": "translation_validation",
+    "pattern_name": "post_translation_failed",
+    "severity": "flag_for_review",
+    "action_taken": "flagged_needs_review",
+    "details": {
+      "reason": "Qisman kesilgan tarjima / Tarjimada gap tushib qolgan (originalda 2 ta gap, tarjimada 1 ta)",
+      "tokens": []
+    },
+    "timestamp": 1790943456.756517
+  },
+  {
+    "page": "page_04.png",
+    "bubble_id": 7,
+    "stage": "translation_validation",
+    "pattern_name": "post_translation_failed",
+    "severity": "flag_for_review",
+    "action_taken": "flagged_needs_review",
+    "details": {
+      "reason": "Tarjima qilinmagan xom OCR (asl matn bilan bir xil)",
+      "tokens": []
+    },
+    "timestamp": 1790943469.5543814
+  },
+  {
+    "page": "page_01",
+    "bubble_id": null,
+    "stage": "ocr_filtering",
+    "pattern_name": "sfx_false_positive",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Non-speech stylized sound effect or background text on dark/colored art"
+    },
+    "timestamp": 1790943566.739606
+  },
+  {
+    "page": "page_01",
+    "bubble_id": null,
+    "stage": "ocr_filtering",
+    "pattern_name": "sfx_false_positive",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Non-speech stylized sound effect or background text on dark/colored art"
+    },
+    "timestamp": 1790943567.4135058
+  },
+  {
+    "page": "page_02",
+    "bubble_id": 2,
+    "stage": "translation_validation",
+    "pattern_name": "post_translation_failed",
+    "severity": "flag_for_review",
+    "action_taken": "flagged_needs_review",
+    "details": {
+      "reason": "Inglizcha qoldiq so'zlar aniqlandi: ANDNING",
+      "tokens": [
+        "ANDNING"
+      ]
+    },
+    "timestamp": 1790943693.5328112
+  },
+  {
+    "page": "page_02",
+    "bubble_id": 6,
+    "stage": "translation_validation",
+    "pattern_name": "post_translation_failed",
+    "severity": "flag_for_review",
+    "action_taken": "flagged_needs_review",
+    "details": {
+      "reason": "Qisman kesilgan tarjima / Tarjimada gap tushib qolgan (originalda 3 ta gap, tarjimada 2 ta)",
+      "tokens": []
+    },
+    "timestamp": 1790943704.3232117
+  },
+  {
+    "page": "page_02",
+    "bubble_id": 11,
+    "stage": "translation_validation",
+    "pattern_name": "post_translation_failed",
+    "severity": "flag_for_review",
+    "action_taken": "flagged_needs_review",
+    "details": {
+      "reason": "Qisman kesilgan tarjima / Tarjimada gap tushib qolgan (originalda 2 ta gap, tarjimada 1 ta)",
+      "tokens": []
+    },
+    "timestamp": 1790943730.0372252
+  },
+  {
+    "page": "page_04",
+    "bubble_id": 7,
+    "stage": "translation_validation",
+    "pattern_name": "post_translation_failed",
+    "severity": "flag_for_review",
+    "action_taken": "flagged_needs_review",
+    "details": {
+      "reason": "Tarjima qilinmagan xom OCR (asl matn bilan bir xil)",
+      "tokens": []
+    },
+    "timestamp": 1790943812.5488114
+  },
+  {
+    "page": "page_05",
+    "bubble_id": 2,
+    "stage": "translation_validation",
+    "pattern_name": "translation_sentence_drop",
+    "severity": "flag_for_review",
+    "action_taken": "flagged_for_review",
+    "details": {
+      "description": "Dialogue translation dropped one or more complete sentences compared to source dialogue"
+    },
+    "timestamp": 1790943831.808795
+  },
+  {
+    "page": "page_06",
+    "bubble_id": null,
+    "stage": "bubble_segmentation",
+    "pattern_name": "conjoined_bubble_constriction_split",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Conjoined speech bubbles with narrow waist constriction between lobes split at the neck"
+    },
+    "timestamp": 1790943845.299823
+  },
+  {
+    "page": "page_06",
+    "bubble_id": 9,
+    "stage": "translation_validation",
+    "pattern_name": "post_translation_failed",
+    "severity": "flag_for_review",
+    "action_taken": "flagged_needs_review",
+    "details": {
+      "reason": "Qisman kesilgan tarjima / Tarjimada gap tushib qolgan (originalda 2 ta gap, tarjimada 1 ta)",
+      "tokens": []
+    },
+    "timestamp": 1790943885.9218655
+  },
+  {
+    "page": "page_07",
+    "bubble_id": null,
+    "stage": "figure8_clustering",
+    "pattern_name": "figure8_double_lobed_bubble",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Vertically stacked double lobes erroneously merged into single bubble"
+    },
+    "timestamp": 1790943890.720548
+  },
+  {
+    "page": "page_07",
+    "bubble_id": null,
+    "stage": "bubble_segmentation",
+    "pattern_name": "conjoined_bubble_constriction_split",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Conjoined speech bubbles with narrow waist constriction between lobes split at the neck"
+    },
+    "timestamp": 1790943894.230806
+  },
+  {
+    "page": "page_07",
+    "bubble_id": null,
+    "stage": "post_clean",
+    "pattern_name": "residual_ink_under_lettering",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Residual dark ink clusters remaining inside bubble interior"
+    },
+    "timestamp": 1790943896.756638
+  },
+  {
+    "page": "page_08",
+    "bubble_id": 8,
+    "stage": "translation_validation",
+    "pattern_name": "post_translation_failed",
+    "severity": "flag_for_review",
+    "action_taken": "flagged_needs_review",
+    "details": {
+      "reason": "Qisman kesilgan tarjima / Tarjimada gap tushib qolgan (originalda 2 ta gap, tarjimada 1 ta)",
+      "tokens": []
+    },
+    "timestamp": 1790943961.6109502
+  },
+  {
+    "page": "page_09",
+    "bubble_id": null,
+    "stage": "bubble_list_indexing",
+    "pattern_name": "duplicate_bubble_id",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Duplicate or non-sequential bubble IDs in assembled bubble list"
+    },
+    "timestamp": 1790944028.7472982
+  },
+  {
+    "page": "page_09",
+    "bubble_id": 2,
+    "stage": "translation_validation",
+    "pattern_name": "post_translation_failed",
+    "severity": "flag_for_review",
+    "action_taken": "flagged_needs_review",
+    "details": {
+      "reason": "Qisman kesilgan tarjima / Tarjimada gap tushib qolgan (originalda 2 ta gap, tarjimada 1 ta)",
+      "tokens": []
+    },
+    "timestamp": 1790944064.8226378
+  },
+  {
+    "page": "page_11",
+    "bubble_id": null,
+    "stage": "post_clean",
+    "pattern_name": "residual_ink_under_lettering",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Residual dark ink clusters remaining inside bubble interior"
+    },
+    "timestamp": 1790944111.9527392
+  },
+  {
+    "page": "page_13",
+    "bubble_id": 2,
+    "stage": "translation_validation",
+    "pattern_name": "translation_sentence_drop",
+    "severity": "flag_for_review",
+    "action_taken": "flagged_for_review",
+    "details": {
+      "description": "Dialogue translation dropped one or more complete sentences compared to source dialogue"
+    },
+    "timestamp": 1790944248.9987593
+  },
+  {
+    "page": "page_13",
+    "bubble_id": 6,
+    "stage": "translation_validation",
+    "pattern_name": "post_translation_failed",
+    "severity": "flag_for_review",
+    "action_taken": "flagged_needs_review",
+    "details": {
+      "reason": "Qisman kesilgan tarjima / Tarjimada gap tushib qolgan (originalda 2 ta gap, tarjimada 1 ta)",
+      "tokens": []
+    },
+    "timestamp": 1790944262.8348777
+  },
+  {
+    "page": "page_15",
+    "bubble_id": 7,
+    "stage": "translation_validation",
+    "pattern_name": "post_translation_failed",
+    "severity": "flag_for_review",
+    "action_taken": "flagged_needs_review",
+    "details": {
+      "reason": "Tarjima qilinmagan xom OCR (asl matn bilan bir xil)",
+      "tokens": []
+    },
+    "timestamp": 1790944393.9855478
+  },
+  {
+    "page": "page_22",
+    "bubble_id": 10,
+    "stage": "translation_validation",
+    "pattern_name": "post_translation_failed",
+    "severity": "flag_for_review",
+    "action_taken": "flagged_needs_review",
+    "details": {
+      "reason": "Qisman kesilgan tarjima / Tarjimada gap tushib qolgan (originalda 5 ta gap, tarjimada 1 ta)",
+      "tokens": []
+    },
+    "timestamp": 1790945304.5694106
+  },
+  {
+    "page": "page_22",
+    "bubble_id": 12,
+    "stage": "translation_validation",
+    "pattern_name": "post_translation_failed",
+    "severity": "flag_for_review",
+    "action_taken": "flagged_needs_review",
+    "details": {
+      "reason": "Qisman kesilgan tarjima / Tarjimada gap tushib qolgan (originalda 8 ta gap, tarjimada 6 ta)",
+      "tokens": []
+    },
+    "timestamp": 1790945322.7439194
+  },
+  {
+    "page": null,
+    "bubble_id": null,
+    "stage": "ocr_filtering",
+    "pattern_name": "sfx_false_positive",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Non-speech stylized sound effect or background text on dark/colored art"
+    },
+    "timestamp": 1790946244.153528
+  },
+  {
+    "page": null,
+    "bubble_id": null,
+    "stage": "ocr_filtering",
+    "pattern_name": "sfx_false_positive",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Non-speech stylized sound effect or background text on dark/colored art"
+    },
+    "timestamp": 1790946244.214379
+  },
+  {
+    "page": null,
+    "bubble_id": 1,
+    "stage": "bubble_inpainting",
+    "pattern_name": "tinted_spectral_bubble_preservation",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Monochromatic tinted speech bubble or spectral dialogue ink requiring authentic tint preservation and Zero Whiteout inpainting"
+    },
+    "timestamp": 1790946244.2641926
+  },
+  {
+    "page": null,
+    "bubble_id": null,
+    "stage": "lettering",
+    "pattern_name": "low_contrast_tint",
+    "severity": "flag_for_review",
+    "action_taken": "rendered_plain_text",
+    "details": {
+      "sampled_tint_bgr": [
+        50,
+        50,
+        50
+      ],
+      "luminance": 50.0
+    },
+    "timestamp": 1790946244.4472458
+  },
+  {
+    "page": null,
+    "bubble_id": 1,
+    "stage": "bubble_inpainting",
+    "pattern_name": "tinted_spectral_bubble_preservation",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Monochromatic tinted speech bubble or spectral dialogue ink requiring authentic tint preservation and Zero Whiteout inpainting"
+    },
+    "timestamp": 1790946244.5260272
+  },
+  {
+    "page": null,
+    "bubble_id": null,
+    "stage": "bubble_segmentation",
+    "pattern_name": "conjoined_bubble_constriction_split",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Conjoined speech bubbles with narrow waist constriction between lobes split at the neck"
+    },
+    "timestamp": 1790946284.5609727
   }
 ]

@@ -4620,5 +4620,71 @@
       "sub_text1": "HEY PETER",
       "sub_text2": "PARKER"
     }
+  },
+  {
+    "page": "page_test.png",
+    "timestamp": 1790946153.7234035,
+    "tool_used": "scissors",
+    "bubble_id": 1,
+    "original_contour": [
+      [
+        10,
+        10
+      ],
+      [
+        50,
+        10
+      ],
+      [
+        50,
+        50
+      ],
+      [
+        10,
+        50
+      ]
+    ],
+    "corrected_contours": [
+      [
+        [
+          10,
+          10
+        ],
+        [
+          30,
+          10
+        ],
+        [
+          30,
+          50
+        ],
+        [
+          10,
+          50
+        ]
+      ],
+      [
+        [
+          30,
+          10
+        ],
+        [
+          50,
+          10
+        ],
+        [
+          50,
+          50
+        ],
+        [
+          30,
+          50
+        ]
+      ]
+    ],
+    "metadata": {
+      "sub_text1": "HEY PETER",
+      "sub_text2": "PARKER"
+    }
   }
 ]
