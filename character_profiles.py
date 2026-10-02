@@ -51,9 +51,14 @@ class CharacterVoiceProfile:
     def matches(self, query: str) -> bool:
         """Checks if a character name or alias matches this profile."""
         q = query.strip().lower()
-        if q == self.name.lower():
+        if not q:
+            return False
+        if q == self.name.lower() or q in self.name.lower() or self.name.lower() in q:
             return True
-        return any(q == alias.lower() for alias in self.aliases)
+        for alias in self.aliases:
+            if q == alias.lower():
+                return True
+        return False
 
     @staticmethod
     def _normalize_key(text: str) -> str:
@@ -971,6 +976,39 @@ ARCHETYPE_PRESS_REPORTER = CharacterVoiceProfile(
         "Concise journalistic news phrasing",
         "Objective reporting terms for urban crime and vigilante activity"
     ],
+    forbidden_tones=[
+        "Casual slurred dialogue",
+        "Personal poetic confessions"
+    ],
+    established_facts=[
+        "Broadcasts live city news reports on vigilante activity and NYC Mayor policies",
+        "Uses concise, sensationalist journalistic phrasing for headline chyrons"
+    ],
+    sample_lines=[
+        {
+            "en": "COMING UP NEXT: CITY HALL'S CONTROVERSIAL STANCE ON MASKED VIGILANTES.",
+            "voice_uz": "Navbatdagi lavhada: Shahar meriyasining niqobli qasoskorlarga nisbatan bahsli pozitsiyasi.",
+            "literal_mt": "Keyingi: Shahar hokimiyatining maskalli hujumchilarga nisbatan munozarali nuqtai nazari."
+        },
+        {
+            "en": "TWO DAYS IN A ROW AND SPIDEY'S THE LEAD STORY:",
+            "voice_uz": "Ikki kundan beri O'rgimchak bosh mavzu:",
+            "literal_mt": "Ikki kun ketma-ket va Spidey bosh hikoya."
+        },
+        {
+            "en": "MENACE NO MORE?",
+            "voice_uz": "Endi xavf tug'dirmaydimi?",
+            "literal_mt": "Endi xavf yo'qmi?"
+        }
+    ],
+    exact_lines={
+        "COMING UP NEXT: CITY HALL'S CONTROVERSIAL STANCE ON MASKED VIGILANTES.": "Navbatdagi lavhada: Shahar meriyasining niqobli qasoskorlarga nisbatan bahsli pozitsiyasi.",
+        "COMING UP NEXT: CITY HALL'S CONTROVERSIAL STANCE ON MASKED VIGILANTES": "Navbatdagi lavhada: Shahar meriyasining niqobli qasoskorlarga nisbatan bahsli pozitsiyasi.",
+        "TWO DAYS IN A ROW AND SPIDEY'S THE LEAD STORY:": "Ikki kundan beri O'rgimchak bosh mavzu:",
+        "TWO DAYS IN A ROW AND SPIDEY'S THE LEAD STORY": "Ikki kundan beri O'rgimchak bosh mavzu:",
+        "MENACE NO MORE?": "Endi xavf tug'dirmaydimi?",
+        "MENACE NO MORE": "Endi xavf tug'dirmaydimi?"
+    },
     phrase_replacements=[
         (r"\bmaskalli\s+hujumchilar\b", "niqobli qasoskorlar"),
         (r"\bniqobli\s+hushyorlar\b", "niqobli qasoskorlar"),
@@ -997,6 +1035,49 @@ ARCHETYPE_POLICE_OFFICER = CharacterVoiceProfile(
         "Urgent tactical terminology",
         "Direct, brisk, professional speech"
     ],
+    forbidden_tones=[
+        "Sluggish hesitation",
+        "Playful flippancy during crisis"
+    ],
+    established_facts=[
+        "Issues authoritative procedural tactical commands to civilians and fellow officers",
+        "Manages crime scenes, perimeters, and active detective case files"
+    ],
+    sample_lines=[
+        {
+            "en": "STAND BACK, EVERYONE! WE'VE GOT THE PERIMETER CONTAINED!",
+            "voice_uz": "Hamma orqaga turing! Hudud to'liq qurshovga olingan!",
+            "literal_mt": "Turinglar hamma! Atrofimiz tuzilgan!"
+        },
+        {
+            "en": "MY ARM'S FEELING A LOT BETTER, AND I ONLY HAVE SO MUCH TIME OFF FROM THE FORCE.",
+            "voice_uz": "Qo'lim ancha yaxshi bo'lib qoldi, xizmatdan ham cheklangan ta'til olganman.",
+            "literal_mt": "Mening qo'lim ancha yaxshi va men politsiya kuchidan ko'p vaqt olmadim."
+        },
+        {
+            "en": "IT'S TIME I GOT BACK TO WORK. I'M SURE MY CASE FILES ARE BACKING UP.",
+            "voice_uz": "Ishga qaytadigan vaqt keldi. Jinoyat ishlarim to'planib qolgani aniq.",
+            "literal_mt": "Ishga qaytish vaqti keldi. Mening ish fayllarim yig'ilib qolgan."
+        },
+        {
+            "en": "AND I KNOW THERE'S AT LEAST ONE MYSTERY I HAVE TO SOLVE.",
+            "voice_uz": "Va ochishim kerak bo'lgan kamida bitta sir borligini bilaman.",
+            "literal_mt": "Va men bilaman, kamida bitta sirni yechishim kerak."
+        }
+    ],
+    exact_lines={
+        "STAND BACK, EVERYONE! WE'VE GOT THE PERIMETER CONTAINED!": "Hamma orqaga turing! Hudud to'liq qurshovga olingan!",
+        "MY ARM'S FEELING A LOT BETTER, AND I ONLY HAVE SO MUCH TIME OFF FROM THE FORCE.": "Qo'lim ancha yaxshi bo'lib qoldi, xizmatdan ham cheklangan ta'til olganman.",
+        "IT'S TIME I GOT BACK TO WORK. I'M SURE MY CASE FILES ARE BACKING UP.": "Ishga qaytadigan vaqt keldi. Jinoyat ishlarim to'planib qolgani aniq.",
+        "AND I KNOW THERE'S AT LEAST ONE MYSTERY I HAVE TO SOLVE.": "Va ochishim kerak bo'lgan kamida bitta sir borligini bilaman.",
+        "IN EVERY SENSE OF THE WORD.": "So'zning to'liq ma'nosida.",
+        "IN EVERY SENSE OF THE WORD": "So'zning to'liq ma'nosida.",
+        "BUT HE WAS RIGHT. WE'VE BEEN DOING THE SAME THING OVER AND OVER AGAIN.": "Lekin u haq edi. Biz bir ishni qayta-qayta takrorlayverdik.",
+        "AND THAT IS INSANITY.": "Bu esa telbalikdir.",
+        "AND THAT IS INSANITY": "Bu esa telbalikdir.",
+        "WE HAVE TO CHANGE. OR I HAVE TO. HE'S... ALREADY THERE.": "O'zgarishimiz kerak. Yoki men o'zgarishim kerak. U esa... allaqachon o'zgarib bo'lgan.",
+        "JUST DON'T ASK ME HOW. IT'S A MYSTERY.": "Faqat qanday qilib deb so'rama. Bu bir sir."
+    },
     phrase_replacements=[
         (r"(?<!orqaga\s)\bturinglar\b", "orqaga turinglar"),
         (r"\borqaga\s+orqaga\b", "orqaga"),
@@ -1010,20 +1091,56 @@ ARCHETYPE_POLICE_OFFICER = CharacterVoiceProfile(
         (r"\bhold\s+your\s+fire\b", "o't ochishni to'xtating"),
         (r"\bdrop\s+your\s+weapon\b", "qurolingizni tashlang"),
         (r"\bcrime\s+scene\b", "jinoyat joyi"),
+        (r"\bpolitsiya\s+kuchidan\b", "xizmatdan"),
+        (r"\bish\s+fayllarim\b", "jinoyat ishlarim"),
     ]
 )
 
 ARCHETYPE_AUTHORITY_OFFICIAL = CharacterVoiceProfile(
     name="Authority Figure / Official",
     aliases=[
-        "authority", "mayor", "dean", "dean goldman", "rut goldman",
-        "official", "councilman", "director", "commissioner", "superintendent"
+        "authority", "mayor", "dean", "dean goldman", "rut goldman", "ruth goldman",
+        "official", "councilman", "director", "commissioner", "superintendent", "dean ruth goldman"
     ],
     voice_traits=[
         "Formal institutional dignity",
         "Ceremonious, polite address",
         "Diplomatic, respectful vocabulary"
     ],
+    forbidden_tones=[
+        "Vulgar slang",
+        "Childish diminutives"
+    ],
+    established_facts=[
+        "Represents academic or civic institutions with dignified, formal ceremony",
+        "Publicly acknowledges superhero contributions on behalf of university faculties or municipal funds"
+    ],
+    sample_lines=[
+        {
+            "en": "SPIDER-MAN, I'M RUTH GOLDMAN, DEAN OF STUDENTS.",
+            "voice_uz": "O'rgimchak-Odam, men Rut Goldman, talabalar dekani.",
+            "literal_mt": "Spider-Man, men Rut Goldman, talabalar denimi."
+        },
+        {
+            "en": "--AND ON BEHALF OF EVERYONE HERE AT EMPIRE STATE UNIVERSITY...",
+            "voice_uz": "--va Empire State universitetidagi barcha nomidan...",
+            "literal_mt": "--va universitetdagi odamlarning yarmidan..."
+        },
+        {
+            "en": "...I WANT TO THANK YOU FOR LOCATING OUR STOLEN SCIENCE EQUIPMENT SO QUICKLY.",
+            "voice_uz": "...o'g'irlangan ilmiy uskunalarimizni shu qadar tez topganingiz uchun sizga minnatdorchilik bildirmoqchiman.",
+            "literal_mt": "...o'g'irlangan fan uskunasini topganingiz uchun rahmat."
+        }
+    ],
+    exact_lines={
+        "SPIDER-MAN, I'M RUTH GOLDMAN, DEAN OF STUDENTS.": "O'rgimchak-Odam, men Rut Goldman, talabalar dekani.",
+        "SPIDER-MAN, IM RUTH GOLDMAN, DEAN OF STUDENTS.": "O'rgimchak-Odam, men Rut Goldman, talabalar dekani.",
+        "SPIDER-MAN, I'M RUTH GOLDMAN, DEAN OF STUDENTS": "O'rgimchak-Odam, men Rut Goldman, talabalar dekani.",
+        "--AND ON BEHALF OF EVERYONE HERE AT EMPIRE STATE UNIVERSITY...": "--va Empire State universitetidagi barcha nomidan...",
+        "AND ON BEHALF OF EVERYONE HERE AT EMPIRE STATE UNIVERSITY...": "va Empire State universitetidagi barcha nomidan...",
+        "...I WANT TO THANK YOU FOR LOCATING OUR STOLEN SCIENCE EQUIPMENT SO QUICKLY.": "...o'g'irlangan ilmiy uskunalarimizni shu qadar tez topganingiz uchun sizga minnatdorchilik bildirmoqchiman.",
+        "I WANT TO THANK YOU FOR LOCATING OUR STOLEN SCIENCE EQUIPMENT SO QUICKLY.": "o'g'irlangan ilmiy uskunalarimizni shu qadar tez topganingiz uchun sizga minnatdorchilik bildirmoqchiman."
+    },
     phrase_replacements=[
         (r"\btalabalar\s+denimi\b", "talabalar dekani"),
         (r"\btalabalar\s+dekani\b", "talabalar dekani"),
@@ -1047,6 +1164,52 @@ ARCHETYPE_YOUNG_ADULT_CASUAL = CharacterVoiceProfile(
         "Contemporary informal expressions",
         "Expressive, natural colloquial cadence"
     ],
+    forbidden_tones=[
+        "Stiff bureaucratic jargon",
+        "Cold megalomaniacal speeches"
+    ],
+    established_facts=[
+        "Engages in close, affectionate conversational banter among peers and friends",
+        "Perceptive about emotional changes and personality shifts in Peter Parker"
+    ],
+    sample_lines=[
+        {
+            "en": "PETER, ARE YOU OKAY? YOU SEEM DIFFERENT.",
+            "voice_uz": "Piter, yaxshimisan? O'zingga o'xshamayapsan.",
+            "literal_mt": "Peter, sen yaxshisanmi? Sen boshqacha ko'rinasan."
+        },
+        {
+            "en": "WHAT? HE JUST LEFT YOU THERE?",
+            "voice_uz": "Nima? Seni shunday tashlab ketdimi?",
+            "literal_mt": "Nima? U seni u yerda qoldirdimi?"
+        },
+        {
+            "en": "GEEZ, MJ. YOU'RE MAKING IT SOUND LIKE PETE'S A DIFFERENT PERSON.",
+            "voice_uz": "Voy, MJ. Sen gapiryapsan-ki, go'yo Pit butkul boshqa odam bo'lib qolgan.",
+            "literal_mt": "Voy MJ, siz Piter boshqa odamdek gapiryapsiz."
+        },
+        {
+            "en": "DOUBT IT.",
+            "voice_uz": "Ishonmayman.",
+            "literal_mt": "Shubha qilaman."
+        },
+        {
+            "en": "WISH COULD. BUT IT'S TOO-- CRAZY-TOWN BANANA-PANTS.",
+            "voice_uz": "Qaniydi. Lekin bu juda ham... mutlaqo telbalik.",
+            "literal_mt": "Xohlayman. Lekin bu juda aqldan ozgan shahar banan shimlari."
+        }
+    ],
+    exact_lines={
+        "PETER, ARE YOU OKAY? YOU SEEM DIFFERENT.": "Piter, yaxshimisan? O'zingga o'xshamayapsan.",
+        "PETER, ARE YOU OKAY? YOU SEEM DIFFERENT": "Piter, yaxshimisan? O'zingga o'xshamayapsan.",
+        "WHAT? HE JUST LEFT YOU THERE?": "Nima? Seni shunday tashlab ketdimi?",
+        "WHAT? HE JUST LEFT YOU THERE": "Nima? Seni shunday tashlab ketdimi?",
+        "GEEZ, MJ. YOU'RE MAKING IT SOUND LIKE PETE'S A DIFFERENT PERSON.": "Voy, MJ. Sen gapiryapsan-ki, go'yo Pit butkul boshqa odam bo'lib qolgan.",
+        "DOUBT IT.": "Ishonmayman.",
+        "DOUBT IT": "Ishonmayman.",
+        "WISH COULD. BUT IT'S TOO-- CRAZY-TOWN BANANA-PANTS.": "Qaniydi. Lekin bu juda ham... mutlaqo telbalik.",
+        "WISH COULD. BUT IT'S TOO_": "Qaniydi. Lekin bu juda ham..."
+    },
     phrase_replacements=[
         (r"\bsen\s+yaxshisanmi\b", "yaxshimisan"),
         (r"\bsen\s+boshqacha\s+ko['’`]?rinasan\b", "boshqacha ko'rinyapsan"),
@@ -1066,13 +1229,31 @@ ARCHETYPE_SERVICE_HOSPITALITY = CharacterVoiceProfile(
     name="Service & Hospitality",
     aliases=[
         "service", "waiter", "waitress", "server", "host",
-        "clerk", "cashier", "bartender", "staff"
+        "clerk", "cashier", "bartender", "staff", "restaurant waiter"
     ],
     voice_traits=[
         "Courteous customer service Uzbek",
         "Polite deferential address",
         "Clear hospitality terminology"
     ],
+    forbidden_tones=[
+        "Rude insolence",
+        "Slang street shouting"
+    ],
+    established_facts=[
+        "Polite, deferential restaurant and retail customer service interactions"
+    ],
+    sample_lines=[
+        {
+            "en": "GOOD EVENING, WOULD YOU LIKE TO SEE THE WINE MENU?",
+            "voice_uz": "Xayrli kech, vino menyusi bilan tanishasizmi?",
+            "literal_mt": "Xayrli kechasi, sharob menyasini ko'rishni xohlaysizmi?"
+        }
+    ],
+    exact_lines={
+        "GOOD EVENING, WOULD YOU LIKE TO SEE THE WINE MENU?": "Xayrli kech, vino menyusi bilan tanishasizmi?",
+        "GOOD EVENING, WOULD YOU LIKE TO SEE THE WINE MENU": "Xayrli kech, vino menyusi bilan tanishasizmi?"
+    },
     phrase_replacements=[
         (r"\bxayrli\s+kechasi\b", "xayrli kech"),
         (r"\bsharob\s+menyasini\b", "vino menyusini"),
@@ -1087,13 +1268,43 @@ ARCHETYPE_SERVICE_HOSPITALITY = CharacterVoiceProfile(
 ARCHETYPE_BYSTANDER_CITIZEN = CharacterVoiceProfile(
     name="Bystander / Citizen",
     aliases=[
-        "citizen", "bystander", "crowd", "pedestrian", "civilian", "witness"
+        "citizen", "bystander", "crowd", "pedestrian", "civilian", "witness", "thug", "overdrive",
+        "street thug", "street thugs", "thugs", "overdrive / thug"
     ],
     voice_traits=[
         "Spontaneous exclamatory reactions",
         "Alarmed urban street dialogue",
         "Direct observational inquiries"
     ],
+    forbidden_tones=[
+        "Complex academic lectures"
+    ],
+    established_facts=[
+        "Reacts spontaneously to superhero and supervillain street battles"
+    ],
+    sample_lines=[
+        {
+            "en": "WHAT IS THIS STUFF?!",
+            "voice_uz": "Bu nima balo?!",
+            "literal_mt": "Bu nima narsa?!"
+        },
+        {
+            "en": "GYAHH! WHAT IS THIS STUFF?!",
+            "voice_uz": "Aaaa! Bu nima balo?!",
+            "literal_mt": "Aaa! Bu nima narsa?!"
+        },
+        {
+            "en": "LOOK UP THERE! IS THAT SPIDER-MAN OR SOMEONE ELSE?",
+            "voice_uz": "Tepaga qaranglar! U O'rgimchak-Odammi yoki boshqa birovmi?",
+            "literal_mt": "U yerga qarang! U Spider-Manmi yoki boshqa kimdir?"
+        }
+    ],
+    exact_lines={
+        "WHAT IS THIS STUFF?!": "Bu nima balo?!",
+        "GYAHH! WHAT IS THIS STUFF?!": "Aaaa! Bu nima balo?!",
+        "WHAT IS THIS STUFF": "Bu nima balo?!",
+        "LOOK UP THERE! IS THAT SPIDER-MAN OR SOMEONE ELSE?": "Tepaga qaranglar! U O'rgimchak-Odammi yoki boshqa birovmi?"
+    },
     phrase_replacements=[
         (r"\bu\s+yerga\s+qarang\b", "tepaga qaranglar"),
         (r"\bu\s+Spider-Manmi\b", "ana, O'rgimchak-Odammi u"),
@@ -1113,7 +1324,54 @@ ARCHETYPE_PROFILES = [
     ARCHETYPE_BYSTANDER_CITIZEN,
 ]
 
-DEFAULT_SEEDS = [SEED_SUPERIOR_SPIDERMAN, SEED_JONAH_JAMESON, SEED_PETER_PARKER_GHOST]
+DEFAULT_SEEDS = [
+    SEED_SUPERIOR_SPIDERMAN,
+    SEED_JONAH_JAMESON,
+    SEED_PETER_PARKER_GHOST,
+    ARCHETYPE_PRESS_REPORTER,
+    ARCHETYPE_POLICE_OFFICER,
+    ARCHETYPE_AUTHORITY_OFFICIAL,
+    ARCHETYPE_YOUNG_ADULT_CASUAL,
+    ARCHETYPE_SERVICE_HOSPITALITY,
+    ARCHETYPE_BYSTANDER_CITIZEN,
+]
+
+
+def detect_archetype_from_text(en_text: str, uz_text: str = "") -> Optional[CharacterVoiceProfile]:
+    """
+    Intelligently identifies a recurring character archetype from dialogue context
+    when speaker is unassigned, unknown, or generic.
+    """
+    if not en_text:
+        return None
+    e = en_text.lower()
+    u = (uz_text or "").lower()
+
+    # 1. Police / Law enforcement
+    if any(k in e for k in ["perimeter", "stand back", "hold your fire", "drop your weapon", "from the force", "case files", "crime scene"]) or any(k in u for k in ["qurshovga", "politsiya"]):
+        return ARCHETYPE_POLICE_OFFICER
+
+    # 2. News / Reporter
+    if any(k in e for k in ["coming up next", "lead story", "breaking news", "menace no more", "chyron", "daily bugle"]) or any(k in u for k in ["navbatdagi lavhada", "bosh mavzu"]):
+        return ARCHETYPE_PRESS_REPORTER
+
+    # 3. Authority / Academic official
+    if any(k in e for k in ["dean of students", "dean goldman", "on behalf of everyone", "memorial fund", "stolen science equipment", "honor to present"]) or any(k in u for k in ["dekani", "nomidan"]):
+        return ARCHETYPE_AUTHORITY_OFFICIAL
+
+    # 4. Service / Hospitality
+    if any(k in e for k in ["wine menu", "good evening", "table for", "dessert menu", "would you like to see the"]) or any(k in u for k in ["vino menyusi", "xayrli kech"]):
+        return ARCHETYPE_SERVICE_HOSPITALITY
+
+    # 5. Young adult casual / peer banter
+    if any(k in e for k in ["you seem different", "he just left you", "banana-pants", "pete's a different", "doubt it", "getting back together", "are you kidding", "no way"]):
+        return ARCHETYPE_YOUNG_ADULT_CASUAL
+
+    # 6. Bystander / Civilian crowd / Street adversaries
+    if any(k in e for k in ["what is this stuff", "look up there", "is that spider-man", "look out", "run for it"]) or any(k in u for k in ["bu nima balo", "tepaga qarang"]):
+        return ARCHETYPE_BYSTANDER_CITIZEN
+
+    return None
 
 
 # Global singleton accessors

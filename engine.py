@@ -3126,9 +3126,11 @@ def translate_bubbles_list_subprocess(
             "fallback_forced": bool(os.getenv("FORCE_NLLB_FALLBACK", "0") == "1")
         })
 
+        cg_str = f"{peak_active_cgroup:.1f} MB" if peak_active_cgroup is not None else "N/A"
+        anon_str = f"{peak_active_anon:.1f} MB" if peak_active_anon is not None else "N/A"
         print(
             f"[TRANSLATE_MEMORY_LIFECYCLE] Pre: {pre_tree_rss:.1f} MB | "
-            f"Active Peak Tree RSS: {peak_active_rss:.1f} MB (cgroup: {peak_active_cgroup:.1f} MB, anon: {peak_active_anon:.1f} MB) | "
+            f"Active Peak Tree RSS: {peak_active_rss:.1f} MB (cgroup: {cg_str}, anon: {anon_str}) | "
             f"Post: {post_tree_rss:.1f} MB (Reclaimed: {reclaimed_mb:.1f} MB) | "
             f"Time: {total_time:.2f}s",
             flush=True

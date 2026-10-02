@@ -112,6 +112,43 @@ EXACT_COMIC_IDIOMS: List[Tuple[str, str]] = [
     (r"^NO,?\s+AT\s+THE\s+CRIME\s+SCENE\s+TODAY.*$", "YO'Q, BUGUN JINOYAT JOYIDA... O'ZINI TUTISHI, SO'Z BOYLIGI. BITTA HAM HAZIL QILMADI."),
     (r"^RRPHBL\??[\.!\s]*$", "RRPHBL?"),
     (r"^AH[\.!\s]*$", "AH."),
+
+    # Mined critical limit, combat, and page 18/22 dialogue patterns
+    (r"^CRITICAL\s+LIMIT\s+REACHED[!\.:_—\s]*$", "XAVFLI CHEGARAGA YETILDI!"),
+    (r"^CRITICAL\s+LIMIT[!\.:_—\s]*$", "XAVFLI CHEGARA"),
+    (r"^CRITICAL\s+CAPACITY[!\.:_—\s]*$", "XAVFLI DARAJA"),
+    (r"^CRITICAL\s+MASS[!\.:_—\s]*$", "XAVFLI DARAJA"),
+    (r"^REACTOR\s+IS\s+ABOUT\s+TO\s+EXPLODE[!\.:_—\s]*$", "REAKTOR HOZIR PORTLAYDI!"),
+    (r"^(GYAHH!?\s+)?WHAT\s+IS\s+THIS\s+STUFF\??!*$", "BU NIMA BALO?!"),
+    (r"^IN\s+EVERY\s+SENSE\s+OF\s+THE\s+WORD[\.!\s]*$", "SO'ZNING TO'LIQ MA'NOSIDA."),
+    (r"^WHAT\?\s+HE\s+JUST\s+LEFT\s+YOU\s+THERE\??[\.!\s]*$", "NIMA? SENI SHUNDAY TASHLAB KETDIMI?"),
+    (r"^BUT\s+HE\s+WAS\s+RIGHT[\.:\s]+WE'?VE\s+BEEN\s+DOING\s+THE\s+SAME\s+THING.*$", "LEKIN U HAQ EDI. BIZ BIR ISHNI QAYTA-QAYTA TAKRORLAYVERDIK. BU ESA TELBALIKDIR."),
+    (r"^WE'?VE\s+BEEN\s+DOING\s+THE\s+SAME\s+THING\s+OVER\s+AND\s+OVER\s+AGAIN[\.!\s]*$", "BIZ BIR ISHNI QAYTA-QAYTA TAKRORLAYVERDIK."),
+    (r"^AND\s+THAT\s+IS\s+INSANITY[\.!\s]*$", "BU ESA TELBALIKDIR."),
+    (r"^WE\s+HAVE\s+TO\s+CHANGE[\.:\s]+OR\s+I\s+HAVE\s+TO[\.:\s]+HE'?S\.\.\.\s*ALREADY\s+THERE[\.!\s]*$", "O'ZGARISHIMIZ KERAK. YOKI MEN O'ZGARISHIM KERAK. U ESA... ALLAQACHON O'ZGARIB BO'LGAN."),
+    (r"^JUST\s+DON'?T\s+ASK\s+ME\s+HOW[\.:\s]+IT'?S\s+A\s+MYSTERY[\.!\s]*$", "FAQAT QANDAY QILIB DEB SO'RAMA. BU BIR SIR."),
+    (r"^YOU'?RE\s+NOT\s+IN\s+THE\s+BEST\s+PLACE\s+RIGHT\s+NOW[\s,]+BUT[\.\-–—\s]*$", "HOZIR AHVOLING UNCHALIK YAXSHI EMAS, LEKIN..."),
+    (r"^GEEZ[\s,]+MJ[\.:\s]+YOU'?RE\s+MAKING\s+IT\s+SOUND\s+LIKE.*PETE'?S\s+A\s+DIFFERENT\s+PERSON[\.!\s]*$", "VOY, MJ. SEN GAPIRYAPSAN-KI, GO'YO PIT BUTKUL BOSHQA ODAM BO'LIB QOLGAN."),
+    (r"^PETE'?S\s+A\s+DIFFERENT\s+PERSON[\.!\s]*$", "PIT BUTKUL BOSHQA ODAM BO'LIB QOLGAN."),
+    (r"^CARLIE[\s,]+WAIT!\s+I\s+CAN\s+EXPLAIN[\.:\s]+I'?M\s+NOT\s+DOC\s+OCK[\.:\s]+I'?M\s+SPIDER[\-\s]?MAN!*$", "KARLI, TO'XTA! MEN TUSHUNTIRA OLAMAN. MEN DOK OK EMASMAN. MEN O'RGIMCHAK-ODAMMAN!"),
+    (r"^CARLIE[\s,]+WAIT!\s+I\s+CAN\s+EXPLAIN[\.!\s]*$", "KARLI, TO'XTA! MEN TUSHUNTIRA OLAMAN."),
+    (r"^I'?M\s+NOT\s+DOC\s+OCK[\.:\s]+I'?M\s+SPIDER[\-\s]?MAN!*$", "MEN DOK OK EMASMAN. MEN O'RGIMCHAK-ODAMMAN!"),
+    (r"^MY\s+ARM'?S\s+FEELING\s+A\s+LOT\s+BETTER[\s,]+AND\s+I\s+ONLY\s+HAVE\s+SO\s+MUCH\s+TIME\s+OFF\s+FROM\s+THE\s+FORCE[\.!\s]*$", "QO'LIM ANCHA YAXSHI BO'LIB QOLDI, XIZMATDAN HAM CHEKLANGAN TA'TIL OLGANMAN."),
+    (r"^IT'?S\s+TIME\s+I\s+GOT\s+BACK\s+TO\s+WORK[\.:\s]+I'?M\s+SURE\s+MY\s+CASE\s+FILES\s+ARE\s+BACKING\s+UP[\.!\s]*$", "ISHGA QAYTADIGAN VAQT KELDI. JINOYAT ISHLARIM TO'PLANIB QOLGANI ANIQ."),
+    (r"^AND\s+I\s+KNOW\s+THERE'?S\s+AT\s+LEAST\s+ONE\s+MYSTERY\s+I\s+HAVE\s+TO\s+SOLVE[\.!\s]*$", "VA OCHISHIM KERAK BO'LGAN KAMIDA BITTA SIR BORLIGINI BILAMAN."),
+    (r"^NEXT[:\s]+THE\s+VULTURE!*$", "KEYINGI SONDA: KALXAT!"),
+    (r"^I\s+CAN\s+SEE\s+IT'?S\s+RENDERED\s+YOU\s+SPEECHLESS[\.!\s]*$", "KO'RIB TURIBMAN, TILINGIZ BOG'LANDI."),
+    (r"^PLAN[:\s]+OMEGA.*$", "REJA: OMEGA!"),
+    (r"^DOUBT\s+IT[\.!\s]*$", "ISHONMAYMAN."),
+    (r"^BET\s+I\s+COULD\s+TOP\s+IT[\.!\s_]*$", "BUNISIDAN HAM OSHIRIB TUSHA OLAMAN."),
+    (r"^I\s+THINK\s+PETE\s+AND\s+I\s+ARE\s+GETTING\s+BACK\s+TOGETHER[\.!\s]*$", "MENIMCHA, PIT VA MEN YANA BIRGA BO'LAMIZ."),
+    (r"^AND\s+THAT\s+WAS\s+IT[\.!\s]*$", "TAMOM, SHUNING O'ZI EDI."),
+    (r"^SECOND\s+DAY\s+ON\s+THE\s+['\"]?JOB['\"]?[\.!\s]*$", "ISHDAGI IKKINCHI KUN..."),
+    (r"^FOOLS!\s+YOU\s+ARE\s+FACING\s+A\s+SUPERIOR\s+INTELLECT!*$", "AHMOQLAR! SIZLAR MUTLAQO USTUN TAFAKKUR BILAN TO'QNASHDINGIZ!"),
+    (r"^BRUISED\s+TRACHEA[\.:\s]+CRUSHED\s+LARYNX[\.!\s]*$", "LAT YEGAN NAFAS YO'LI. EZILGAN HIQILDOQ."),
+    (r"^STILL\s+HURTS[\.:\s]+BUT\s+THAT'?S\s+NOT\s+IT[\.!\s]*$", "HALI HAM OG'RIYAPTI. LEKIN GAP BUNDA EMAS."),
+    (r"^IT'?S\s+SOMETHING\s+HE\s+SAID[\.!\s]*$", "GAP U AYTGAN BIROR NARSADA."),
+    (r"^OCK\?\s+WHAT\?\s+YOU\s+DON'?T\s+TALK\s+ABOUT\s+IT[\.!\s]*$", "OK? NIMA? SEN BU HAQDA GAPIRMAYSIZ-KU."),
 ]
 
 # ------------------------------------------------------------------------------
@@ -318,8 +355,34 @@ CALQUE_SUBSTITUTIONS: List[Tuple[str, str]] = [
     (r"\bhali\s+ham\s+og['’`]?riydi\b", "hali ham og'riyapti"),
     (r"\bmen\s+ishonmayman\b", "ishonolmayman"),
     (r"\bnihoyat\s+yaxshi\s+ko['’`]?radi\b", "nihoyat muloyimlashdi"),
-    (r"\byaxshilik\s+qiladi\b", "muloyimlashdi"),
     (r"\bkatta\s+odam\s+sifatida\b", "kattalik qilib"),
+
+    # Mined critical limits and religious misinterpretations
+    (r"\bmuqaddas\s+cheklov(ga)?\b", r"xavfli chegara\1"),
+    (r"\bmuqaddas\s+chegaraga\b", "xavfli chegaraga"),
+    (r"\bmuqaddas\s+sig['’`]?im(ga)?\b", r"xavfli daraja\1"),
+    (r"\bmuqaddas\s+massaga\b", "kritik massaga"),
+    (r"\bmuqaddas\s+cheklovga\s+erishildi\b", "xavfli chegaraga yetildi"),
+    (r"\bmuqaddas\s+chegaraga\s+erishildi\b", "xavfli chegaraga yetildi"),
+    (r"\bbu\s+nima\s+narsa\b", "bu nima balo"),
+    (r"\bbu\s+narsalar\s+nima\b", "bu nima balo"),
+    (r"\bso['’`]?zning\s+har\s+bir\s+ma['’`]?nosida\b", "so'zning to'liq ma'nosida"),
+    (r"\bbir\s+xil\s+narsani\s+qayta-qayta\b", "bir ishni qayta-qayta"),
+    (r"\bbu\s+telbalik\b", "bu esa telbalik"),
+    (r"\bu\s+allaqachon\s+u\s+yerda\b", "u allaqachon o'zgarib bo'lgan"),
+    (r"\bu\s+allaqachon\s+mavjud\b", "u allaqachon o'zgarib bo'lgan"),
+    (r"\bbu\s+sir\b", "bu bir sir"),
+    (r"\btushuntirib\s+beraman\b", "tushuntira olaman"),
+    (r"\bmen\s+tushuntira\s+olaman\b", "men tushuntira olaman"),
+    (r"\bmening\s+qo['’`]?lim\s+yaxshiroq\b", "qo'lim ancha yaxshi bo'lib qoldi"),
+    (r"\bpolitsiya\s+kuchidan\b", "politsiyadagi xizmatdan"),
+    (r"\bmening\s+ish\s+fayllarim\b", "jinoyat ishlarim"),
+    (r"\byig['’`]?ilib\s+qolgan\b", "to'planib qolgan"),
+    (r"\bkamida\s+bitta\s+sir\b", "kamida bitta sir"),
+    (r"\byechishim\s+kerak\b", "ochishim kerak"),
+    (r"\btilsiz\s+qoldirdi\b", "tilingizni bog'ladi"),
+    (r"\bso['’`]?zsiz\s+qoldirdi\b", "tilingizni bog'ladi"),
+    (r"\bbutkul\s+boshqa\s+odam\b", "butkul boshqa odam"),
 ]
 
 # ------------------------------------------------------------------------------
@@ -437,14 +500,22 @@ def post_process_uzbek_naturalization(uz_text: str, en_orig: str = "", character
     result = re.sub(r'([a-zA-Z]+)(man){2,}\b', r'\1man', result, flags=re.IGNORECASE)
     result = re.sub(r'([a-zA-Z])manman\b', r'\1man', result)
 
-    # Step 6: Apply character voice profile if specified
-    if character_profile:
+    # Step 6: Apply character voice profile if specified, or auto-detect archetype
+    effective_profile = character_profile
+    if not effective_profile:
+        try:
+            import character_profiles
+            effective_profile = character_profiles.detect_archetype_from_text(en_orig, result)
+        except Exception:
+            effective_profile = None
+
+    if effective_profile:
         try:
             import character_profiles
             profile = (
-                character_profile
-                if hasattr(character_profile, "naturalize")
-                else character_profiles.get_character_profile(str(character_profile))
+                effective_profile
+                if hasattr(effective_profile, "naturalize")
+                else character_profiles.get_character_profile(str(effective_profile))
             )
             if profile is not None:
                 result = profile.naturalize(result, en_orig=en_orig)
