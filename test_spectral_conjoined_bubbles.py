@@ -3,6 +3,9 @@ from PIL import Image
 import cv2
 import numpy as np
 
+import os
+import pickle
+
 import engine
 import bubble_lettering
 
@@ -12,7 +15,11 @@ class TestSpectralConjoinedBubbles(unittest.TestCase):
     def setUpClass(cls):
         cls.img_pil = Image.open('samples/page_4.png')
         cls.img_cv = cv2.imread('samples/page_4.png')
-        cls.bubbles = engine.scan_bubbles_ocr(cls.img_pil)
+        ocr_path = 'tests/fixtures/page4_ocr.pkl' if os.path.exists('tests/fixtures/page4_ocr.pkl') else 'scratch/page4_ocr.pkl'
+        with open(ocr_path, 'rb') as f:
+            cached_ocr = pickle.load(f)
+
+        cls.bubbles = engine._extract_bubbles_from_ocr_results(cls.img_pil, cached_ocr)
         # Running clean_page_ink_telea samples the ink & sets text_is_spectral on all bubbles
         cls.cleaned_pil = engine.clean_page_ink_telea(cls.img_pil, cls.bubbles)
 

@@ -139,6 +139,38 @@ class TestReadingOrder(unittest.TestCase):
         ordered_ids = [b["id"] for b in ordered]
         self.assertEqual(ordered_ids, ["Jonah_Prompt", "Spidey_Reply", "Jonah_Continuation"])
 
+    def test_get_page_panels_and_order_synthetic(self):
+        """Verifies full Step 1.1 pipeline: detects panels, orders bubbles, sets panel_id & reading_index."""
+        # 800h x 1000w synthetic 2-panel comic
+        img = np.full((800, 1000, 3), 255, dtype=np.uint8)
+        cv2.rectangle(img, (50, 50), (450, 750), (30, 30, 30), -1)
+        cv2.rectangle(img, (550, 50), (950, 750), (30, 30, 30), -1)
+
+        bubbles = [
+            {"id": "B1", "bbox": (600, 100, 800, 160)},
+            {"id": "A2", "bbox": (100, 400, 300, 460)},
+            {"id": "A1", "bbox": (100, 100, 300, 160)},
+        ]
+
+        ordered_b, panels = reading_order.get_page_panels_and_order(img, bubbles)
+        self.assertEqual(len(panels), 2)
+        self.assertEqual([b["id"] for b in ordered_b], ["A1", "A2", "B1"])
+        self.assertEqual(ordered_b[0]["panel_id"], 1)
+        self.assertEqual(ordered_b[1]["panel_id"], 1)
+        self.assertEqual(ordered_b[2]["panel_id"], 2)
+        self.assertEqual(ordered_b[0]["reading_index"], 1)
+        self.assertEqual(ordered_b[1]["reading_index"], 2)
+        self.assertEqual(ordered_b[2]["reading_index"], 3)
+
+    def test_page23_no_oversegmentation(self):
+        """Ensures dense editorial / letter pages do not shatter into over 100 panels."""
+        p23_path = "samples/page_23.png"
+        if os.path.exists(p23_path):
+            img = cv2.imread(p23_path)
+            if img is not None:
+                boxes = reading_order.detect_panel_boxes(img)
+                self.assertLessEqual(len(boxes), 10)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -48,19 +48,10 @@ _CLIENT_INITIALIZED = False
 
 
 def _get_credential(key: str, default: Optional[str] = None) -> Optional[str]:
-    """Retrieves credential from environment or Streamlit secrets."""
+    """Retrieves credential from environment."""
     val = os.getenv(key)
     if val:
         return val.strip()
-
-    # Check Streamlit secrets if running inside Streamlit
-    try:
-        import streamlit as st
-        if hasattr(st, "secrets") and key in st.secrets:
-            return str(st.secrets[key]).strip()
-    except Exception:
-        pass
-
     return default
 
 

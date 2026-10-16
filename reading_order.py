@@ -243,108 +243,246 @@ def order_bubbles_reading_order(
 
     for b in bubbles:
         idx = assign_item_to_panel(b, ordered_panels)
+        p_id = idx + 1
+        if hasattr(b, "panel_id"):
+            setattr(b, "panel_id", p_id)
+        elif isinstance(b, dict):
+            b["panel_id"] = p_id
         buckets[idx].append(b)
 
     result: List[Any] = []
-    for bucket in buckets:
-        result.extend(_row_major_order(bucket, bbox_fn=_extract_bbox, row_overlap_thresh=0.25))
+    seq_idx = 1
+    for p_idx, bucket in enumerate(buckets, start=1):
+        ordered_bucket = _row_major_order(bucket, bbox_fn=_extract_bbox, row_overlap_thresh=0.25)
+        for b in ordered_bucket:
+            if hasattr(b, "reading_index"):
+                setattr(b, "reading_index", seq_idx)
+            elif isinstance(b, dict):
+                b["reading_index"] = seq_idx
+
+            if hasattr(b, "panel_id") and getattr(b, "panel_id", None) is None:
+                setattr(b, "panel_id", p_idx)
+            elif isinstance(b, dict) and "panel_id" not in b:
+                b["panel_id"] = p_idx
+            seq_idx += 1
+        result.extend(ordered_bucket)
     return result
 
 
 # --------------------------------------------------------------------------
-# Optional: panel auto-detection (only if you don't already have panel boxes)
+# Multi-strategy panel auto-detection & Reading Order Graph
 # --------------------------------------------------------------------------
 
-def _sample_gutter_color(image_bgr: np.ndarray, border: int = 5) -> np.ndarray:
+def _sample_gutter_color(image_bgr: np.ndarray, border: int = 6) -> np.ndarray:
     """Samples median gutter/border color from outer margins of page."""
     h, w = image_bgr.shape[:2]
+    b = min(border, h // 10, w // 10)
+    if b < 1:
+        return np.array([255, 255, 255], dtype=np.uint8)
     px = np.concatenate([
-        image_bgr[:border, :].reshape(-1, 3),
-        image_bgr[-border:, :].reshape(-1, 3),
-        image_bgr[:, :border].reshape(-1, 3),
-        image_bgr[:, -border:].reshape(-1, 3),
+        image_bgr[:b, :].reshape(-1, 3),
+        image_bgr[-b:, :].reshape(-1, 3),
+        image_bgr[:, :b].reshape(-1, 3),
+        image_bgr[:, -b:].reshape(-1, 3),
     ])
     return np.median(px, axis=0)
 
 
-def _find_gutter_runs(frac: np.ndarray, min_frac: float) -> List[Tuple[int, int]]:
-    """Finds continuous indices where fraction exceeds minimum gutter threshold."""
-    mask = frac >= min_frac
+def _find_gutter_runs(mask: np.ndarray, min_len: int) -> List[Tuple[int, int]]:
+    """Finds continuous index intervals where mask is True with minimum thickness."""
     runs: List[Tuple[int, int]] = []
     start: Optional[int] = None
-    for i, m in enumerate(mask):
-        if m and start is None:
+    for i, val in enumerate(mask):
+        if val and start is None:
             start = i
-        elif not m and start is not None:
-            runs.append((start, i))
+        elif not val and start is not None:
+            if (i - start) >= min_len:
+                runs.append((start, i))
             start = None
-    if start is not None:
+    if start is not None and (len(mask) - start) >= min_len:
         runs.append((start, len(mask)))
     return runs
 
 
-def _content_segments(gutter_runs: List[Tuple[int, int]], total_len: int) -> List[Tuple[int, int]]:
-    """Extracts content intervals between consecutive gutter intervals."""
+def _content_segments(gutter_runs: List[Tuple[int, int]], total_len: int, min_content_len: int) -> List[Tuple[int, int]]:
+    """Extracts content intervals between consecutive gutters that satisfy minimum length."""
     segments: List[Tuple[int, int]] = []
     prev = 0
     for a, b in gutter_runs:
-        if a > prev:
+        if (a - prev) >= min_content_len:
             segments.append((prev, a))
         prev = b
-    if prev < total_len:
+    if (total_len - prev) >= min_content_len:
         segments.append((prev, total_len))
     return segments
 
 
-def detect_panel_boxes(
-    image_bgr: np.ndarray,
-    gutter_tol: int = 18,
-    min_gutter_frac: float = 0.985,
-    min_panel_frac: float = 0.03
-) -> List[Tuple[int, int, int, int]]:
+def _detect_bordered_contours_fallback(image_bgr: np.ndarray) -> List[Tuple[int, int, int, int]]:
     """
-    Best-effort recursive XY-cut panel splitter: finds rows/columns that
-    are almost entirely the page's background color (real gutters) and
-    carves the page into panel rectangles along them, recursing into each
-    piece. Returns a list of (x0, y0, x1, y1) in no particular order --
-    feed straight into order_bubbles_reading_order(), which sorts them.
+    Fallback for bordered comic panels (black rectangular strokes) when gutters
+    are bleed, artwork, or non-uniform.
     """
     h, w = image_bgr.shape[:2]
+    gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
+    _, thresh = cv2.threshold(gray, 40, 255, cv2.THRESH_BINARY_INV)
+    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    min_area = h * w * 0.04
+    min_w = int(w * 0.10)
+    min_h = int(h * 0.08)
+
+    boxes: List[Tuple[int, int, int, int]] = []
+    for c in contours:
+        x, y, bw, bh = cv2.boundingRect(c)
+        if (bw * bh) >= min_area and bw >= min_w and bh >= min_h:
+            boxes.append((x, y, x + bw, y + bh))
+
+    if len(boxes) > 1:
+        # Filter near-duplicate and fully enclosed child boxes
+        filtered: List[Tuple[int, int, int, int]] = []
+        for b in sorted(boxes, key=lambda it: (it[2] - it[0]) * (it[3] - it[1]), reverse=True):
+            overlap = False
+            for f in filtered:
+                ix0, iy0 = max(b[0], f[0]), max(b[1], f[1])
+                ix1, iy1 = min(b[2], f[2]), min(b[3], f[3])
+                if ix1 > ix0 and iy1 > iy0:
+                    i_area = (ix1 - ix0) * (iy1 - iy0)
+                    b_area = (b[2] - b[0]) * (b[3] - b[1])
+                    if i_area / b_area > 0.75:
+                        overlap = True
+                        break
+            if not overlap:
+                filtered.append(b)
+        if len(filtered) > 1:
+            return filtered
+    return []
+
+
+def detect_panel_boxes(
+    image_bgr: np.ndarray,
+    gutter_tol: int = 20,
+    min_gutter_frac: float = 0.95,
+    min_panel_frac: float = 0.08
+) -> List[Tuple[int, int, int, int]]:
+    """
+    Robust recursive XY-cut panel splitter with size regularization:
+    1. Samples gutter color from outer margins with white/black gutter fallback.
+    2. Enforces minimum gutter thickness to avoid false cuts on internal text or art lines.
+    3. Enforces page-relative minimum panel dimensions (min_panel_w, min_panel_h).
+    4. Limits recursion depth (max 5 levels) to prevent catastrophic over-segmentation.
+    5. Falls back to rectangular border contour analysis if gutter cut detects only 1 panel.
+    """
+    h, w = image_bgr.shape[:2]
+    min_panel_w = max(40, int(w * min_panel_frac))
+    min_panel_h = max(40, int(h * min_panel_frac))
+    min_gutter_thick = max(3, int(min(h, w) * 0.003))
+
     bg = _sample_gutter_color(image_bgr)
     diff = np.abs(image_bgr.astype(np.int16) - bg.astype(np.int16)).sum(axis=2)
     is_gutter = diff < gutter_tol
 
-    def split(x0: int, y0: int, x1: int, y1: int) -> List[Tuple[int, int, int, int]]:
-        region = is_gutter[y0:y1, x0:x1]
-        rh, rw = region.shape
-        if rh < 10 or rw < 10:
+    # Check if margin sampling found reasonable gutter coverage
+    row_gutter_pts = (is_gutter.mean(axis=1) >= min_gutter_frac).sum()
+    col_gutter_pts = (is_gutter.mean(axis=0) >= min_gutter_frac).sum()
+
+    # If margin sampling found near zero gutters (e.g. edge art bleed), check standard white and black gutters
+    if (row_gutter_pts + col_gutter_pts) < 4:
+        white_diff = np.abs(image_bgr.astype(np.int16) - 255).sum(axis=2)
+        white_is_gutter = white_diff < gutter_tol
+        w_score = (white_is_gutter.mean(axis=1) >= min_gutter_frac).sum() + (white_is_gutter.mean(axis=0) >= min_gutter_frac).sum()
+
+        black_diff = np.abs(image_bgr.astype(np.int16)).sum(axis=2)
+        black_is_gutter = black_diff < gutter_tol
+        b_score = (black_is_gutter.mean(axis=1) >= min_gutter_frac).sum() + (black_is_gutter.mean(axis=0) >= min_gutter_frac).sum()
+
+        if w_score >= 4 and w_score >= b_score:
+            is_gutter = white_is_gutter
+        elif b_score >= 4:
+            is_gutter = black_is_gutter
+
+    def split(x0: int, y0: int, x1: int, y1: int, depth: int = 0) -> List[Tuple[int, int, int, int]]:
+        rw = x1 - x0
+        rh = y1 - y0
+        if depth >= 5 or rw < int(min_panel_w * 1.5) or rh < int(min_panel_h * 1.5):
             return [(x0, y0, x1, y1)]
 
-        row_runs = _find_gutter_runs(region.mean(axis=1), min_gutter_frac)
-        row_segments = _content_segments(row_runs, rh)
-        if len(row_segments) > 1:
-            panels: List[Tuple[int, int, int, int]] = []
-            for sy0, sy1 in row_segments:
-                if (sy1 - sy0) / rh < min_panel_frac:
-                    continue
-                panels.extend(split(x0, y0 + sy0, x1, y0 + sy1))
-            if panels:
-                return panels
+        region = is_gutter[y0:y1, x0:x1]
 
-        col_runs = _find_gutter_runs(region.mean(axis=0), min_gutter_frac)
-        col_segments = _content_segments(col_runs, rw)
-        if len(col_segments) > 1:
-            panels = []
-            for sx0, sx1 in col_segments:
-                if (sx1 - sx0) / rw < min_panel_frac:
-                    continue
-                panels.extend(split(x0 + sx0, y0, x0 + sx1, y1))
-            if panels:
-                return panels
+        # Horizontal gutters (splits into rows)
+        row_frac = region.mean(axis=1) >= min_gutter_frac
+        row_runs = _find_gutter_runs(row_frac, min_gutter_thick)
+        if row_runs:
+            row_segments = _content_segments(row_runs, rh, min_panel_h)
+            if len(row_segments) > 1:
+                panels: List[Tuple[int, int, int, int]] = []
+                for sy0, sy1 in row_segments:
+                    panels.extend(split(x0, y0 + sy0, x1, y0 + sy1, depth + 1))
+                if panels:
+                    return panels
+
+        # Vertical gutters (splits into columns)
+        col_frac = region.mean(axis=0) >= min_gutter_frac
+        col_runs = _find_gutter_runs(col_frac, min_gutter_thick)
+        if col_runs:
+            col_segments = _content_segments(col_runs, rw, min_panel_w)
+            if len(col_segments) > 1:
+                panels = []
+                for sx0, sx1 in col_segments:
+                    panels.extend(split(x0 + sx0, y0, x0 + sx1, y1, depth + 1))
+                if panels:
+                    return panels
 
         return [(x0, y0, x1, y1)]
 
-    return split(0, 0, w, h)
+    raw_panels = split(0, 0, w, h)
+    valid_panels = [p for p in raw_panels if (p[2] - p[0]) >= min_panel_w and (p[3] - p[1]) >= min_panel_h]
+
+    # If recursive XY-cut found only 1 panel, try contour border detection fallback
+    if len(valid_panels) <= 1:
+        bordered = _detect_bordered_contours_fallback(image_bgr)
+        if len(bordered) > 1:
+            return bordered
+
+    return valid_panels if valid_panels else [(0, 0, w, h)]
+
+
+def get_page_panels_and_order(
+    image_bgr: np.ndarray,
+    bubbles: List[Any]
+) -> Tuple[List[Any], List[Dict[str, Any]]]:
+    """
+    Unified Step 1.1 Panel Segmentation & Bubble Ordering pipeline:
+    1. Detects panel bounding boxes using multi-strategy recursive XY-cut + contour fallback.
+    2. Sorts panels into topological reading order.
+    3. Assigns each bubble to its panel, setting bubble.panel_id.
+    4. Orders bubbles panel-by-panel, setting sequential bubble.reading_index.
+    5. Returns (ordered_bubbles, panels_info).
+    """
+    panel_boxes = detect_panel_boxes(image_bgr)
+    ordered_panels = _row_major_order(panel_boxes, bbox_fn=_extract_bbox, row_overlap_thresh=0.5)
+
+    ordered_bubbles = order_bubbles_reading_order(bubbles, ordered_panels)
+
+    # Build panels_info
+    panels_info: List[Dict[str, Any]] = []
+    for p_idx, p_box in enumerate(ordered_panels, start=1):
+        box_tuple = _extract_bbox(p_box)
+        p_bubbles = [
+            b for b in ordered_bubbles
+            if (getattr(b, "panel_id", None) == p_idx) or (isinstance(b, dict) and b.get("panel_id") == p_idx)
+        ]
+        b_ids = [
+            getattr(b, "bubble_id", None) if hasattr(b, "bubble_id") else b.get("bubble_id")
+            for b in p_bubbles
+        ]
+        panels_info.append({
+            "panel_id": p_idx,
+            "box": list(box_tuple),
+            "reading_order": p_idx,
+            "bubble_count": len(p_bubbles),
+            "bubble_ids": [bid for bid in b_ids if bid is not None]
+        })
+
+    return ordered_bubbles, panels_info
 
 
 if __name__ == "__main__":

@@ -105,5 +105,41 @@ class TestUniversalConjoinedBubbles(unittest.TestCase):
         res = quality_gates.apply_quality_gates("bubble_segmentation", state)
         self.assertEqual(len(res.get("split_clusters", [])), 2)
 
+    def test_constricted_waist_cut(self):
+        """Tests that _find_constricted_waist_cut cleanly partitions conjoined lobes at the narrow neck."""
+        h, w = 400, 300
+        mask = np.zeros((h, w), dtype=np.uint8)
+        # Top lobe
+        cv2.ellipse(mask, (150, 120), (100, 70), 0, 0, 360, 255, -1)
+        # Bottom lobe
+        cv2.ellipse(mask, (150, 270), (100, 70), 0, 0, 360, 255, -1)
+        # Narrow waist connecting them
+        cv2.rectangle(mask, (110, 180), (190, 210), 255, -1)
+
+        own_pt = (150, 120)
+        neighbor_pt = (150, 270)
+
+        keep_mask = bubble_lettering._find_constricted_waist_cut(mask, own_pt, neighbor_pt)
+        self.assertIsNotNone(keep_mask, "Waist cut mask must not be None")
+        # Own point must be retained
+        self.assertTrue(keep_mask[120, 150])
+        # Neighbor point must be cut away
+        self.assertFalse(keep_mask[270, 150])
+
+        # Test complementary cut from neighbor's perspective
+        neighbor_keep = bubble_lettering._find_constricted_waist_cut(mask, neighbor_pt, own_pt)
+        self.assertIsNotNone(neighbor_keep)
+        self.assertTrue(neighbor_keep[270, 150])
+        self.assertFalse(neighbor_keep[120, 150])
+
+        # Together they must cover the conjoined bubble with zero dead zone
+        combined = (keep_mask.astype(bool) | neighbor_keep.astype(bool)) & (mask > 0)
+        overlap = (keep_mask.astype(bool) & neighbor_keep.astype(bool)) & (mask > 0)
+        # Total covered area should be virtually 100% of mask
+        self.assertAlmostEqual(np.sum(combined) / np.sum(mask > 0), 1.0, places=2)
+        # Overlap should be minimal (at most the boundary line pixels, ~20-30 px across the neck)
+        self.assertLessEqual(np.sum(overlap), 40)
+
 if __name__ == '__main__':
     unittest.main()
+

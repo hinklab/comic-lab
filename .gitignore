@@ -30,3 +30,24 @@ data/full_book/
 # Operating system
 Thumbs.db
 .DS_Store
+.cache/
+
+# Temporary test images and scratch files in root
+/*.png
+/*.jpg
+/*.jpeg
+check_*.py
+dl_*.py
+inspect_*.py
+parse_*.py
+find_*.py
+get_*.py
+clean_*.py
+whatfontis_*.html
+scratch_*.txt
+query_whatfontis.py
+search_owf_mason.py
+space_letters.py
+try_freefonts_dl.py
+prepare_clean.py
+all_results.py

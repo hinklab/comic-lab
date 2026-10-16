@@ -6,12 +6,14 @@ and exits immediately so 100% of PyTorch/CRAFT memory is returned to the OS.
 import os
 import sys
 
-# Limit thread pools to keep memory minimal on CPU
-os.environ["OMP_NUM_THREADS"] = "1"
-os.environ["MKL_NUM_THREADS"] = "1"
-os.environ["OPENBLAS_NUM_THREADS"] = "1"
-os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
-os.environ["NUMEXPR_NUM_THREADS"] = "1"
+# Balanced multi-threading for PyTorch CPU operations (prevents 1-thread bottlenecks while keeping RAM lean)
+cpu_cnt = os.cpu_count() or 4
+thread_count = str(min(4, max(2, cpu_cnt // 2)))
+os.environ["OMP_NUM_THREADS"] = thread_count
+os.environ["MKL_NUM_THREADS"] = thread_count
+os.environ["OPENBLAS_NUM_THREADS"] = thread_count
+os.environ["VECLIB_MAXIMUM_THREADS"] = thread_count
+os.environ["NUMEXPR_NUM_THREADS"] = thread_count
 
 import json
 from PIL import Image
@@ -24,12 +26,12 @@ def main():
 
     img_path = sys.argv[1]
     out_path = sys.argv[2]
-    canvas_size = int(sys.argv[3]) if len(sys.argv) > 3 else 2048
+    canvas_size = int(sys.argv[3]) if len(sys.argv) > 3 else 1600
 
     import easyocr
     import torch
     try:
-        torch.set_num_threads(1)
+        torch.set_num_threads(int(thread_count))
     except Exception:
         pass
 

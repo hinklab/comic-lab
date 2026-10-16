@@ -25,20 +25,76 @@ import numpy as np
 import cv2
 import bubble_lettering
 import quality_gates
-import local_translator
 import naturalization_rules
 import sfx_engine
 
 # Known SFX words and junk to strictly filter out
 SFX_WORDS = {
+    # Explosions, Impacts & Combat
     "TEKK", "SIW", "THWIP", "BAM", "POW", "BOOM", "WHAM", "CRASH",
-    "SWOOSH", "ZAP", "BANG", "THUMP", "CLANG", "CLICK", "GULP",
-    "UGH", "AAAH", "ARGH", "SHKK", "SKRRR", "KRAK", "SNIKT", "PING",
-    "PANG", "POP", "SMACK", "SPLASH", "WHOOSH", "YAAAH", "GRRR", "HISS",
-    "RUMBLE", "VROOOM", "ROAR", "KABOOM", "ZING", "SNAP", "CRACKLE",
-    "KAPOW", "THOOM", "KRAKOOM", "RATATAT", "SKREEE", "CHOMP", "PST", "SHH",
-    "CHK", "KOFF", "COUGH", "GASP", "SNORT", "WHEEZE", "AHEM", "CHUK", "CHIK"
+    "SWOOSH", "ZAP", "BANG", "THUMP", "CLANG", "CLICK", "KLANG",
+    "KRAK", "SNIKT", "PING", "PANG", "POP", "SMACK", "SPLASH", "WHOOSH",
+    "RUMBLE", "VROOOM", "KABOOM", "ZING", "SNAP", "CRACKLE", "KAPOW",
+    "THOOM", "KRAKOOM", "RATATAT", "SKREEE", "CHK", "CHUK", "CHIK",
+    "BAMF", "FWUNG", "THUD", "CLIK", "CLACK", "SHWIP", "SWISH",
+    # Liquid, Choking, Drowning
+    "GRRGLL", "GRGLL", "GRRGL", "GURGLE", "GLUB", "GLUG", "GLOOB", "GARGLE",
+    "SPLAT", "DRIP",
+    # Breathing, Gasping, Coughing
+    "GAAAASP", "GASP", "GASPP", "KOFF", "KOF", "COUGH", "HACK", "KHOFF",
+    "WHEEZE", "PANT", "PHEW", "WHEW", "SNORT", "SNIFF", "AHEM", "SNEEZE", "ACHOO",
+    "PTHOO", "PTOOEY",
+    # Screams, Groans, Involuntary Cries
+    "UGH", "URGH", "AAAH", "AAAAH", "ARGH", "AARGH", "YAAAH", "YAAARGH", "GYAAAH",
+    "EEEEK", "EEK", "OWW", "OUCH", "OOF", "ACK", "GRRR", "GRR", "ROAR", "HISS",
+    "SHKK", "SKRRR", "CHOMP", "PST", "SHH",
+    # Comic Sputters, Vocalizations
+    "PFFFT", "PFT", "BRRR", "BRR", "HRM", "HRMPH", "TCH", "HMPH",
+    "GULP", "GULPP", "ZZZ", "SNOORE"
 }
+
+DIALOGUE_COMMANDS_EXEMPT_FROM_SFX = {
+    "STOP", "WAIT", "HELP", "LOOK", "RUN", "YES", "NO", "WHY", "HOW", "WHAT",
+    "WHO", "NOW", "HEY", "HI", "HELLO", "PLEASE", "THANKS", "OK", "OKAY"
+}
+
+
+def is_pure_sfx_text(text: str) -> bool:
+    """
+    Returns True if text consists purely of comic sound effects, vocalizations,
+    or onomatopoeia (e.g. 'GRRGLL', 'GAAAASP', 'Koff Koff', 'THWIP', 'BAM').
+    Authentic spoken dialogue (e.g. 'Please!', 'Stop! Koff', 'I think that will do') returns False.
+    """
+    if not text:
+        return False
+    clean = re.sub(r"[^A-Za-z\s]", " ", text).strip().upper()
+    words = clean.split()
+    if not words:
+        return False
+    # If any word is a clear dialogue command/exclamation, it is dialogue
+    if any(w in DIALOGUE_COMMANDS_EXEMPT_FROM_SFX for w in words):
+        return False
+    # Check if all words are SFX
+    for w in words:
+        w_strip = re.sub(r"[^A-Z]", "", w)
+        if not w_strip:
+            continue
+        if w_strip in SFX_WORDS:
+            continue
+        collapsed = re.sub(r"(.)\1{1,}", r"\1", w_strip)
+        is_sfx_w = False
+        for sw in SFX_WORDS:
+            sw_col = re.sub(r"(.)\1{1,}", r"\1", sw)
+            if collapsed == sw_col:
+                is_sfx_w = True
+                break
+            if len(sw) >= 4 and (sw in w_strip or (len(w_strip) >= 4 and w_strip in sw)):
+                is_sfx_w = True
+                break
+        if not is_sfx_w:
+            return False
+    return True
+
 
 # Known watermark domains and scraping markers to strictly filter out
 WATERMARK_WORDS = {
@@ -47,6 +103,9 @@ WATERMARK_WORDS = {
 
 # Exact / Full-Sentence Comic Idiom Mappings
 EXACT_COMIC_MATCHES = [
+    (r"^STOP!?\s*KOFF[!i\s]*$", "TO'XTANG!"),
+    (r"^STOP[!i\s]*$", "TO'XTANG!"),
+    (r"^PLEASE[!i\s]*$", "ILTIMOS!"),
     (r"^IMPRESSED\?\s*DON'?T\s*(?:BOTHER|BE)[\s\._!]*$", "QOYIL QOLDINGMI? HOVLIQMA!"),
     (r"^INSTANT\s+FRICTIONLESS\s+SURFACE[\s\._!]*$", "BIR ZUMDA ISHQALANISHSIZ SIRT."),
     (r"^PLAN:\s*EPSILON\s+FIVE[\s\._!]*$", "REJA: EPSILON-BESH."),
@@ -295,6 +354,33 @@ class SpeechBubble(BaseModel):
     is_active: bool = Field(default=True, description="Whether to letter this bubble")
     size_offset: int = Field(default=0, description="Per-bubble font size nudge")
     font_size_offset: int = Field(default=0, description="Per-bubble font size nudge")
+    line_spacing: float = Field(default=1.15, description="Per-bubble line spacing multiplier")
+    offset_x: int = Field(default=0, description="Horizontal text nudge offset in pixels")
+    offset_y: int = Field(default=0, description="Vertical text nudge offset in pixels")
+    white_fill: bool = Field(default=False, description="Whether to fill the bubble with solid white before lettering")
+    text_color: Optional[str] = Field(default=None, description="Custom text color hex, e.g. '#000000', '#faf6d6', '#7497d4'")
+    bg_color: Optional[str] = Field(default=None, description="Custom background fill color hex, e.g. '#ffffff', '#3e3e42'")
+    outline_color: Optional[str] = Field(default=None, description="Custom text outline/stroke color hex, e.g. '#000000', '#ffffff'")
+    outline_width: int = Field(default=0, description="Text outline/stroke width in pixels")
+    border_color: Optional[str] = Field(default=None, description="Custom bubble border/stroke color hex, e.g. '#000000', '#ffffff'")
+    border_width: int = Field(default=0, description="Bubble border/stroke width in pixels")
+    text_align: str = Field(default="center", description="Text alignment: 'center', 'left', or 'right'")
+    font_family: Optional[str] = Field(default=None, description="Per-bubble font family name")
+    font_name: Optional[str] = Field(default=None, description="Per-bubble font family name")
+    font_weight: str = Field(default="normal", description="Per-bubble font weight: 'bold' or 'normal'")
+    font_style: str = Field(default="normal", description="Per-bubble font style: 'italic' or 'normal'")
+    is_hidden: bool = Field(default=False, description="Whether the entire bubble is hidden")
+    is_locked: bool = Field(default=False, description="Whether the bubble is locked against editing/moving")
+    is_printable: bool = Field(default=True, description="Whether this layer is exported into final HD/ZIP files")
+    custom_name: Optional[str] = Field(default=None, description="Custom user-defined layer name")
+    opacity: float = Field(default=1.0, description="Layer opacity between 0.0 and 1.0")
+    blend_mode: str = Field(default="source-over", description="Canvas blend mode: 'source-over', 'multiply', etc.")
+    color_tag: Optional[str] = Field(default=None, description="Hex color tag for layer identification")
+    group_id: Optional[str] = Field(default=None, description="Unique group identifier if grouped with other layers")
+    is_text_hidden: bool = Field(default=False, description="Whether dialogue text layer is hidden")
+    is_shape_hidden: bool = Field(default=False, description="Whether bubble shape/background layer is hidden")
+    is_text_locked: bool = Field(default=False, description="Whether dialogue text layer is locked")
+    is_shape_locked: bool = Field(default=False, description="Whether bubble shape layer is locked")
     contour_points: Optional[List[List[int]]] = Field(default=None, description="Contour polygon points for cleaning")
     contour: Optional[Any] = Field(default=None, description="Exact contour polygon [x, y] points or ndarray")
     shape_type: str = Field(default="oval", description="Classified shape: 'oval' or 'rectangle'")
@@ -323,6 +409,22 @@ class SpeechBubble(BaseModel):
     needs_review: bool = Field(default=False, description="Flagged for manual review (e.g. translation fallback/residue)")
     review_reason: Optional[str] = Field(default=None, description="Detailed reason if flagged for review")
     quality_warning: Optional[str] = Field(default=None, description="Quality warning pattern name")
+    panel_id: Optional[int] = Field(default=None, description="Panel ID (1-indexed) this bubble belongs to")
+    reading_index: Optional[int] = Field(default=None, description="Global reading order sequence index (1-indexed)")
+    has_tail: bool = Field(default=False, description="Whether this bubble has an authentic pointer tail")
+    tail_tip: Optional[List[int]] = Field(default=None, description="[x, y] coordinates of tail tip/apex")
+    tail_base: Optional[List[List[int]]] = Field(default=None, description="[[x1, y1], [x2, y2]] base neck coordinates")
+    tail_vector: Optional[List[float]] = Field(default=None, description="Normalized 2D direction unit vector [ux, uy]")
+    tail_angle_deg: Optional[float] = Field(default=None, description="Direction angle in degrees (-180 to 180)")
+    tail_length: float = Field(default=0.0, description="Tail length in pixels from base to tip")
+    tail_direction: str = Field(default="none", description="Categorical direction: 'bottom', 'bottom-left', 'left', etc., or 'none'")
+    is_off_panel: bool = Field(default=False, description="Whether this bubble is spoken by an off-panel / off-screen character")
+    speaker_anchor: Optional[List[int]] = Field(default=None, description="Projected [x, y] coordinates of speaker target")
+    is_sfx: bool = Field(default=False, description="Whether this element is a comic sound effect / onomatopoeia")
+    sfx_category: Optional[str] = Field(default=None, description="Category of sound effect")
+    sfx_category_label: Optional[str] = Field(default=None, description="Human-readable Uzbek category label")
+    sfx_transliteration: Optional[str] = Field(default=None, description="Standard comic Uzbek sound effect transliteration")
+    sfx_confidence: Optional[float] = Field(default=None, description="SFX classification confidence score (0.0 - 1.0)")
 
 
     def model_post_init(self, __context: Any) -> None:
@@ -336,6 +438,23 @@ class SpeechBubble(BaseModel):
             self.contour = self.contour_points
         elif self.contour_points is None and self.contour is not None:
             self.contour_points = self.contour
+
+        # Auto-classify SFX sound effects
+        if not self.is_sfx and (self.clean_text or self.original_text):
+            chk_txt = self.clean_text or self.original_text
+            try:
+                is_sfx, cat, cat_lbl, translit, conf = sfx_engine.classify_sfx(chk_txt)
+                if is_sfx:
+                    self.is_sfx = True
+                    self.sfx_category = cat
+                    self.sfx_category_label = cat_lbl
+                    self.sfx_transliteration = translit
+                    self.sfx_confidence = conf
+                    self.shape_type = "sfx"
+                    if not self.uzbek_translation:
+                        self.uzbek_translation = translit
+            except Exception:
+                pass
 
 
 class BubbleFragment(BaseModel):
@@ -436,10 +555,9 @@ def get_memory_stats() -> Dict[str, Any]:
        - cgroup_shmem_mb: shared memory / tmpfs
     """
     import os
-    import psutil
-
     total_rss = 0.0
     try:
+        import psutil
         proc = psutil.Process(os.getpid())
         total_rss += proc.memory_info().rss
         for child in proc.children(recursive=True):
@@ -580,7 +698,10 @@ def format_memory_summary(stats: Optional[Dict[str, Any]] = None) -> str:
 
 def get_container_processes() -> List[Dict[str, Any]]:
     """Returns a list of all processes in the container/system with PID, PPID, RSS, and command."""
-    import psutil
+    try:
+        import psutil
+    except ImportError:
+        return []
     import time
     procs = []
     current_pid = os.getpid()
@@ -683,50 +804,30 @@ def get_process_rss_mb() -> float:
     return get_memory_stats()["rss_mb"]
 
 
-try:
-    import streamlit as st
-    @st.cache_resource(show_spinner=False)
-    def _cached_easyocr_reader():
-        import easyocr
-        import torch
-        try:
-            torch.set_num_threads(1)
-        except Exception:
-            pass
-        return easyocr.Reader(['en'], gpu=False, verbose=False)
-except Exception:
-    _cached_easyocr_reader = None
-
 _OCR_READER = None
 
 
 def get_ocr_reader():
     """Returns a singleton EasyOCR reader with memory-optimized defaults."""
     global _OCR_READER
-    if _cached_easyocr_reader is not None:
-        reader = _cached_easyocr_reader()
-        print(f"[DIAGNOSTIKA 2] EasyOCR reader yaratilgandan keyin (RAM RSS): {get_process_rss_mb():.1f} MB", flush=True)
-        return reader
     if _OCR_READER is None:
         import easyocr
         import torch
         try:
-            torch.set_num_threads(1)
+            th = min(4, max(2, (os.cpu_count() or 4) // 2))
+            torch.set_num_threads(th)
         except Exception:
             pass
         _OCR_READER = easyocr.Reader(['en'], gpu=False, verbose=False)
         print(f"[DIAGNOSTIKA 2] EasyOCR reader yaratilgandan keyin (RAM RSS): {get_process_rss_mb():.1f} MB", flush=True)
     return _OCR_READER
 
+_DEFAULT_GET_OCR_READER = get_ocr_reader
+
 
 def release_ocr_reader():
     """Explicitly releases EasyOCR reader from memory and triggers garbage collection."""
     global _OCR_READER
-    try:
-        if _cached_easyocr_reader is not None and hasattr(_cached_easyocr_reader, "clear"):
-            _cached_easyocr_reader.clear()
-    except Exception:
-        pass
     _OCR_READER = None
     import gc
     gc.collect()
@@ -818,6 +919,20 @@ def get_available_fonts() -> Dict[str, str]:
     if os.path.exists(cc_wild):
         fonts["CC Wild Words (Recommended)"] = cc_wild
 
+    comic_mode_med = os.path.join(fonts_dir, "ComicMode-Medium.otf")
+    if os.path.exists(comic_mode_med):
+        fonts["Comic Mode Medium"] = comic_mode_med
+
+    cc_yada = os.path.join(fonts_dir, "CCYadaYadaYada.ttf")
+    if os.path.exists(cc_yada):
+        fonts["CCYadaYadaYada"] = cc_yada
+
+    jet_set = os.path.join(fonts_dir, "JetSet.ttf")
+    if not os.path.exists(jet_set):
+        jet_set = os.path.join(fonts_dir, "Jet Set.ttf")
+    if os.path.exists(jet_set):
+        fonts["Jet Set"] = jet_set
+
     comic_neue = os.path.join(fonts_dir, "ComicNeue-Bold.ttf")
     if os.path.exists(comic_neue):
         fonts["Comic Neue Bold"] = comic_neue
@@ -831,6 +946,10 @@ def get_available_fonts() -> Dict[str, str]:
         manga_temple = os.path.join(fonts_dir, "mangat.ttf")
     if os.path.exists(manga_temple):
         fonts["Manga Temple Bold"] = manga_temple
+
+    gandur = os.path.join(fonts_dir, "GandurNew-Light.otf")
+    if os.path.exists(gandur):
+        fonts["Gandur New Light"] = gandur
 
     system_fonts = {
         "Comic Sans MS": r"C:\Windows\Fonts\comic.ttf",
@@ -915,6 +1034,10 @@ def check_is_sfx_or_junk(text: str, conf: float = 1.0, is_on_bubble_paper: bool 
     text_clean = text.strip()
     if not text_clean:
         return True, "empty"
+
+    # Early check for pure SFX (sound effects, onomatopoeia, non-verbal vocalizations)
+    if is_pure_sfx_text(text_clean):
+        return True, "sfx"
 
     # 1. Enforce confidence threshold if conf was measured
     if conf < 0.12:
@@ -1008,11 +1131,21 @@ def check_is_sfx_or_junk(text: str, conf: float = 1.0, is_on_bubble_paper: bool 
                 has_valid_word = True
                 break
 
-    if not has_valid_word and is_on_bubble_paper and len(letters) >= 2:
+    if not has_valid_word and is_on_bubble_paper:
         # Fallback for bubble paper: legitimate comic vocalizations, sputters, and interjections
         # (e.g. 'RRPHBL', 'PFFFT', 'BRRR', 'HRM', 'TCH', 'HMPH') often lack standard vowels.
-        # Preserve them as valid comic dialogue when located on verified bubble paper.
-        has_valid_word = True
+        # Preserve verified comic sounds while rejecting arbitrary noise fragments (e.g. 'aucJi', 'defi', 'ihy').
+        COMIC_VOCALIZATIONS = {
+            "PFFFT", "PFT", "BRRR", "BRR", "HRM", "HRMPH", "TCH", "HMPH", "UGH", "URGH",
+            "ARGH", "AAAH", "GASP", "PHEW", "HUH", "SHH", "PSST", "EEK", "OWW", "OOF",
+            "ACK", "WHAM", "THWIP", "SNIKT", "BAMF", "ZZZ", "YIKES", "WHOA", "AARGH",
+            "SIGH", "SOB", "CHOMP", "GULP", "GULPP", "SNORT", "GRRR", "GRR"
+        }
+        for w in raw_words:
+            clean_w = w.replace("'", "").strip("_")
+            if clean_w in COMIC_VOCALIZATIONS or (len(clean_w) >= 3 and bool(re.match(r'^[B-DF-HJ-NP-TV-Z]{3,}$', clean_w))):
+                has_valid_word = True
+                break
 
     if not has_valid_word:
         return True, "no valid dictionary word"
@@ -1054,6 +1187,7 @@ def free_web_translate(text: str) -> str:
 
     # 2. Fallback: Offline local CTranslate2 NLLB-200 model
     try:
+        import local_translator
         nllb_res = local_translator.translate_offline(cleaned)
         if nllb_res and nllb_res.strip():
             return nllb_res.strip()
@@ -1076,6 +1210,8 @@ def translate_spiderman_uzbek(en_text: str, speaker: Optional[str] = None) -> st
     cleaned = en_text.strip()
     if not cleaned:
         return ""
+    if is_pure_sfx_text(cleaned):
+        return cleaned
 
     # Detect leading ellipses / dots / dashes
     has_leading_dots = bool(re.match(r"^[\s#~*^]*\.{2,}", cleaned))
@@ -1086,21 +1222,39 @@ def translate_spiderman_uzbek(en_text: str, speaker: Optional[str] = None) -> st
     # Step 1: Pre-process English contractions & dialogue
     pre_en = naturalization_rules.pre_process_english_dialogue(core_text)
 
-    # Step 2: 100% Offline Local NMT Translation
-    raw_uz = free_web_translate(pre_en)
-
-    # Step 2b: Optional Naturalness-Scored Base MT Selection (Google Cloud vs NLLB)
+    # Step 2a: Google Gemini AI Dialogue Translation (Natural, character-voiced, free-tier cloud)
+    gemini_used = False
     try:
-        import cloud_enhancements
-        if cloud_enhancements.is_translate_cross_check_enabled():
-            optimal_base, _ = cloud_enhancements.select_optimal_base_translation(pre_en, raw_uz)
-            if optimal_base:
-                raw_uz = optimal_base
-    except Exception:
-        pass
+        import gemini_enhancements
+        if gemini_enhancements.is_gemini_enabled():
+            gemini_uz = gemini_enhancements.gemini_translate_dialogue(pre_en, speaker=speaker)
+            if gemini_uz and len(gemini_uz.strip()) > 0:
+                raw_uz = gemini_uz.strip()
+                gemini_used = True
+    except Exception as e:
+        print(f"[GEMINI_WARN] Gemini translation fallback: {e}", flush=True)
+
+    if not gemini_used:
+        # Step 2: 100% Offline Local NMT Translation
+        raw_uz = free_web_translate(pre_en)
+
+        # Step 2b: Optional Naturalness-Scored Base MT Selection (Google Cloud vs NLLB)
+        try:
+            import cloud_enhancements
+            if cloud_enhancements.is_translate_cross_check_enabled():
+                optimal_base, _ = cloud_enhancements.select_optimal_base_translation(pre_en, raw_uz)
+                if optimal_base:
+                    raw_uz = optimal_base
+        except Exception:
+            pass
 
     # Step 3: Naturalization & Idiom Polish Layer (with optional character voice profile)
     uz_text = naturalization_rules.apply_naturalization(raw_uz, en_orig=core_text, character_profile=speaker)
+    try:
+        import glossary_manager
+        uz_text = glossary_manager.apply_glossary_enforcement(uz_text)
+    except Exception:
+        pass
 
     if has_leading_dots and not uz_text.startswith("..."):
         uz_text = "..." + uz_text
@@ -1114,7 +1268,16 @@ def translate_spiderman_uzbek(en_text: str, speaker: Optional[str] = None) -> st
         elif cleaned.endswith("?"):
             uz_text += "?"
 
-    return naturalization_rules.normalize_uzbek_comic_typography(uz_text)
+    uz_norm = naturalization_rules.normalize_uzbek_comic_typography(uz_text)
+    try:
+        import auto_emphasis
+        uz_norm = auto_emphasis.apply_auto_emphasis(uz_norm, en_orig=core_text)
+    except Exception:
+        pass
+    return uz_norm
+
+
+translate_text = translate_spiderman_uzbek
 
 
 def partition_translated_text_for_lobes(uz_text: str, lobe_weights: List[float]) -> List[str]:
@@ -1276,6 +1439,14 @@ def clean_page_ink_telea(
             by0 = int(b.get("y0") if isinstance(b, dict) else b.y0)
             bx1 = int(b.get("x1") if isinstance(b, dict) else b.x1)
             by1 = int(b.get("y1") if isinstance(b, dict) else b.y1)
+
+            # Inverted/dark rectangle safety check: do not treat black/dark signs as captions to whiteout
+            crop_sample = img_cv[max(0, by0):min(h, by1), max(0, bx0):min(w, bx1)]
+            if crop_sample.size > 0:
+                crop_g = cv2.cvtColor(crop_sample, cv2.COLOR_BGR2GRAY)
+                if float(np.median(crop_g)) < 110 or float(np.count_nonzero(crop_g < 165)) / float(crop_g.size) > 0.50:
+                    continue
+
             raw_cnt = None
             if cnt is not None:
                 try:
@@ -1287,13 +1458,25 @@ def clean_page_ink_telea(
                 except Exception:
                     pass
             is_pure = (shape == "rectangle") and (raw_cnt is None or bubble_lettering._is_rectangular(raw_cnt))
+            if raw_cnt is not None and is_pure:
+                rc_x, rc_y, rc_w, rc_h = cv2.boundingRect(raw_cnt)
+                bx0 = min(bx0, rc_x)
+                by0 = min(by0, rc_y)
+                bx1 = max(bx1, rc_x + rc_w)
+                by1 = max(by1, rc_y + rc_h)
             _earpiece_rects.append({
                 'x': bx0, 'y': by0, 'x1': bx1, 'y1': by1, 'w': bx1 - bx0, 'h': by1 - by0,
                 'contour': raw_cnt,
                 'is_pure_rectangle': is_pure
             })
     if not _earpiece_rects:
-        _earpiece_rects = detect_earpiece_rectangles(img_cv)
+        try:
+            import gemini_enhancements
+            gemini_active = gemini_enhancements.is_gemini_enabled()
+        except Exception:
+            gemini_active = False
+        if not gemini_active:
+            _earpiece_rects = detect_earpiece_rectangles(img_cv)
 
     # Build combined earpiece rect mask (union of all rects)
     _earpiece_mask = np.zeros((h, w), dtype=np.uint8)
@@ -1375,7 +1558,8 @@ def clean_page_ink_telea(
                 interior_sample = orig_bgr[ry + 4:ry1 - 4, rx + 4:rx1 - 4]
                 if interior_sample.size > 0:
                     gray_sample = cv2.cvtColor(interior_sample, cv2.COLOR_BGR2GRAY)
-                    bright_pts = interior_sample[gray_sample >= 220]
+                    p50_g = np.percentile(gray_sample, 50)
+                    bright_pts = interior_sample[gray_sample >= p50_g]
                     fill_bgr = tuple(int(v) for v in np.median(bright_pts, axis=0)) if len(bright_pts) > 0 else (254, 254, 254)
                 else:
                     fill_bgr = (254, 254, 254)
@@ -1393,9 +1577,11 @@ def clean_page_ink_telea(
                 rx, ry, rx1, ry1 = _r['x'], _r['y'], _r['x1'], _r['y1']
                 cv2.rectangle(rect_full_mask, (rx, ry), (rx1, ry1), 255, -1)
 
-        # 2. Inpaint all speech bubbles (both occluded fragments and independent bubbles)
+        # 2. Inpaint all speech bubbles in a single pass
         sorted_idx_bubbles = sorted(enumerate(bubbles), key=lambda t: _get_z(t[1]))
         gray_cur = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
+        master_speech_ink = np.zeros((h, w), dtype=np.uint8)
+
         for idx, b in sorted_idx_bubbles:
             z = _get_z(b)
             shape = (isinstance(b, dict) and b.get("shape_type", "oval")) or getattr(b, "shape_type", "oval")
@@ -1450,21 +1636,24 @@ def clean_page_ink_telea(
             int_pts = img_cv[eroded > 0]
             int_gray = gray_cur[eroded > 0]
             if int_pts.size > 0 and int_gray.size > 0:
+                p85_val = float(np.percentile(int_gray, 85))
+                if p85_val < 130:
+                    continue  # Inverted text or dark art element: do not touch!
                 p80_g = np.percentile(int_gray, 80)
                 bg_sample = int_pts[int_gray >= p80_g]
                 bg_bgr = np.median(bg_sample, axis=0) if len(bg_sample) > 0 else np.median(int_pts, axis=0)
                 bg_gray = float(np.median(int_gray[int_gray >= p80_g])) if len(bg_sample) > 0 else float(np.median(int_gray))
                 color_diff = np.linalg.norm(img_cv.astype(np.float32) - bg_bgr, axis=2)
-                is_ink = ((color_diff > 8) | (gray_cur < bg_gray - 10) | (gray_cur < 215)) & (eroded > 0)
+                ink_cutoff = min(175, int(bg_gray - 25))
+                is_ink = ((gray_cur < ink_cutoff) | (color_diff > 45)) & (eroded > 0)
                 ink = is_ink.astype(np.uint8) * 255
             else:
-                ink = ((gray_cur < 215) & (eroded > 0)).astype(np.uint8) * 255
+                ink = ((gray_cur < 175) & (eroded > 0)).astype(np.uint8) * 255
             k_dilate = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
             ink = cv2.dilate(ink, k_dilate, iterations=2)
             ink = cv2.bitwise_and(ink, eroded)
             if np.any(ink > 0):
-                img_cv = cv2.inpaint(img_cv, ink, 3, cv2.INPAINT_TELEA)
-                gray_cur = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
+                master_speech_ink = cv2.bitwise_or(master_speech_ink, ink)
 
             # Sample background fill color to record authentic tint
             if int_pts.size > 0:
@@ -1479,6 +1668,10 @@ def clean_page_ink_telea(
                     b.tint_bgr = tint_bgr
                     b.is_tinted = is_tinted
 
+        # Single-pass inpainting for all speech bubbles
+        if np.any(master_speech_ink > 0):
+            img_cv = cv2.inpaint(img_cv, master_speech_ink, 3, cv2.INPAINT_TELEA)
+
         # 3. Redraw crisp 2px brown rectangle borders for PURE rectangles only
         for _r in _earpiece_rects:
             cnt = _r.get('contour')
@@ -1492,8 +1685,8 @@ def clean_page_ink_telea(
             rx, ry, rw, rh = _r['x'], _r['y'], _r['w'], _r['h']
             rx1, ry1 = _r['x1'], _r['y1']
             top_edge = orig_bgr[ry:ry+2, rx+20:rx1-20]
-            border_bgr = [int(v) for v in np.mean(top_edge, axis=(0, 1))] if top_edge.size > 0 else (78, 93, 140)
-            cv2.rectangle(img_cv, (rx, ry), (rx1, ry1), tuple(border_bgr), thickness=2)
+            border_bgr = [int(v) for v in np.median(top_edge, axis=(0, 1))] if top_edge.size > 0 else (78, 93, 140)
+            cv2.rectangle(img_cv, (rx + 1, ry + 1), (rx1 - 1, ry1 - 1), tuple(border_bgr), thickness=2)
 
         return Image.fromarray(cv2.cvtColor(img_cv, cv2.COLOR_BGR2RGB))
 
@@ -1520,9 +1713,12 @@ def clean_page_ink_telea(
             er = cv2.erode(b_mask, k_in)
             if np.any(er > 0):
                 pts = img_cv[er > 0]
+                gray_er = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)[er > 0]
+                p85_val = float(np.percentile(gray_er, 85))
+                if p85_val < 130:
+                    continue  # Inverted text or dark art element: do not touch!
                 hsv_int = cv2.cvtColor(pts.reshape(1, -1, 3), cv2.COLOR_BGR2HSV)[0]
                 sat_int = hsv_int[:, 1]
-                gray_er = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)[er > 0]
 
                 # 1. Text ink analysis
                 bg_ref_lum = np.percentile(gray_er, 75)
@@ -1543,8 +1739,8 @@ def clean_page_ink_telea(
                 b_r_text_diff = int(ink_med_bgr[0]) - int(ink_med_bgr[2])
 
                 # Spectral text check: text is light tinted ink (Peter Parker ghost dialogue)
-                # Slate blue / havorang ink: luminance > 120, sat >= 8 or abs(B - R) >= 12
-                text_is_spectral = bool(ink_lum > 120 and (len(ink_sat) > 0 and np.median(ink_sat) >= 8 or abs(b_r_text_diff) >= 12))
+                # Slate blue / havorang ink: luminance > 120, Blue > Red (b_r_text_diff >= 12)
+                text_is_spectral = bool(ink_lum > 120 and (b_r_text_diff >= 12))
 
                 # 2. Non-text background analysis (brightest 60% of interior)
                 p40_g = np.percentile(gray_er, 40)
@@ -1610,14 +1806,15 @@ def clean_page_ink_telea(
         page_bubble_mask_closed = cv2.morphologyEx(page_bubble_mask, cv2.MORPH_CLOSE, k_close)
 
         num_labels, labels = cv2.connectedComponents(page_bubble_mask_closed)
+        all_comp_cnts = []
         for lbl in range(1, num_labels):
             comp_mask = (labels == lbl).astype(np.uint8) * 255
             comp_cnts, _ = cv2.findContours(comp_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            if not comp_cnts:
-                continue
-            comp_cnt = max(comp_cnts, key=cv2.contourArea)
-            img_cv = bubble_lettering.inpaint_bubble_text_only(
-                img_cv, comp_cnt, ink_luminance_threshold=ink_thresh, border_margin=4, ink_dilate=2, inpaint_radius=inpaint_radius
+            if comp_cnts:
+                all_comp_cnts.append(max(comp_cnts, key=cv2.contourArea))
+        if all_comp_cnts:
+            img_cv = bubble_lettering.inpaint_batch_bubbles(
+                img_cv, all_comp_cnts, ink_luminance_threshold=ink_thresh, border_margin=4, ink_dilate=2, inpaint_radius=inpaint_radius
             )
 
     return Image.fromarray(cv2.cvtColor(img_cv, cv2.COLOR_BGR2RGB))
@@ -2140,7 +2337,7 @@ def _run_single_tile_subprocess(tile_img: Image.Image, canvas_size: int = 1920, 
                     pass
 
 
-def run_tiled_ocr_separate_subprocesses(image: Image.Image, canvas_size: int = 1920, timeout_seconds_per_tile: int = 90) -> List[Any]:
+def run_tiled_ocr_separate_subprocesses(image: Image.Image, canvas_size: int = 1600, timeout_seconds_per_tile: int = 120) -> List[Any]:
     """
     Processes image tiles ONE AT A TIME in SEPARATE short-lived child processes.
     Memory from each tile is 100% reclaimed by the OS between tiles, keeping peak RSS ~510MB.
@@ -2195,15 +2392,15 @@ def run_tiled_ocr_separate_subprocesses(image: Image.Image, canvas_size: int = 1
     return combined
 
 
-def scan_bubbles_ocr_subprocess(image: Image.Image, timeout_seconds: int = 120) -> List[SpeechBubble]:
+def scan_bubbles_ocr_subprocess(image: Image.Image, timeout_seconds: int = 180) -> List[SpeechBubble]:
     """
     Executes EasyOCR in isolated OS subprocesses TILE-BY-TILE.
     Each tile runs in its own short-lived child process so PyTorch/CRAFT memory
     is returned to the OS immediately after each tile completes instead of accumulating.
     Peak memory per tile stays safely around ~510-530 MB, avoiding container OOM.
     """
-    per_tile_timeout = max(30, timeout_seconds // 2)
-    raw_results = run_tiled_ocr_separate_subprocesses(image, canvas_size=1920, timeout_seconds_per_tile=per_tile_timeout)
+    per_tile_timeout = max(90, timeout_seconds)
+    raw_results = run_tiled_ocr_separate_subprocesses(image, canvas_size=1600, timeout_seconds_per_tile=per_tile_timeout)
     bubbles = _extract_bubbles_from_ocr_results(image, raw_results)
     reclaim_heap_memory()
     return bubbles
@@ -2314,13 +2511,414 @@ def scan_bubbles_ocr_tesseract(image: Image.Image) -> List[SpeechBubble]:
     return bubbles
 
 
-def scan_bubbles_ocr(image: Image.Image, use_subprocess: bool = True, timeout_seconds: int = 120) -> List[SpeechBubble]:
+def snap_box_to_bubble_borders(gray_img: np.ndarray, box: List[int], max_up: int = 80, max_down: int = 35, max_h: int = 40) -> List[int]:
+    """
+    Expands a slightly truncated or misaligned OCR/Gemini bounding box outward
+    to the authentic dark edge barriers of the speech bubble, ensuring top and bottom
+    letter lines (e.g. 'Stop!', 'I think', 'THE WORLD.') are never truncated out of the bubble.
+    Asymmetric expansion ensures boxes never spill downward into open water, character art, or gutters.
+    """
+    bx0, by0, bx1, by1 = box
+    H, W = gray_img.shape[:2]
+    cx = (bx0 + bx1) // 2
+    span_w = max(10, min(35, (bx1 - bx0) // 3))
+
+    interior = gray_img[by0:by1, bx0:bx1]
+    if interior.size > 0:
+        p75_interior = float(np.percentile(interior, 75))
+        light_thresh = max(135, int(p75_interior - 25))
+    else:
+        light_thresh = 180
+
+    # Expand upward to capture clipped top lines
+    new_y0 = by0
+    for y in range(by0 - 1, max(0, by0 - max_up), -1):
+        strip = gray_img[y, max(0, cx - span_w):min(W, cx + span_w)]
+        if strip.size > 0 and np.percentile(strip, 80) >= light_thresh and np.min(strip) > 55:
+            new_y0 = y
+        else:
+            break
+
+    # Expand downward conservatively
+    new_y1 = by1
+    for y in range(by1 + 1, min(H, by1 + max_down)):
+        strip = gray_img[y, max(0, cx - span_w):min(W, cx + span_w)]
+        if strip.size > 0 and np.percentile(strip, 80) >= light_thresh and np.min(strip) > 55:
+            new_y1 = y
+        else:
+            break
+
+    # Expand left:
+    cy = (new_y0 + new_y1) // 2
+    span_h = max(10, min(35, (new_y1 - new_y0) // 3))
+    new_x0 = bx0
+    for x in range(bx0 - 1, max(0, bx0 - max_h), -1):
+        strip = gray_img[max(0, cy - span_h):min(H, cy + span_h), x]
+        if strip.size > 0 and np.percentile(strip, 80) >= light_thresh and np.min(strip) > 55:
+            new_x0 = x
+        else:
+            break
+
+    # Expand right:
+    new_x1 = bx1
+    for x in range(bx1 + 1, min(W, bx1 + max_h)):
+        strip = gray_img[max(0, cy - span_h):min(H, cy + span_h), x]
+        if strip.size > 0 and np.percentile(strip, 80) >= light_thresh and np.min(strip) > 55:
+            new_x1 = x
+        else:
+            break
+
+    return [new_x0, new_y0, new_x1, new_y1]
+
+
+def scan_bubbles_ocr(image: Image.Image, use_subprocess: bool = True, timeout_seconds: int = 120, ocr_engine: Optional[str] = None, force_refresh: bool = False) -> List[SpeechBubble]:
     """
     Stage 1 OCR Priority Hierarchy:
+    0. Opt-In / Fast Cloud: Google Gemini Multimodal Vision API (~2s full-page bubble detection & translation).
     1. Opt-In: Google Cloud Vision API (ONLY if user manually entered API key in sidebar).
     2. Primary Default: Tesseract OCR (~30-40 MB RAM, fast, fully local and free, zero GPU/torch tensors).
     3. Fallback: Local isolated per-tile EasyOCR subprocess (~530 MB RAM per tile) if Tesseract fails or yields unreliable bubbles.
     """
+    if isinstance(image, (str, os.PathLike)):
+        image = Image.open(image)
+
+    if get_ocr_reader != _DEFAULT_GET_OCR_READER:
+        return _scan_bubbles_ocr_core(image)
+
+    if ocr_engine == "easyocr":
+        if use_subprocess:
+            try:
+                return scan_bubbles_ocr_subprocess(image, timeout_seconds=timeout_seconds)
+            except Exception:
+                pass
+        return _scan_bubbles_ocr_core(image)
+
+    if ocr_engine == "tesseract":
+        return scan_bubbles_ocr_tesseract(image)
+
+    # 0. Opt-In / Fast Cloud: Google Gemini Multimodal Vision API (~2s bubble detection + translation)
+    if ocr_engine == "gemini" or (ocr_engine is None and os.getenv("FORCE_LOCAL_OCR") != "1"):
+        try:
+            import gemini_enhancements
+            if gemini_enhancements.is_gemini_enabled():
+                print(f"[OCR] Google Gemini Vision is ENABLED (force_refresh={force_refresh}). Running multimodal bubble scan...", flush=True)
+                import time
+                t0 = time.time()
+
+                # When force_refresh, clear Gemini cache before calling the API
+                if force_refresh:
+                    try:
+                        gemini_enhancements.clear_gemini_cache()
+                        print(f"[OCR_CACHE] Gemini cache cleared for force_refresh.", flush=True)
+                    except Exception as _ev_ex:
+                        print(f"[OCR_CACHE_WARN] Could not evict cache: {_ev_ex}", flush=True)
+
+                gemini_results = gemini_enhancements.gemini_extract_comic_bubbles(image, use_cache=(not force_refresh))
+                elapsed = time.time() - t0
+                print(f"[OCR] Google Gemini Vision SUCCESS ({len(gemini_results)} bubbles in {elapsed:.2f}s, RAM: 0 MB)", flush=True)
+
+                img_cv = cv2.cvtColor(np.array(image.convert("RGB")), cv2.COLOR_RGB2BGR)
+                gemini_bubbles: List[SpeechBubble] = []
+                import bubble_lettering
+            import reading_order
+
+            H_img, W_img = img_cv.shape[:2]
+            gray_full = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
+            hsv_full = cv2.cvtColor(img_cv, cv2.COLOR_BGR2HSV)
+
+            # 1. Filter out candidate false-positives (architectural fixtures, dark strips, ceiling beams, dark clothing)
+            valid_gemini_results = []
+            for item in gemini_results:
+                bx0, by0, bx1, by1 = item["box"]
+                bw = bx1 - bx0
+                bh = by1 - by0
+                if bw <= 10 or bh <= 10:
+                    continue
+                orig = item.get("original_text", "").strip()
+                letters = re.findall(r'[a-zA-Z]', orig)
+                aspect = bw / float(bh) if bh > 0 else 1.0
+
+                cx0, cy0 = max(0, bx0), max(0, by0)
+                cx1, cy1 = min(W_img, bx1), min(H_img, by1)
+                crop_gray = gray_full[cy0:cy1, cx0:cx1]
+                mean_gray = float(np.mean(crop_gray)) if crop_gray.size > 0 else 0.0
+
+                # Reject candidate if:
+                # - No actual letters
+                if len(letters) < 1:
+                    continue
+
+                # - SFX sound effect / onomatopoeia: preserve original comic artwork, do not translate or inpaint
+                if is_pure_sfx_text(orig):
+                    print(f"[OCR_FILTER] Ignored pure SFX bubble '{orig}' to preserve original comic art.", flush=True)
+                    continue
+
+                # - CRITICAL: Reject candidates located on pitch dark artwork, dark clothing (e.g. Ben's shirt)
+                if crop_gray.size > 0:
+                    p85_cand = float(np.percentile(crop_gray, 85))
+                    # Authentic speech bubbles have white or light paper with p85 >= 180
+                    # If even the top 15% brightest pixels in this candidate are dark (< 115),
+                    # it is dark artwork, shadow, or clothing, NOT a dialogue bubble!
+                    if p85_cand < 115:
+                        print(f"[OCR_FILTER] Rejected dark artwork/clothing candidate '{orig}' (p85={p85_cand:.1f} < 115)", flush=True)
+                        continue
+
+                words = [w for w in re.findall(r"[a-zA-Z0-9']+", orig.lower()) if len(w) > 0]
+                has_dialogue_structure = (
+                    any(q in orig for q in ('"', "'", '“', '”', '...', '…', '!', '?', ',', ';', ':'))
+                    or len(words) >= 4
+                    or any(w in {"you", "i", "we", "he", "she", "they", "it", "are", "is", "was", "were", "am", "my", "your", "his", "her", "their", "our", "the", "this", "that", "not", "no", "to", "in", "on", "at", "by", "for", "with", "from", "and", "but", "or", "so", "if", "what", "why", "how", "when", "where", "who", "yes", "yeah", "ok", "okay"} for w in words)
+                )
+
+                b_type = item.get("bubble_type", "speech")
+
+                # - Strictly isolated environmental signage check (institution, building plaques, street signs)
+                # Authentic spoken dialogue or narration captions containing sentences or quotes must NEVER be rejected!
+                if not has_dialogue_structure and b_type != "speech":
+                    is_isolated_sign = bool(re.match(r'^(THE\s+)?([A-Z0-9\s\-]+)?(INSTITUTE|UNIVERSITY|HOSPITAL|LABORATORY|BUILDING|CENTER|TOWER|CORP|DEPARTMENT|POLICE|STATION|ACADEMY|AVENUE|STREET|BLVD|HIGH SCHOOL)$', orig.strip(), re.I))
+                    if is_isolated_sign and aspect >= 3.0:
+                        print(f"[OCR_FILTER] Ignored isolated environmental signage '{orig}' to preserve background art.", flush=True)
+                        continue
+
+                # - Quality gate: Only ignore non-dialogue background elements if they have NO dialogue structure AND no authentic text
+                if not has_dialogue_structure and b_type != "speech":
+                    p90 = float(np.percentile(crop_gray, 90)) if crop_gray.size > 0 else 0.0
+                    if p90 < 100 and len(letters) < 4:
+                        continue
+                    if aspect >= 5.0 and len(letters) < 4:
+                        continue
+                    if by0 < int(H_img * 0.05) and aspect >= 4.0 and len(letters) < 4:
+                        continue
+
+                valid_gemini_results.append(item)
+            gemini_results = valid_gemini_results
+
+            seeds = []
+            for item in gemini_results:
+                bx0, by0, bx1, by1 = item["box"]
+                seeds.append(((bx0 + bx1) // 2, (by0 + by1) // 2))
+
+            for idx, item in enumerate(gemini_results):
+                bx0, by0, bx1, by1 = item["box"]
+                bw = bx1 - bx0
+                bh = by1 - by0
+                b_type = item.get("bubble_type", "speech")
+                shape_type = "rectangle" if b_type == "caption" else "oval"
+
+                # 1. Edge-aware flood-fill contour detection via bubble_lettering.get_bubble_contour
+                # Snaps box outward to bubble borders so top/bottom text lines are never truncated.
+                snapped_box = snap_box_to_bubble_borders(gray_full, [bx0, by0, bx1, by1])
+                other_seeds = [s for j, s in enumerate(seeds) if j != idx]
+                cnt_page, is_rect = bubble_lettering.get_bubble_contour(
+                    img_cv,
+                    snapped_box,
+                    neighbor_seeds=other_seeds,
+                    approx_glyph_height=max(28, int(bh * 0.40))
+                )
+                cnt_page = bubble_lettering.clamp_contour_to_dark_edges(cnt_page, gray_full)
+
+                # 2. Guard against leaks into colored background (e.g. speech bubble tail opening to yellow wall/skin)
+                if b_type != "caption":
+                    c_mask = np.zeros((H_img, W_img), dtype=np.uint8)
+                    cv2.drawContours(c_mask, [cnt_page], -1, 255, -1)
+                    leaked_colored = (hsv_full[:, :, 1] > 38) & (c_mask > 0)
+                    leak_ratio = np.count_nonzero(leaked_colored) / float(max(1, np.count_nonzero(c_mask)))
+                    if leak_ratio > 0.05:
+                        pure_mask = c_mask.copy()
+                        pure_mask[hsv_full[:, :, 1] > 35] = 0
+                        k_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9))
+                        closed = cv2.morphologyEx(pure_mask, cv2.MORPH_CLOSE, k_close)
+                        num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(closed)
+                        best_lbl = 0
+                        best_inter = 0
+                        for lbl in range(1, num_labels):
+                            lx, ly, lw, lh, _ = stats[lbl]
+                            ix0 = max(bx0, lx)
+                            iy0 = max(by0, ly)
+                            ix1 = min(bx1, lx + lw)
+                            iy1 = min(by1, ly + lh)
+                            inter = max(0, ix1 - ix0) * max(0, iy1 - iy0)
+                            if inter > best_inter:
+                                best_inter = inter
+                                best_lbl = lbl
+                        if best_lbl > 0:
+                            lbl_mask = (labels == best_lbl).astype(np.uint8) * 255
+                            cnts, _ = cv2.findContours(lbl_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                            if cnts:
+                                cnt_page = max(cnts, key=cv2.contourArea)
+                                cnt_page = bubble_lettering.clamp_contour_to_dark_edges(cnt_page, gray_full)
+
+                rx, ry, rw, rh = cv2.boundingRect(cnt_page)
+                cnt_area = rw * rh
+                gemini_area = bw * bh
+                sbx0, sby0, sbx1, sby1 = snapped_box
+                ref_area = max(1, (sbx1 - sbx0) * (sby1 - sby0))
+
+                inter_x0 = max(sbx0, rx)
+                inter_y0 = max(sby0, ry)
+                inter_x1 = min(sbx1, rx + rw)
+                inter_y1 = min(sby1, ry + rh)
+                inter_w = max(0, inter_x1 - inter_x0)
+                inter_h = max(0, inter_y1 - inter_y0)
+                inter_area = inter_w * inter_h
+                overlap_ratio = (inter_area / float(min(ref_area, cnt_area))) if min(ref_area, cnt_area) > 0 else 0.0
+
+                is_valid_contour = (
+                    (overlap_ratio >= 0.35)
+                    and (cnt_area >= 0.15 * ref_area)
+                    and (cnt_area <= 12.0 * ref_area or cnt_area <= 4.0 * max(1, gemini_area))
+                    and (cnt_area < 0.25 * (W_img * H_img))
+                )
+                if is_valid_contour:
+                    use_x0 = rx
+                    use_y0 = ry
+                    use_x1 = rx + rw
+                    use_y1 = ry + rh
+                    cnt_pts = cnt_page.reshape(-1, 2).tolist()
+                    if item.get("bubble_type") == "caption" or is_rect:
+                        shape_type = "rectangle"
+                else:
+                    # Fallback to verified Gemini bubble box, strictly clamped to dark comic borders
+                    use_x0 = bx0
+                    use_y0 = by0
+                    use_x1 = bx1
+                    use_y1 = by1
+                    if shape_type == "rectangle":
+                        synth_cnt = np.array([[[bx0, by0]], [[bx1, by0]], [[bx1, by1]], [[bx0, by1]]], dtype=np.int32)
+                        synth_cnt = bubble_lettering.clamp_contour_to_dark_edges(synth_cnt, gray_full)
+                    else:
+                        synth_cnt = bubble_lettering._synthetic_ellipse_contour((bx0 + bx1) // 2, (by0 + by1) // 2, bw, bh, gray_img=gray_full)
+                    cnt_page = synth_cnt
+                    cnt_pts = synth_cnt.reshape(-1, 2).tolist()
+
+                orig = item.get("original_text", "").strip()
+                uz = item.get("uzbek_translation", "").strip()
+                spk = item.get("speaker") or "Unknown"
+
+                # Fallback: if translation is missing or untranslated leak, translate on-the-fly
+                clean_o = re.sub(r'[^a-zA-Z0-9]', '', orig).lower()
+                clean_u = re.sub(r'[^a-zA-Z0-9]', '', uz).lower()
+                is_untranslated = (not uz) or (clean_o and clean_u and clean_o == clean_u and not is_pure_sfx_text(orig) and len(clean_o) >= 2)
+
+                if orig and is_untranslated:
+                    try:
+                        import gemini_enhancements
+                        if gemini_enhancements.is_gemini_enabled():
+                            uz = gemini_enhancements.gemini_translate_dialogue(orig, speaker=spk if spk != "Unknown" else None)
+                        if uz:
+                            print(f"[OCR_FALLBACK] On-the-fly translation for missed bubble: '{orig[:40]}...' -> '{uz[:40]}'", flush=True)
+                    except Exception as _fb_ex:
+                        print(f"[OCR_FALLBACK_WARN] Gemini translate failed for '{orig[:40]}...': {_fb_ex}", flush=True)
+
+                    clean_u_check = re.sub(r'[^a-zA-Z0-9]', '', uz).lower()
+                    if not uz or (clean_o and clean_u_check and clean_o == clean_u_check and not is_pure_sfx_text(orig)):
+                        try:
+                            uz = translate_spiderman_uzbek(orig, speaker=spk if spk != "Unknown" else None)
+                            print(f"[OCR_FALLBACK_OFFLINE] Offline translated: '{orig[:40]}...' -> '{uz[:40]}'", flush=True)
+                        except Exception as _off_ex:
+                            print(f"[OCR_FALLBACK_WARN] Offline translation also failed: {_off_ex}", flush=True)
+
+                if uz:
+                    try:
+                        import naturalization_rules
+                        uz = naturalization_rules.apply_naturalization(uz, en_orig=orig, character_profile=spk)
+                    except Exception:
+                        pass
+                    try:
+                        import glossary_manager
+                        uz = glossary_manager.apply_glossary_enforcement(uz)
+                    except Exception:
+                        pass
+
+                # Check if this bubble already has an adjacent / conjoined neighbor in gemini_results
+                # If Gemini already extracted both lobes as separate items, NEVER split them again!
+                already_split_by_gemini = False
+                for j, other in enumerate(gemini_results):
+                    if j == idx:
+                        continue
+                    obx0, oby0, obx1, oby1 = other["box"]
+                    # Check vertical or horizontal adjacency (touching/conjoined lobes)
+                    v_gap = max(0, max(by0, oby0) - min(by1, oby1))
+                    h_overlap = max(0, min(bx1, obx1) - max(bx0, obx0))
+                    min_w = min(bx1 - bx0, obx1 - obx0)
+                    if v_gap <= 35 and min_w > 0 and (h_overlap / float(min_w)) >= 0.35:
+                        already_split_by_gemini = True
+                        break
+                    h_gap = max(0, max(bx0, obx0) - min(bx1, obx1))
+                    v_overlap = max(0, min(by1, oby1) - max(by0, oby0))
+                    min_h = min(by1 - by0, oby1 - oby0)
+                    if h_gap <= 35 and min_h > 0 and (v_overlap / float(min_h)) >= 0.35:
+                        already_split_by_gemini = True
+                        break
+
+                split_candidates = None
+                if not already_split_by_gemini:
+                    split_candidates = bubble_lettering.split_conjoined_bubble_candidate(
+                        img_cv,
+                        (use_x0, use_y0, use_x1, use_y1),
+                        cnt_page,
+                        orig,
+                        uz,
+                        speaker=spk
+                    )
+
+                if split_candidates and len(split_candidates) >= 2:
+                    for lobe in split_candidates:
+                        l_box = lobe["box"]
+                        l_cnt = lobe.get("contour") or []
+                        l_b = SpeechBubble(
+                            bubble_id=len(gemini_bubbles) + 1,
+                            x0=l_box[0], y0=l_box[1], x1=l_box[2], y1=l_box[3],
+                            box=l_box,
+                            original_text=lobe["orig"],
+                            clean_text=lobe["orig"],
+                            uzbek_translation=lobe["uz"],
+                            pipeline_uzbek_translation=lobe["uz"],
+                            confidence=0.98,
+                            shape_type=lobe.get("shape_type", "oval"),
+                            z_order=0,
+                            contour=l_cnt,
+                            contour_points=l_cnt,
+                            speaker=lobe.get("speaker") if lobe.get("speaker") != "Unknown" else None,
+                            is_occluded=False
+                        )
+                        gemini_bubbles.append(l_b)
+                else:
+                    b = SpeechBubble(
+                        bubble_id=len(gemini_bubbles) + 1,
+                        x0=use_x0, y0=use_y0, x1=use_x1, y1=use_y1,
+                        box=[use_x0, use_y0, use_x1, use_y1],
+                        original_text=orig,
+                        clean_text=orig,
+                        uzbek_translation=uz,
+                        pipeline_uzbek_translation=uz,
+                        confidence=0.98,
+                        shape_type=shape_type,
+                        z_order=0,
+                        contour=cnt_pts,
+                        contour_points=cnt_pts,
+                        speaker=spk if spk != "Unknown" else None,
+                        is_occluded=False
+                    )
+                    gemini_bubbles.append(b)
+
+            if gemini_bubbles:
+                # Step 1.1: Panel-aware topological reading order graph
+                import reading_order
+                gemini_bubbles, _ = reading_order.get_page_panels_and_order(img_cv, gemini_bubbles)
+                for new_id, b in enumerate(gemini_bubbles, start=1):
+                    b.bubble_id = new_id
+                    b.reading_index = new_id
+
+                reclaim_heap_memory()
+                return gemini_bubbles
+            else:
+                print("[OCR_GEMINI_INFO] Gemini Vision verified 0 dialogue bubbles on this page.", flush=True)
+                reclaim_heap_memory()
+                return []
+        except Exception as e:
+            print(f"[OCR_GEMINI_WARN] Google Gemini Vision failed: {e}. Falling back to default OCR pipeline.", flush=True)
+
     # 1. Opt-In: Google Cloud Vision API (gated behind user API key in sidebar)
     try:
         import cloud_enhancements
@@ -2364,10 +2962,9 @@ def scan_bubbles_ocr(image: Image.Image, use_subprocess: bool = True, timeout_se
             print(f"[OCR] EasyOCR subprocess fallback: SUCCESS (bubbles found: {len(bubbles)}, time: {elapsed:.2f}s)", flush=True)
             return bubbles
         except TimeoutError as te:
-            print(f"[OCR] subprocess FAILED, falling back to in-process: Timeout ({te})", flush=True)
-            raise
+            print(f"[OCR] subprocess timed out ({te}), falling back to in-process OCR...", flush=True)
         except Exception as err:
-            print(f"[OCR] subprocess FAILED, falling back to in-process: {err}", flush=True)
+            print(f"[OCR] subprocess failed ({err}), falling back to in-process OCR...", flush=True)
     return _scan_bubbles_ocr_core(image)
 
 
@@ -2445,6 +3042,18 @@ def _extract_bubbles_from_ocr_results(image: Image.Image, raw_results: List[Any]
         aspect = line_w / max(1, line_h)
         is_graphic_banner = bool(aspect >= 4.0 and mean_saturation >= 60)
 
+        # Reject inverted text banners and dark background environmental art
+        med_luminance = float(np.median(crop_gray))
+        dark_ratio = float(np.mean(crop_gray < 130))
+        # Adaptive check: examine interior core before 6px expansion
+        inner_gray = gray[y0:y1, x0:x1]
+        inner_p85 = float(np.percentile(inner_gray, 85)) if inner_gray.size > 0 else 0.0
+        inner_p70 = float(np.percentile(inner_gray, 70)) if inner_gray.size > 0 else 0.0
+        is_inner_bright = bool(inner_p85 >= 170 and inner_p70 >= 130)
+
+        if not is_inner_bright and (dark_ratio >= 0.50 or med_luminance < 110):
+            continue
+
         # Rule for speech bubble / caption:
         # Standard white/near-white bubble (mean_saturation <= 85)
         is_standard_bubble = not is_graphic_banner and (
@@ -2462,6 +3071,29 @@ def _extract_bubbles_from_ocr_results(image: Image.Image, raw_results: List[Any]
             and max_val >= 150
         )
         is_bubble = is_standard_bubble or is_monochrome_tint
+
+        # Step 0: Inspect text stroke ink color to filter diegetic artwork, colored chalk, marker scribbles
+        box_gray = gray[y0:y1, x0:x1]
+        box_hsv = hsv[y0:y1, x0:x1]
+        if box_gray.size > 0:
+            p80_lum = float(np.percentile(box_gray, 80))
+            ink_stroke_mask = box_gray < (p80_lum - 15)
+            if np.count_nonzero(ink_stroke_mask) >= 6:
+                ink_sat_vals = box_hsv[:, :, 1][ink_stroke_mask]
+                ink_hue_vals = box_hsv[:, :, 0][ink_stroke_mask]
+                ink_lum_vals = box_gray[ink_stroke_mask]
+                med_ink_sat = float(np.median(ink_sat_vals))
+                med_ink_hue = float(np.median(ink_hue_vals))
+                med_ink_lum = float(np.median(ink_lum_vals))
+
+                # Strongly chromatic / neon / colored artwork text (chalkboard, graffiti, pink physics equations)
+                # Standard comic dialogue has black or very dark ink (med_ink_sat <= 40, med_ink_lum <= 110)
+                is_colored_art_ink = (
+                    (med_ink_sat >= 50 and 125 <= med_ink_hue <= 175 and med_ink_lum >= 70) or
+                    (med_ink_sat >= 65 and med_ink_lum >= 75)
+                )
+                if is_colored_art_ink:
+                    continue
 
         # Step 1: Filter junk / SFX / watermarks / noise (aware of bubble background)
         is_junk, reason = check_is_sfx_or_junk(text_str, float(conf), is_on_bubble_paper=is_bubble)
@@ -2785,8 +3417,10 @@ def _extract_bubbles_from_ocr_results(image: Image.Image, raw_results: List[Any]
         by1 = max(l['y1'] for l in cl_sorted)
         glyph_h = int(np.median([l['y1'] - l['y0'] for l in cl_sorted]))
         mean_conf = float(np.mean([l['conf'] for l in cl_sorted]))
-        if len(cl_sorted) == 1 and mean_conf < 0.30:
-            continue
+        if len(cl_sorted) == 1:
+            clean_token = re.sub(r'[^A-Z]', '', c_text.upper())
+            if mean_conf < 0.45 and (len(clean_token) <= 4 or clean_token not in COMMON_WORDS):
+                continue
         cluster_items.append({
             'box': (bx0, by0, bx1, by1),
             'text': c_text,
@@ -2874,6 +3508,11 @@ def _extract_bubbles_from_ocr_results(image: Image.Image, raw_results: List[Any]
         if split_x is not None:
             lines_left = [l for l in item['lines'] if l['x1'] <= split_x + 10]
             lines_right = [l for l in item['lines'] if l['x0'] >= split_x - 10]
+            if not (lines_left and lines_right) and len(item['lines']) >= 2 and c_details.get("constriction_ratio", 1.0) <= 0.65:
+                sorted_by_x = sorted(item['lines'], key=lambda l: l.get('cx', (l.get('x0', 0) + l.get('x1', 0)) // 2))
+                mid_k = len(sorted_by_x) // 2
+                lines_left = sorted_by_x[:mid_k]
+                lines_right = sorted_by_x[mid_k:]
             if lines_left and lines_right and (len(lines_left) + len(lines_right) == len(item['lines'])):
                 gate_state = {
                     "constriction_ratio": c_details.get("constriction_ratio", 1.0),
@@ -2935,6 +3574,14 @@ def _extract_bubbles_from_ocr_results(image: Image.Image, raw_results: List[Any]
             and not has_vertical_tail
         )
         shape_type = "rectangle" if (is_rect or is_banner) else "oval"
+        if shape_type == "rectangle" and rw_c >= 20 and rh_c >= 15:
+            bx0 = rx_c
+            by0 = ry_c
+            bx1 = rx_c + rw_c
+            by1 = ry_c + rh_c
+            z_val = 1
+        else:
+            z_val = 0
         b_ind = SpeechBubble(
             bubble_id=0,
             x0=bx0, y0=by0, x1=bx1, y1=by1,
@@ -2944,7 +3591,7 @@ def _extract_bubbles_from_ocr_results(image: Image.Image, raw_results: List[Any]
             uzbek_translation="",
             confidence=item['conf'],
             shape_type=shape_type,
-            z_order=0,
+            z_order=z_val,
             contour=cnt_pts,
             contour_points=cnt_pts,
             line_centers=[[l['cx'], l['cy']] for l in item['lines']],
@@ -2974,8 +3621,20 @@ def _extract_bubbles_from_ocr_results(image: Image.Image, raw_results: List[Any]
         context={"panel_boxes": panel_boxes}
     )
 
-    # Automatic Classical-CV Speaker Detection (tail tip & dominant color matching)
-    all_final_bubbles = assign_speakers(all_final_bubbles, img_cv)
+    # Geometric bubble tail detection (tip, base, unit vector, angle, speaker direction, off-panel check)
+    import tail_detector
+    H_page, W_page = img_cv.shape[:2]
+    for b in all_final_bubbles:
+        try:
+            pbox = None
+            if getattr(b, "panel_id", None) and panel_boxes and 1 <= b.panel_id <= len(panel_boxes):
+                pbox = panel_boxes[b.panel_id - 1]
+            tail_detector.annotate_bubble_with_tail(b, panel_box=pbox, page_size=(W_page, H_page))
+        except Exception as e_tail:
+            print(f"[TAIL_WARN] Could not detect tail for bubble #{getattr(b, 'bubble_id', '?')}: {e_tail}")
+
+    # Contextual Speaker Grounding (tail vector projection & character visual signatures)
+    all_final_bubbles = assign_speakers(all_final_bubbles, img_cv, panel_boxes=panel_boxes)
 
     print(f"[SCAN] Detected {len(all_final_bubbles)} bubbles ({len(fragment_bubbles)} fragments across {len(fragment_groups)} groups, {len(independent_bubbles)} independent, {len(rect_bubbles)} rects).")
     return all_final_bubbles
@@ -2983,40 +3642,23 @@ def _extract_bubbles_from_ocr_results(image: Image.Image, raw_results: List[Any]
 
 def assign_speakers(
     bubbles: List[SpeechBubble],
-    image: Any
+    image: Any,
+    panel_boxes: Optional[List[Any]] = None
 ) -> List[SpeechBubble]:
     """
-    Automatic classical-CV speaker detection for each bubble:
-    - Analyzes bubble contour to locate tail tip pointing to the speaker.
-    - Samples image region near tail tip (filtering bubble fill and ink outlines).
-    - Extracts dominant color signatures via k-means.
-    - Matches against stored character visual signatures in character_profiles.
-    - Sets bubble.speaker and bubble.speaker_confidence if match exceeds threshold.
+    Contextual Speaker Grounding (Step 1.3):
+    Grounds dialogue bubbles to character personas using tail vector projection,
+    panel containment, cluster continuity, and character color signatures.
     """
     import speaker_detector
-    import character_profiles
-
-    if isinstance(image, Image.Image):
-        img_bgr = cv2.cvtColor(np.array(image.convert("RGB")), cv2.COLOR_RGB2BGR)
-    elif isinstance(image, np.ndarray):
-        img_bgr = image
-    else:
-        return bubbles
-
-    store = character_profiles.get_memory_store()
-    profiles = list(store._profiles.values())
-
-    for b in bubbles:
-        cnt = getattr(b, "contour_points", None) or getattr(b, "contour", None)
-        bbox = (b.x0, b.y0, b.x1, b.y1)
-        spk, conf, colors, weights = speaker_detector.detect_speaker(
-            cnt, bbox, img_bgr, profiles
+    try:
+        bubbles = speaker_detector.ground_page_speakers(
+            bubbles=bubbles,
+            image_bgr=image,
+            panel_boxes=panel_boxes
         )
-        b.speaker = spk
-        b.speaker_confidence = conf
-        b.tail_region_colors = colors
-        b.tail_region_weights = weights
-
+    except Exception as e:
+        print(f"[SPEAKER_GROUND_WARN] Error during speaker grounding: {e}")
     return bubbles
 
 
@@ -3161,6 +3803,19 @@ def translate_bubbles_list(
     CTranslate2 model memory (~700 MB) is 100% returned to the OS upon process exit.
     If the worker hangs, it is terminated forcefully to prevent orphaned processes.
     """
+    # Fast path: If all bubbles already have translations (e.g. from Gemini Vision) or Gemini is enabled,
+    # skip heavy NLLB subprocess and run in-process core!
+    all_translated = bubbles and all(bool(getattr(b, "uzbek_translation", "").strip()) for b in bubbles if getattr(b, "is_active", getattr(b, "enabled", True)))
+    try:
+        import gemini_enhancements
+        gemini_on = gemini_enhancements.is_gemini_enabled()
+    except Exception:
+        gemini_on = False
+
+    if all_translated or gemini_on:
+        print(f"[TRANSLATE] Fast path active (all_translated={all_translated}, gemini_on={gemini_on}). Running in-process core.", flush=True)
+        return _translate_bubbles_list_core(bubbles, default_speaker=default_speaker, page_name=page_name)
+
     if use_subprocess:
         import time
         t0 = time.time()
@@ -3216,7 +3871,15 @@ def _translate_bubbles_list_core(
                 b.cluster_uzbek = uz_cluster
             else:
                 text_to_translate = getattr(b, "clean_text", None) or getattr(b, "original_text", "")
-                uz = translate_spiderman_uzbek(text_to_translate, speaker=spk)
+                existing_uz = getattr(b, "uzbek_translation", "").strip()
+                if existing_uz:
+                    try:
+                        import auto_emphasis
+                        uz = auto_emphasis.apply_auto_emphasis(existing_uz, en_orig=text_to_translate)
+                    except Exception:
+                        uz = existing_uz
+                else:
+                    uz = translate_spiderman_uzbek(text_to_translate, speaker=spk)
                 b.uzbek_translation = uz
                 b.pipeline_uzbek_translation = uz
                 quality_gates.apply_quality_gates(
@@ -3456,7 +4119,8 @@ def fit_text(
     stroke_fill: Optional[str] = None,
     safe_mask: Optional[np.ndarray] = None,
     sm_ox: int = 0,
-    sm_oy: int = 0
+    sm_oy: int = 0,
+    align: str = "center"
 ) -> bool:
     """
     Zero-Stroke Contour-Aware Auto-Shrink Lettering Engine:
@@ -3478,7 +4142,7 @@ def fit_text(
     bw = max(20, x1 - x0)
     bh = max(20, y1 - y0)
 
-    usable_w = max(15, int(bw * 1.15))
+    usable_w = max(15, int(bw * 0.88))
 
     effective_max = max(min_font_size, max_font_size + size_offset)
     effective_min = max(6, min_font_size)
@@ -3584,7 +4248,12 @@ def fit_text(
         bbox = best_line_boxes[i]
         lw = bbox[2] - bbox[0]
         lh = bbox[3] - bbox[1]
-        lx = cx - (lw // 2)
+        if align == "left":
+            lx = x0 + int(usable_w * 0.08)
+        elif align == "right":
+            lx = x1 - int(usable_w * 0.08) - lw
+        else:
+            lx = cx - (lw // 2)
 
         if stroke_width > 0 and stroke_fill:
             draw.text((lx, cur_y), line, font=best_font, fill=text_color, stroke_width=stroke_width, stroke_fill=stroke_fill)
@@ -3631,7 +4300,13 @@ def typeset_lettering_on_page(
             by1 = int(b.get("y1") if isinstance(b, dict) else b.y1)
             _earpiece_rects.append({'x': bx0, 'y': by0, 'x1': bx1, 'y1': by1, 'w': bx1 - bx0, 'h': by1 - by0})
     if not _earpiece_rects:
-        _earpiece_rects = detect_earpiece_rectangles(img_cv)
+        try:
+            import gemini_enhancements
+            gemini_active = gemini_enhancements.is_gemini_enabled()
+        except Exception:
+            gemini_active = False
+        if not gemini_active:
+            _earpiece_rects = detect_earpiece_rectangles(img_cv)
     draw = ImageDraw.Draw(out_img)
 
     def _get_z(b: Any) -> int:
@@ -3651,11 +4326,22 @@ def typeset_lettering_on_page(
         if not is_enabled:
             continue
 
+        is_printable = (
+            b.get("is_printable", True)
+            if isinstance(b, dict)
+            else getattr(b, "is_printable", True)
+        )
+        if not is_printable:
+            continue
+
         if isinstance(b, dict):
             uzbek_text = (b.get("uzbek_translation") or "").strip()
             orig_text = (b.get("original_text") or "").strip()
             needs_rev = b.get("needs_review", False)
             size_offset = b.get("font_size_offset", b.get("size_offset", 0))
+            off_x = int(b.get("offset_x", 0))
+            off_y = int(b.get("offset_y", 0))
+            white_fill = bool(b.get("white_fill", False))
             box = (int(b["x0"]), int(b["y0"]), int(b["x1"]), int(b["y1"]))
             is_occluded = b.get("is_occluded", False)
             fragments = b.get("fragments")
@@ -3664,9 +4350,32 @@ def typeset_lettering_on_page(
             orig_text = (b.original_text or "").strip()
             needs_rev = getattr(b, "needs_review", False)
             size_offset = getattr(b, "font_size_offset", getattr(b, "size_offset", 0))
+            off_x = int(getattr(b, "offset_x", 0))
+            off_y = int(getattr(b, "offset_y", 0))
+            white_fill = bool(getattr(b, "white_fill", False))
             box = (int(b.x0), int(b.y0), int(b.x1), int(b.y1))
             is_occluded = getattr(b, "is_occluded", False)
             fragments = getattr(b, "fragments", None)
+
+        is_hidden = bool(b.get("is_hidden", False) if isinstance(b, dict) else getattr(b, "is_hidden", False))
+        if is_hidden:
+            continue
+        is_shape_hidden = bool(b.get("is_shape_hidden", False) if isinstance(b, dict) else getattr(b, "is_shape_hidden", False))
+        is_text_hidden = bool(b.get("is_text_hidden", False) if isinstance(b, dict) else getattr(b, "is_text_hidden", False))
+
+        b_font_name = (b.get("font_family") or b.get("font_name")) if isinstance(b, dict) else (getattr(b, "font_family", None) or getattr(b, "font_name", None))
+        active_font_path = font_path
+        if b_font_name:
+            try:
+                import server
+                b_font_weight = str(b.get("font_weight", "") if isinstance(b, dict) else getattr(b, "font_weight", "")).lower()
+                b_is_bold = (b_font_weight == "bold")
+                b_is_italic = bool(b.get("is_italic", False) if isinstance(b, dict) else getattr(b, "is_italic", False))
+                candidate_path = server.get_font_file(b_font_name, is_italic=b_is_italic, is_bold=b_is_bold)
+                if candidate_path and os.path.exists(candidate_path):
+                    active_font_path = candidate_path
+            except Exception:
+                pass
 
         # Export Safety Guard: Never silently typeset raw OCR or unresolved failed translations
         if needs_rev and (not uzbek_text or uzbek_text.upper() == orig_text.upper()):
@@ -3696,10 +4405,49 @@ def typeset_lettering_on_page(
 
         uzbek_text = normalize_uzbek_comic_text(uzbek_text)
         effective_max = max(min_font_size, max_font_size + size_offset)
-        calc_line_spacing = max(1.10, 1.15 + (line_gap / max(1, effective_max)))
+        b_line_spacing = b.get("line_spacing") if isinstance(b, dict) else getattr(b, "line_spacing", None)
+        if b_line_spacing is not None:
+            calc_line_spacing = float(b_line_spacing)
+        else:
+            calc_line_spacing = max(1.10, 1.15 + (line_gap / max(1, effective_max)))
 
         # Legibility contrast guard and tint logging for lettering
         bx0, by0, bx1, by1 = box
+        st = b.get("shape_type", "oval") if isinstance(b, dict) else getattr(b, "shape_type", "oval")
+        custom_text_color = b.get("text_color") if isinstance(b, dict) else getattr(b, "text_color", None)
+        custom_bg_color = b.get("bg_color") if isinstance(b, dict) else getattr(b, "bg_color", None)
+
+        fill_color_hex = custom_bg_color if custom_bg_color else ("#ffffff" if white_fill else None)
+        bdr_w = int(b.get("border_width", 0) if isinstance(b, dict) else getattr(b, "border_width", 0))
+        bdr_col = b.get("border_color") if isinstance(b, dict) else getattr(b, "border_color", None)
+        outline_val = None
+        if bdr_w > 0 and bdr_col:
+            hex_bc = bdr_col.lstrip('#')
+            if len(hex_bc) == 6:
+                outline_val = tuple(int(hex_bc[i:i+2], 16) for i in (0, 2, 4))
+            else:
+                outline_val = (0, 0, 0)
+
+        if not is_shape_hidden and (fill_color_hex or outline_val):
+            fill_rgb = None
+            if fill_color_hex:
+                hex_c = fill_color_hex.lstrip('#')
+                if len(hex_c) == 6:
+                    fill_rgb = tuple(int(hex_c[i:i+2], 16) for i in (0, 2, 4))
+                else:
+                    fill_rgb = (255, 255, 255)
+
+            if st == "oval":
+                if outline_val:
+                    draw.ellipse([bx0, by0, bx1, by1], fill=fill_rgb, outline=outline_val, width=bdr_w)
+                elif fill_rgb:
+                    draw.ellipse([bx0, by0, bx1, by1], fill=fill_rgb)
+            else:
+                if outline_val:
+                    draw.rectangle([bx0, by0, bx1, by1], fill=fill_rgb, outline=outline_val, width=bdr_w)
+                elif fill_rgb:
+                    draw.rectangle([bx0, by0, bx1, by1], fill=fill_rgb)
+
         crop_bg = img_cv[max(0, by0):min(h, by1), max(0, bx0):min(w, bx1)]
         is_tinted = (b.get("is_tinted", False) if isinstance(b, dict) else getattr(b, "is_tinted", False))
         c_bg_rgb = (b.get("tint_rgb") if isinstance(b, dict) else getattr(b, "tint_rgb", None))
@@ -3716,12 +4464,30 @@ def typeset_lettering_on_page(
         text_is_spectral = (b.get("text_is_spectral", False) if isinstance(b, dict) else getattr(b, "text_is_spectral", False))
         bg_is_tinted = (b.get("bg_is_tinted", False) if isinstance(b, dict) else getattr(b, "bg_is_tinted", False))
 
-        if text_is_spectral or (is_tinted and not bg_is_tinted):
-            # Ghost/spectral dialogue styling rule:
-            # Bubble background is 100% pure clean white paper, text is havorang (#7497d4)
-            text_color = "#7497d4"
-        elif is_tinted:
-            # Genuinely tinted bubble background (e.g. yellow box)
+        # Calculate crop luminance to detect dark captions like Batman
+        crop_lum = 0.299 * c_bg_rgb[0] + 0.587 * c_bg_rgb[1] + 0.114 * c_bg_rgb[2]
+
+        fill_lum = None
+        if fill_color_hex:
+            try:
+                h_c = fill_color_hex.lstrip('#')
+                if len(h_c) == 6:
+                    fr, fg, fb = int(h_c[0:2], 16), int(h_c[2:4], 16), int(h_c[4:6], 16)
+                    fill_lum = 0.299 * fr + 0.587 * fg + 0.114 * fb
+            except Exception:
+                pass
+
+        if custom_text_color:
+            text_color = custom_text_color
+        elif fill_color_hex and fill_color_hex.lower() in ["#3e3e42", "#222222", "#333333", "#1a1a1a"]:
+            text_color = "#faf6d6"
+        elif fill_color_hex and fill_color_hex.lower() in ["#000000", "#050505", "#111111"]:
+            text_color = "#ffffff"
+        elif fill_lum is not None and fill_lum < 125:
+            text_color = "#ffffff"
+        elif crop_lum < 125:
+            text_color = "#faf6d6"
+        elif text_is_spectral:
             if orig_text_rgb and any(v > 40 for v in orig_text_rgb):
                 orig_r, orig_g, orig_b = orig_text_rgb
                 spec_r = max(80, min(145, int(orig_r * 0.72)))
@@ -3747,6 +4513,9 @@ def typeset_lettering_on_page(
                         action_taken="rendered_plain_text",
                         details={"sampled_tint_bgr": sampled_tint, "luminance": tint_lum}
                     )
+
+        if is_text_hidden:
+            continue
 
         if is_occluded and fragments and len(fragments) > 0:
             # Fragment-aware typesetting: assign translated text across visible fragments
@@ -3801,7 +4570,7 @@ def typeset_lettering_on_page(
                     text=frag_text,
                     contour=frag_cnt,
                     image_shape=img_cv.shape,
-                    font_path=font_path,
+                    font_path=active_font_path,
                     safety_padding=6,
                     max_font_size=frag_max_fs,
                     min_font_size=min_font_size,
@@ -3812,7 +4581,7 @@ def typeset_lettering_on_page(
                 if layout and layout.get("lines"):
                     chosen_fs = layout["font_size"]
                     try:
-                        active_font = ImageFont.truetype(font_path, chosen_fs)
+                        active_font = ImageFont.truetype(active_font_path, chosen_fs)
                     except Exception:
                         active_font = ImageFont.load_default()
                     for line_txt, lx, ly in layout["lines"]:
@@ -3827,7 +4596,7 @@ def typeset_lettering_on_page(
                         draw=draw,
                         text=frag_text,
                         box=fb,
-                        font_path=font_path,
+                        font_path=active_font_path,
                         max_font_size=frag_max_fs,
                         min_font_size=min_font_size,
                         line_gap=line_gap,
@@ -3866,7 +4635,7 @@ def typeset_lettering_on_page(
                 target_fs = 16
                 for test_fs in range(18, 9, -1):
                     try:
-                        tf = ImageFont.truetype(font_path, test_fs)
+                        tf = ImageFont.truetype(active_font_path, test_fs)
                         max_lw = max((tf.getbbox(l)[2] - tf.getbbox(l)[0]) for l in lines)
                         tot_lh = len(lines) * test_fs + (len(lines) - 1) * 3
                         if max_lw <= avail_w and tot_lh <= avail_h + 8:
@@ -3874,7 +4643,7 @@ def typeset_lettering_on_page(
                             break
                     except Exception:
                         pass
-                active_f = ImageFont.truetype(font_path, target_fs)
+                active_f = ImageFont.truetype(active_font_path, target_fs)
                 curr_y = y1_pos
                 for line_txt in lines:
                     lb = active_f.getbbox(line_txt)
@@ -3902,7 +4671,7 @@ def typeset_lettering_on_page(
                 text=uzbek_text,
                 contour=cnt,
                 image_shape=img_cv.shape,
-                font_path=font_path,
+                font_path=active_font_path,
                 safety_padding=pad,
                 max_font_size=frag_max_fs,
                 min_font_size=min_font_size,
@@ -3916,7 +4685,7 @@ def typeset_lettering_on_page(
                     text=uzbek_text,
                     contour=cnt,
                     image_shape=img_cv.shape,
-                    font_path=font_path,
+                    font_path=active_font_path,
                     safety_padding=2,
                     max_font_size=frag_max_fs,
                     min_font_size=max(8, min_font_size - 2),
@@ -3924,34 +4693,57 @@ def typeset_lettering_on_page(
                     min_clearance=1
                 )
 
+            # Per-bubble outline and alignment
+            b_outline_w = getattr(b, "outline_width", 0) if hasattr(b, "outline_width") else (b.get("outline_width", 0) if isinstance(b, dict) else 0)
+            b_outline_c = getattr(b, "outline_color", None) if hasattr(b, "outline_color") else (b.get("outline_color", None) if isinstance(b, dict) else None)
+            b_align = getattr(b, "text_align", "center") if hasattr(b, "text_align") else (b.get("text_align", "center") if isinstance(b, dict) else "center")
+
+            eff_stroke_w = int(b_outline_w) if b_outline_w and int(b_outline_w) > 0 else stroke_width
+            eff_stroke_f = b_outline_c if b_outline_c else stroke_fill
+
             if layout and layout.get("lines"):
                 chosen_fs = layout["font_size"]
                 try:
-                    active_font = ImageFont.truetype(font_path, chosen_fs)
+                    active_font = ImageFont.truetype(active_font_path, chosen_fs)
                 except Exception:
                     active_font = ImageFont.load_default()
 
+                bw_total = box[2] - box[0]
+                is_rect_b = ((getattr(b, "shape_type", "oval") if hasattr(b, "shape_type") else b.get("shape_type", "oval")) == "rectangle") or is_shape_hidden
+                pad_side = int(bw_total * (0.08 if is_rect_b else 0.16))
+
                 for line_txt, lx, ly in layout["lines"]:
-                    if stroke_width > 0 and stroke_fill:
-                        draw.text((lx, ly), line_txt, font=active_font, fill=text_color, stroke_width=stroke_width, stroke_fill=stroke_fill)
+                    lb = active_font.getbbox(line_txt)
+                    lw = lb[2] - lb[0]
+                    if b_align == "left":
+                        draw_x = box[0] + pad_side + off_x
+                    elif b_align == "right":
+                        draw_x = box[2] - pad_side - lw + off_x
                     else:
-                        draw.text((lx, ly), line_txt, font=active_font, fill=text_color)
+                        draw_x = lx + off_x
+                    draw_y = ly + off_y
+
+                    if eff_stroke_w > 0 and eff_stroke_f:
+                        draw.text((draw_x, draw_y), line_txt, font=active_font, fill=text_color, stroke_width=eff_stroke_w, stroke_fill=eff_stroke_f)
+                    else:
+                        draw.text((draw_x, draw_y), line_txt, font=active_font, fill=text_color)
             else:
-                target_box = box
+                target_box = (box[0] + off_x, box[1] + off_y, box[2] + off_x, box[3] + off_y)
 
                 fit_text(
                     draw=draw,
                     text=uzbek_text,
                     box=target_box,
-                    font_path=font_path,
+                    font_path=active_font_path,
                     max_font_size=frag_max_fs if is_occluded else effective_max,
                     min_font_size=min_font_size,
                     line_gap=line_gap,
                     size_offset=0,
                     uppercase=True,
                     text_color=text_color,
-                    stroke_width=stroke_width,
-                    stroke_fill=stroke_fill
+                    stroke_width=eff_stroke_w,
+                    stroke_fill=eff_stroke_f,
+                    align=b_align
                 )
 
     if _earpiece_rects:

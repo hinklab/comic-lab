@@ -1,8 +1,8 @@
 # 💥 100% Local Comic Book Translation & Typesetting Studio
 
-A standalone, local & free comic book translation and typesetting web application built with **Streamlit**, **OpenCV**, **EasyOCR**, **deep-translator**, and **Pillow (PIL)**.
+A standalone, local & free comic book translation and typesetting web application built with **Starlette/FastAPI**, **HTML5 Canvas Studio**, **OpenCV**, **EasyOCR / Tesseract**, **deep-translator**, and **Pillow (PIL)**.
 
-**100% Free, Offline/Local, Zero AI API Keys.**
+**100% Free, Offline/Local, Zero AI API Keys, Zero Streamlit Overhead.**
 
 ---
 
@@ -12,13 +12,13 @@ A standalone, local & free comic book translation and typesetting web applicatio
    - High-luminance binary thresholding ($> 225$) and morphological closing to discover speech bubble contours ($1,200 \le \text{area} \le 150,000$).
    - Contour inpainting with 5-pixel erosion mask guarantees 100% of old English dialogue is completely erased with **zero ghost text**, while outer black comic borders are preserved intact.
 
-2. **Accurate Local OCR (EasyOCR)**:
+2. **Accurate Local OCR (Tesseract / EasyOCR)**:
    - Speech bubbles are cropped from the original image **before** cleaning.
    - Preprocessed with CLAHE contrast enhancement and read locally on CPU.
    - Strict filtering against SFX noise (`TEKK`, `SIW`, `THWIP`), standalone numbers (`4`), and single letters.
 
-3. **Free Translation & Spider-Man Superhero Tone Mapper**:
-   - Uses `deep-translator` (`GoogleTranslator`) with automatic failover to `MyMemoryTranslator`.
+3. **Free Translation & Superhero Tone Naturalization**:
+   - Uses `deep-translator` (`GoogleTranslator`) with automatic failover to local NLLB subprocess / MyMemory.
    - Post-processor maps literal phrasing to punchy Marvel / Spider-Man superhero comic dialogue:
      * *"WHAT THE--?!"* $\rightarrow$ *"BU NIMA BALO?!"*
      * *"LOOK OUT!"* $\rightarrow$ *"EHTIYOT BO'L!"*
@@ -28,24 +28,24 @@ A standalone, local & free comic book translation and typesetting web applicatio
      * *"I CAN SEE IT..."* $\rightarrow$ *"O'ZIM HAM KO'RIB TURIBMAN..."*
      * *"CRITICAL LIMIT"* $\rightarrow$ *"XAVFLI DARAJA"*
 
-4. **Collision-Free Typography (`CC Wild Words`)**:
-   - Industry standard font: `fonts/CCWildWords.ttf` strictly in UPPERCASE.
-   - Dynamic auto-scaling from 24px down to 9px inside 70% oval bounds.
-   - Explicit line height advancement: $(\text{bottom} - \text{top}) + 6\text{px}$ gap prevents line collision or overlap.
+4. **Collision-Free Typography (`CC Wild Words`, `Yada Yada Yada`, etc.)**:
+   - Industry standard comic fonts strictly in UPPERCASE.
+   - Dynamic auto-scaling inside bubble bounds.
+   - Explicit line height advancement prevents line collision or overlap.
    - Automatic normalization of Uzbek diacritics (`O'`, `G'`, `Sh`, `Ch`).
 
-5. **Streamlit UI Workspace**:
-   - Zero API key fields.
-   - **"🧹 Cleaned Preview"** tab to visually verify that all dialogue was erased cleanly before applying lettering.
-   - Editable translation cards with per-bubble font size nudge sliders.
-   - 1-click high-resolution PNG export to `output/`.
+5. **High-Performance Web Studio (HTML5 Canvas + Starlette)**:
+   - 60 FPS smooth zoom, pan, and interactive bubble editing directly on canvas.
+   - Zero Streamlit lag, reruns, or memory leaks (~35 MB baseline RAM).
+   - Editable translation cards with per-bubble font, size, and style controls.
+   - 1-click high-resolution rendering and download.
 
 ---
 
 ## 🚀 Quick Start
 
-Run the Streamlit server:
+Run the server:
 ```bash
-py -m streamlit run app.py
+python app.py
 ```
-Open your browser at **`http://localhost:8501`**.
+Open your browser at **`http://localhost:8000`**.

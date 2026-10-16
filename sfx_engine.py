@@ -90,6 +90,43 @@ SFX_TRANSLITERATION_MAP: Dict[str, str] = {
     "SHH": "SHSH",
 }
 
+# Semantic Sound Effect Categorization Taxonomy
+SFX_CATEGORIES: Dict[str, List[str]] = {
+    "impact_explosion": [
+        "BOOM", "KABOOM", "KA-BOOM", "KRAKOOM", "THOOM", "BANG", "BAM", "WHAM",
+        "POW", "KAPOW", "KA-POU", "THUMP", "POP", "SMACK", "BASH", "BONK", "CLOBBER",
+        "SLAM", "THUD"
+    ],
+    "web_speed": [
+        "THWIP", "SWOOSH", "WHOOSH", "SIW", "SIV", "ZIP", "ZOOM", "SWISH", "FLAP"
+    ],
+    "mechanical_tech": [
+        "TEKK", "TEXK", "CHUK", "CHIK", "CHK", "CLANG", "CLICK", "ZAP", "PING", "PANG",
+        "ZING", "BEEP", "WHIR", "BUZZ", "CLINK", "TICK"
+    ],
+    "destruction_sharp": [
+        "CRASH", "KRAK", "SNAP", "CRACKLE", "SNIKT", "SHKK", "SKRRR", "RATATAT", "SMASH",
+        "RIP", "TEAR", "SLASH", "CHOP", "SHRED"
+    ],
+    "creature_vocal": [
+        "ROAR", "GRRR", "HISS", "RUMBLE", "VROOOM", "SKREEE", "CHOMP", "GROWL", "HOWL",
+        "SNARL", "SCREECH"
+    ],
+    "human_vocal_bodily": [
+        "UGH", "AAAH", "ARGH", "YAAAH", "KOFF", "COUGH", "GASP", "SNORT", "WHEEZE",
+        "AHEM", "PST", "SHH", "GULP", "SPLASH", "OOF", "PHEW", "YAWN"
+    ]
+}
+
+SFX_CATEGORY_LABELS_UZ: Dict[str, str] = {
+    "impact_explosion": "Zarba / Portlash",
+    "web_speed": "Tezlik / To'r ovozi",
+    "mechanical_tech": "Mexanik / Texnologiya",
+    "destruction_sharp": "Sinish / Qirsillash",
+    "creature_vocal": "Maxluq / Hayvon ovozi",
+    "human_vocal_bodily": "Insoniy tovush / Qichqiriq"
+}
+
 
 @dataclass
 class SFXElement:
@@ -104,6 +141,59 @@ class SFXElement:
     fill_color: Tuple[int, int, int]
     stroke_color: Tuple[int, int, int]
     stroke_width: int
+    category: Optional[str] = None
+    category_label: Optional[str] = None
+
+
+def classify_sfx(text: str) -> Tuple[bool, Optional[str], Optional[str], Optional[str], float]:
+    """
+    Classifies raw OCR text into sound effect taxonomy:
+    Returns (is_sfx, category, category_label, transliterated_uz, confidence)
+    """
+    if not text:
+        return False, None, None, None, 0.0
+
+    txt_clean = text.strip()
+    m_trail = re.search(r'([!?:\.\-_—]+)$', txt_clean)
+    trail_punct = m_trail.group(1) if m_trail else ""
+    core = txt_clean[:len(txt_clean) - len(trail_punct)].strip() if trail_punct else txt_clean
+    core_upper = core.upper()
+    core_alpha = re.sub(r'[^A-Z]', '', core_upper)
+    if not core_alpha:
+        return False, None, None, None, 0.0
+
+    # Whitelist dialogue exclamations / common words that must never be classified as SFX
+    if core_alpha in {"YES", "NO", "WHY", "HOW", "WHAT", "WHO", "NOW", "HEY", "HI", "HELLO", "PLEASE", "THANKS", "OK", "OKAY", "STOP", "WAIT", "HELP", "LOOK", "RUN"}:
+        return False, None, None, None, 0.0
+
+    # Check against category dictionary
+    found_cat = None
+    confidence = 0.95
+    for cat, words in SFX_CATEGORIES.items():
+        if core_upper in words or core_alpha in words:
+            found_cat = cat
+            confidence = 0.99
+            break
+        # Elongation checks (e.g. BOOOOM -> BOOM or BOM)
+        col2 = re.sub(r'([A-Z])\1{2,}', r'\1\1', core_alpha)
+        col1 = re.sub(r'([A-Z])\1{2,}', r'\1', core_alpha)
+        if col2 in words or col1 in words:
+            found_cat = cat
+            confidence = 0.95
+            break
+
+    # Fallback check against global SFX_TRANSLITERATION_MAP
+    if not found_cat:
+        if core_upper in SFX_TRANSLITERATION_MAP or core_alpha in SFX_TRANSLITERATION_MAP:
+            found_cat = "impact_explosion"
+            confidence = 0.90
+
+    if not found_cat:
+        return False, None, None, None, 0.0
+
+    cat_label = SFX_CATEGORY_LABELS_UZ.get(found_cat, "Tovush effekti")
+    translit = transliterate_sfx(txt_clean)
+    return True, found_cat, cat_label, translit, confidence
 
 
 def transliterate_sfx(text: str) -> str:
@@ -263,6 +353,9 @@ def extract_sfx_elements(
                     elif len(mid_px) > 10:
                         stroke_rgb = tuple(int(v) for v in np.median(mid_px, axis=0))
 
+        is_s, s_cat, s_lbl, s_uz, _ = classify_sfx(text_str)
+        uz_text = s_uz if s_uz else transliterate_sfx(text_str)
+
         sfx_items.append(SFXElement(
             bbox=pts.tolist(),
             original_text=text_str,
@@ -274,7 +367,9 @@ def extract_sfx_elements(
             height=bh,
             fill_color=fill_rgb,
             stroke_color=stroke_rgb,
-            stroke_width=stroke_w
+            stroke_width=stroke_w,
+            category=s_cat,
+            category_label=s_lbl
         ))
 
     return sfx_items
@@ -337,7 +432,76 @@ def inpaint_sfx_elements(
 
         full_mask[iy0:iy1, ix0:ix1] = cv2.bitwise_or(full_mask[iy0:iy1, ix0:ix1], glyph_dil)
 
-    return cv2.inpaint(image_cv, full_mask, 4, cv2.INPAINT_TELEA)
+    return restore_texture_and_lineart(image_cv, full_mask, inpaint_radius=4)
+
+
+def restore_texture_and_lineart(
+    image_cv: np.ndarray,
+    inpaint_mask: np.ndarray,
+    inpaint_radius: int = 4
+) -> np.ndarray:
+    """
+    High-Fidelity Artwork & Texture Restoration (Step 2.3):
+    1. Base low-frequency smooth reconstruction via Telea inpainting.
+    2. Context ring spectral analysis: detects authentic screentone / halftone dots / paper grain.
+    3. Reconstitutes high-frequency texture pattern inside the mask to prevent flat blurry patches.
+    4. Detects and bridges line-art crossings (speed lines, sketch borders) broken by text.
+    5. Zero-bleed bit-exact invariance for all pixels outside the inpaint mask.
+    """
+    if inpaint_mask is None or not np.any(inpaint_mask > 0):
+        return image_cv.copy()
+
+    h, w = image_cv.shape[:2]
+    # 1. Base smooth reconstruction
+    base_clean = cv2.inpaint(image_cv, inpaint_mask, inpaint_radius, cv2.INPAINT_TELEA)
+
+    # 2. Context ring spectral analysis
+    k_ring = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (11, 11))
+    dil_mask = cv2.dilate(inpaint_mask, k_ring)
+    ring_mask = cv2.bitwise_and(dil_mask, cv2.bitwise_not(inpaint_mask))
+
+    if np.sum(ring_mask > 0) < 30:
+        base_clean[inpaint_mask == 0] = image_cv[inpaint_mask == 0]
+        return base_clean
+
+    gray_orig = cv2.cvtColor(image_cv, cv2.COLOR_BGR2GRAY)
+    ring_lap = cv2.Laplacian(gray_orig, cv2.CV_32F)
+    ring_lap_var = float(np.var(ring_lap[ring_mask > 0]))
+    ring_std = float(np.std(gray_orig[ring_mask > 0]))
+
+    is_textured = bool(ring_lap_var > 60.0 or ring_std > 10.0)
+
+    restored = base_clean.copy()
+
+    # 3. High-frequency texture synthesis inside the mask
+    if is_textured:
+        smooth_ring = cv2.GaussianBlur(image_cv, (5, 5), 0)
+        texture_residual = image_cv.astype(np.float32) - smooth_ring.astype(np.float32)
+
+        h_idx, w_idx = np.where(inpaint_mask > 0)
+        res_samples = texture_residual[ring_mask > 0]
+        if len(res_samples) > 20 and len(h_idx) > 0:
+            np.random.seed(42)
+            rand_idx = np.random.choice(len(res_samples), size=len(h_idx))
+            synth_grain = res_samples[rand_idx]
+            cur_vals = restored[h_idx, w_idx].astype(np.float32) + synth_grain * 0.85
+            restored[h_idx, w_idx] = np.clip(cur_vals, 0, 255).astype(np.uint8)
+
+    # 4. Line-Art Crossing Reconnection
+    dil_border = cv2.subtract(cv2.dilate(inpaint_mask, cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))), inpaint_mask)
+    crossing_pts = np.argwhere((gray_orig < 65) & (dil_border > 0))
+    if len(crossing_pts) >= 2:
+        pt1 = (int(crossing_pts[0][1]), int(crossing_pts[0][0]))
+        pt2 = (int(crossing_pts[-1][1]), int(crossing_pts[-1][0]))
+        dist = np.hypot(pt1[0] - pt2[0], pt1[1] - pt2[1])
+        if 15.0 < dist < max(h, w) * 0.80:
+            mid_pt = (int((pt1[0] + pt2[0]) / 2), int((pt1[1] + pt2[1]) / 2))
+            if 0 <= mid_pt[1] < h and 0 <= mid_pt[0] < w and inpaint_mask[mid_pt[1], mid_pt[0]] > 0:
+                cv2.line(restored, pt1, pt2, (20, 20, 20), 2)
+
+    # 5. ZERO-BLEED GUARANTEE: Bit-exact lock for outside pixels
+    restored[inpaint_mask == 0] = image_cv[inpaint_mask == 0]
+    return restored
 
 
 def render_sfx_elements(

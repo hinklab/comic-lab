@@ -1,4 +1,4 @@
-﻿"""
+"""
 Unit tests for automatic speaker detection (classical CV) and visual signature memory.
 """
 

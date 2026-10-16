@@ -55,6 +55,29 @@ PRE_NMT_CONTRACTIONS: List[Tuple[str, str]] = [
 # Direct authentic superhero expressions and established scene dialogues
 # ------------------------------------------------------------------------------
 EXACT_COMIC_IDIOMS: List[Tuple[str, str]] = [
+    (r"^YOU('?VE|\s+HAVE)?\s+GO[CT]\s*IT[\s,]+(BOSS|CHIEF|CAP|SIR|LOSS)[!\.:_—\s]*$", "XO'P BO'LADI, BOSHLIQ."),
+    (r"^YOU('?VE|\s+HAVE)?\s+GO[CT]\s*IT[!\.:_—\s]*$", "XO'P BO'LADI."),
+    (r"^YOU\s+GO[CT]\s*IT[\s,]*$", "XO'P BO'LADI."),
+    (r"^YES[\s,]+(BOSS|CHIEF|CAP|SIR)[!\.:_—\s]*$", "XO'P BO'LADI, BOSHLIQ."),
+    (r"^I\s+GOT\s+IT[\s,]+(BOSS|CHIEF|CAP|SIR)[!\.:_—\s]*$", "TUSHUNDIM, BOSHLIQ."),
+    (r"^I\s+GOT\s+IT[!\.:_—\s]*$", "TUSHUNDIM."),
+    (r"^GOT\s+IT[\s,]+(BOSS|CHIEF|CAP|SIR)[!\.:_—\s]*$", "TUSHUNDIM, BOSHLIQ."),
+    (r"^GOT\s+IT[!\.:_—\s]*$", "TUSHUNDIM."),
+    (r"^(\.\.\.?|--)?\s*(THE\s+)?NATURE\s+OF\s+THE\s+BEAST[!\.:_—\s]*$", "...MAXLUQ TABIATI HAQIDA."),
+    (r"^(\.\.\.?|--)?\s*OF\s+THE\s+BEAST[!\.:_—\s]*$", "...MAXLUQ TABIATI HAQIDA."),
+    (r"^(\.\.\.?|--)?\s*BEAST[!\.:_—\s]*$", "...MAXLUQ."),
+    (r"^(\.\.\.?|--)?\s*(A\s+)?PODCAST[!\.:_—\s]*$", "...PODKAST."),
+    (r"^SORRY,?\s+(I\s+WAS\s+)?LISTENING\s+TO\s+A\s+PODCAST[\.\s]*$", "KECHIRASIZ, PODKAST TINGLAYOTGAN EDIM..."),
+    (r"^SORRY,?\s+(I\s+WAS\s+)?LISTENING\s+TO\s+A\s+PODCAST\s+(ON|ABOUT)(\s+THE)?[\.\s]*$", "KECHIRASIZ, PODKAST TINGLAYOTGAN EDIM..."),
+    (r"^KECHIRASIZ,?\s+PODKASTINI\s+TINGLAYOTGAN\s+EDIM[\.\s]*$", "KECHIRASIZ, PODKAST TINGLAYOTGAN EDIM..."),
+    (r"^STOP!?\s*KOFF[!i\s]*$", "TO'XTANG!"),
+    (r"^STOP[!i\s]*$", "TO'XTANG!"),
+    (r"^PLEASE[!i\s]*$", "ILTIMOS!"),
+    (r"^THAT'?S\s+ME[!\.:_—\s]*$", "AYNAN O'ZIM."),
+    (r"^DO\s+YOU\??[!\.:_—\s]*$", "SHUNDAYMI?"),
+    (r"^YOU'?RE\s+THE\s+ROCKET\s+LADY[!\.:_—\s]*$", "SIZ O'SHA RAKETACHI XONIMSIZ."),
+    (r"^I\s+RECOGNIZE\s+YOU\s+NOW[!\.:_—\s]*$", "SIZNI ENDI TANIDIM."),
+    (r"^YOUR\s+ROCKETS\s+ARE\s+ALWAYS\s+EXPLODING[!\.:_—\s]*$", "RAKETALARINGIZ DOIM PORTLAB KETADI."),
     (r"^PLAN[:\s]+EPSILON\s+FIVE[!\.:_—\s]*$", "REJA: EPSILON-BESH!"),
     (r"^IMPRESSED\?\s+DON'?T\s+BOTHER[!\.:_—\s]*$", "QOYIL QOLDINGIZMI? OVORA BO'LMANG."),
     (r"^INSTANT\s+FRICTIONLESS\s+SURFACE[!\.:_—\s]*$", "ISHQALANISHSIZ TEZKOR SIRT!"),
@@ -71,7 +94,7 @@ EXACT_COMIC_IDIOMS: List[Tuple[str, str]] = [
     (r"^JUST\s+GIVE\s+ME\s+TEN\s+SECONDS[!\.:_—\s]*$", "MENGA ATIGI O'N SAKUND BERING!"),
     (r"^LOOK\s+OUT[!\.:_—\s]*$", "EHTIYOT BO'LING!"),
     (r"^WATCH\s+OUT[!\.:_—\s]*$", "EHTIYOT BO'LING!"),
-    (r"^(AND\s+)?ON\s+BEHALF\s+OF\s+EVERYONE\s+HERE\s+AT\s+EMPIRE\s+STATE\s+UNIVERSITY[\.!\:_—\s]*$", "--VA EMPIRE STATE UNIVERSITETIDAGI BARCHA NOMIDAN..."),
+    (r"^([\-–—]*\s*)?(AND\s+)?ON\s+BEHALF\s+OF\s+EVERYONE\s+HERE\s+AT\s+EMPIRE\s+STATE\s+UNIVERSITY[\.!\:_—\s]*$", "--VA EMPIRE STATE UNIVERSITETIDAGI BARCHA NOMIDAN..."),
     (r"^AND\s+SO\s+MODEST[\.:\s]+HOPE\s+YOU\s+DON'?T\s+MIND[\.!\:_—\s]*$", "VA SHUNCHA KAMSTARIN. UMID QILAMANK, QARSHI EMASSIZ..."),
     (r"^\.\.\.?BUT\s+WE\s+HAVE\s+A\s+SPECIAL\s+GUEST\s+WHO\s+WISHED\s+TO\s+THANK\s+YOU\s+PERSONALLY[!\.:_—\s]*$", "...LEKIN SIZGA SHAXSAN MINNATDORCHILIK BILDIRMOQCHI BO'LGAN MAXSUS MEHMONIMIZ BOR."),
     (r"^BUT\s+WE\s+HAVE\s+A\s+SPECIAL\s+GUEST\s+WHO\s+WISHED\s+TO\s+THANK\s+YOU\s+PERSONALLY[!\.:_—\s]*$", "LEKIN SIZGA SHAXSAN MINNATDORCHILIK BILDIRMOQCHI BO'LGAN MAXSUS MEHMONIMIZ BOR."),
@@ -149,6 +172,34 @@ EXACT_COMIC_IDIOMS: List[Tuple[str, str]] = [
     (r"^STILL\s+HURTS[\.:\s]+BUT\s+THAT'?S\s+NOT\s+IT[\.!\s]*$", "HALI HAM OG'RIYAPTI. LEKIN GAP BUNDA EMAS."),
     (r"^IT'?S\s+SOMETHING\s+HE\s+SAID[\.!\s]*$", "GAP U AYTGAN BIROR NARSADA."),
     (r"^OCK\?\s+WHAT\?\s+YOU\s+DON'?T\s+TALK\s+ABOUT\s+IT[\.!\s]*$", "OK? NIMA? SEN BU HAQDA GAPIRMAYSIZ-KU."),
+
+    # Prison interview / attorney scene dialogue patterns
+    (r"^HE'?S\s+BEEN\s+RELIEVED\s+OF\s+HIS\s+DUTIES[\.!\s]*$", "U VAZIFASIDAN CHETLATILDI."),
+    (r"^MY\s+TEAM\s+HAS\s+TAKEN\s+OVER[\.:\s]+THEY'?RE\s+ARRANGING\s+YOUR\s+RELEASE\s+NOW[\.!\s]*$", "MENING JAMOAM ISHNI O'Z QO'LIGA OLDI. HOZIR SIZNI OZOD QILISH CHORALARI KO'RILYAPTI."),
+    (r"^THE\s+UNIVERSITY\s+NEEDS\s+A\s+NEW\s+SCIENCE\s+BUILDING[\.!\s]*$", "UNIVERSITETGA YANGI ILMIY BINO KERAK."),
+    (r"^I'?M\s+GIVING\s+THEM\s+ONE[\.!\s]*$", "MEN ESA ULARGA BITTASINI TAQDIM QILYAPMAN."),
+    (r"^I\s+SUSPECT\s+YOU'?LL\s+RECONSIDER[\.\-—…\s]*$", "FIKRINGIZDAN QAYTSANGIZ KERAK..."),
+    (r"^\.\.\.?\s*WHEN\s+YOU\s+REALIZE\s+ALL\s+THAT\s+I\s+HAVE\s+TO\s+OFFER[\.!\s]*$", "...MEN TAKLIF QILAYOTGAN IMKONIYATLARNI ANGLAB YETGANINGIZDA."),
+    (r"^APPOINTED\s+BY\s+THE\s+STATE,?\s+YES[\.!\s]*$", "DAVLAT TOMONIDAN TAYINLANGAN, HA."),
+    (r"^NYIT\s+HAS\s+DROPPED\s+ALL\s+CHARGES\s+AGAINST\s+YOU[\.!\s]*$", "NYIT SIZGA QO'YILGAN BARCHA AYBLOVLARNI BEKOR QILDI."),
+    (r"^THEY\s+WON'?T\s+GIVE\s+ME\s+A\s+PEN,?\s+BECAUSE[\.\-—…\s]*$", "MENGA RUCHKA BERISHMAYAPTI, CHUNKI..."),
+    (r"^WAIT[\-—–\s]+ARE\s+YOU\s+A\s+LAWYER\??\s+BECAUSE\s+I\s+HAVE\s+A\s+LAWYER[\.!\s]*$", "TO'XTANG--SIZ ADVOKATMISIZ? CHUNKI MENING ADVOKATIM BOR!"),
+    (r"^I\s+DON'?T\s+DESERVE\s+THAT[\.!\s]*$", "MEN BUNGA LOYIQ EMASMAN."),
+    (r"^I\s+DESERVE\s+THIS[\.!\s]*$", "MEN BUNGA LOYIQMAN."),
+    (r"^(SPIDER[\-\s]?MAN[;\.,\s]+)?I'?M\s+RUTH\s+GOLDMAN[\s,]+DEAN\s+OF\s+STUDENTS[\._\s]*$", "-- O'RGIMCHAK-ODAM, MEN RUT GOLDMAN, TALABALAR DEKANI."),
+    (r"^BUT\s+I\s+HAD\s+TO\s+BRING\s+YOU\s+BACK,?\s+MY\s+SON[\.!\s]*$", "LEKIN SENI QAYTARISHIM KERAK EDI, O'G'LIM."),
+
+    # Step 6: Medical custody, henchman commands & comic conversational idioms
+    (r"^(LET'?S\s+|WE'?LL\s+)?PU[TT]\s+(HIM|HER|THEM|IT|'EM)\s+ON\s+ICE[!\.:_—\s]*$", "UNI MUZLATIB QO'YING."),
+    (r"^HOO[KK]\s+(HIM|HER|THEM|IT|'EM)\s+UP[!\.:_—\s]*$", "UNI KISHANLANG."),
+    (r"^LOCK\s+(HIM|HER|THEM|IT|'EM)\s+UP[!\.:_—\s]*$", "UNI QAMAB QO'YING."),
+    (r"^TAKE\s+(HIM|HER|THEM|IT|'EM)\s+IN[!\.:_—\s]*$", "UNI QO'LGA OLING."),
+    (r"^LET'?S\s+SCHEDULE\s+A\s+48[\-\s]*HOUR\s+INFUSION\s+AND\s+WAKE\s+(HIM|HER|THEM)\s+UP[!\.:_—\s]*$", "48 SOATLIK INFUZIYA TAYINLAB, KEYIN UNI UYG'OTAMIZ."),
+    (r"^SCHEDULE\s+A\s+48[\-\s]*HOUR\s+INFUSION\s+AND\s+WAKE\s+(HIM|HER|THEM)\s+UP[!\.:_—\s]*$", "48 SOATLIK INFUZIYA TAYINLAB, KEYIN UNI UYG'OTAMIZ."),
+    (r"^SCHEDULE\s+A\s+48[\-\s]*HOUR\s+INFUSION[!\.:_—\s]*$", "48 SOATLIK INFUZIYA TAYINLANG."),
+    (r"^WAKE\s+(HIM|HER|THEM)\s+UP[!\.:_—\s]*$", "UNI UYG'OTAMIZ."),
+    (r"^YOUR\s+FEARS\s+AND\s+(OUR\s+)?(SAFETY|SECURIT(?:Y|IES))\s+ARE\s+ONE\s+AND\s+THE\s+SAME[!\.:_—\s]*$", "SIZNING QO'RQUVLARINGIZ VA XAVFSIZLIGIMIZ BITTA NARSADIR."),
+    (r"^ONE\s+AND\s+THE\s+SAME[!\.:_—\s]*$", "BITTA NARSADIR."),
 ]
 
 # ------------------------------------------------------------------------------
@@ -156,6 +207,40 @@ EXACT_COMIC_IDIOMS: List[Tuple[str, str]] = [
 # Fixes literal machine translation quirks into idiomatic Uzbek
 # ------------------------------------------------------------------------------
 CALQUE_SUBSTITUTIONS: List[Tuple[str, str]] = [
+    # Subordinate acknowledgement calques: "You got it, boss"
+    (r"\bto['’`]?g['’`]?ri,\s+boshi\b", "xo'p bo'ladi, boshliq"),
+    (r"\bto['’`]?g['’`]?ri\s+boshi\b", "xo'p bo'ladi, boshliq"),
+    (r"\bsiz\s+buni\s+tushundingiz,\s+xo['’`]?jayin\b", "xo'p bo'ladi, boshliq"),
+    (r"\bbuni\s+tushundingiz,\s+xo['’`]?jayin\b", "xo'p bo'ladi, boshliq"),
+    (r"\bbuni\s+oldingiz,\s+xo['’`]?jayin\b", "xo'p bo'ladi, boshliq"),
+    (r"\bsizda\s+bor,\s+xo['’`]?jayin\b", "xo'p bo'ladi, boshliq"),
+    (r"\bto['’`]?g['’`]?ri\s+keladi\b", "xo'p bo'ladi"),
+    (r"\bsiz\s+buni\s+oldingiz\b", "xo'p bo'ladi"),
+
+    # Chained dialogue calques: dangling genitive "hayvonning" & podcast
+    (r"^(\.\.\.?|--)?\s*hayvonning[\.!\s]*$", "...maxluq tabiati haqida."),
+    (r"\bhayvonning\s+podkastini\b", "maxluq haqidagi podkastni"),
+    (r"\bhayvonning\s+tabiati\b", "maxluq tabiati"),
+    (r"\bpodkastini\s+tinglayotgan\s+edim\b", "podkast tinglayotgan edim"),
+    (r"\bkechirasiz\s+podkastini\b", "kechirasiz, podkast"),
+
+    # Step 6: Medical custody, henchman commands & conversational calques
+    (r"\bunga\s+muzlab\s+turish\s+kerak\b", "uni muzlatib qo'ying"),
+    (r"\bmuzlab\s+turish\s+kerak\b", "muzlatib qo'yish kerak"),
+    (r"\bmuz\s+ustiga\s+qo['’`]?ying\b", "muzlatib qo'ying"),
+    (r"\b['\"`´‘ʼ]?ni\s+qo['’`]?lga\s+qo['’`]?ying\b", "uni kishanlang"),
+    (r"\bdni\s+qo['’`]?lga\s+qo['’`]?ying\b", "uni kishanlang"),
+    (r"\buni\s+qo['’`]?lga\s+qo['’`]?ying\b", "uni kishanlang"),
+    (r"\bqo['’`]?lga\s+qo['’`]?ying\b", "qo'lga oling"),
+    (r"\bbir\s+jondir\b", "bitta narsadir"),
+    (r"\bbir\s+jon\b", "bitta narsa"),
+    (r"\bxavfsizliklaringiz\b", "xavfsizligimiz"),
+    (r"\bkeling,?\s*48\s*soatlik\s*rejalashtirib,?\s*infut?siyani\s*uyg['’`]?otamiz\b", "48 soatlik infuziya tayinlab, keyin uni uyg'otamiz"),
+    (r"\b48\s*soatlik\s+rejalashtirib\b", "48 soatlik infuziya tayinlab"),
+    (r"\binfut?siyani\s+uyg['’`]?otamiz\b", "keyin uni uyg'otamiz"),
+    (r"\binfutsiyani\b", "infuziyani"),
+    (r"\binfutsiya\b", "infuziya"),
+
     # NLLB translation errors on superhero names & Watchtower
     (r"\bQo['’`]?riqchi\s+Minorasi\s+ning\s+o['’`]?zi\s+emas\b", "O'rgimchak-Odam emas"),
     (r"\bQo['’`]?riqchi\s+Minorasi\s+Jamiyati\b", "O'rgimchak-Odam"),
@@ -169,9 +254,10 @@ CALQUE_SUBSTITUTIONS: List[Tuple[str, str]] = [
     (r"\bo['’`]?simlikdagi\s+o['’`]?simlik\s+odam\b", "O'rgimchak-Odam"),
     (r"\bO['’`]?simlikdagi\s+odam\b", "O'rgimchak-Odam"),
     (r"\bOʻgʻlim-araqadam\b", "O'rgimchak-Odam"),
-    (r"\bO['’`]?g['’`]?lim\b", "O'rgimchak-Odam"),
     (r"\bSpidey\b", "O'rgimchak"),
     (r"\bto['’`]?qnashuv(ni)?\b", r"saqlagich\1"),
+    (r"\braketchi\b", "raketachi"),
+    (r"\bbu\s+men\b", "o'sha menman"),
 
     # Over my dead body
     (r"\bo['’`]?limdan\s+keyin\s+qiladi\b", "faqat mening o'ligim ustidan qilyapti"),
@@ -461,7 +547,7 @@ def post_process_uzbek_naturalization(uz_text: str, en_orig: str = "", character
     6. Character voice persona layer
     7. Orthographic normalization (apostrophe standardization for comic fonts)
     """
-    if not uz_text:
+    if not uz_text and not en_orig:
         return ""
 
     en_upper = en_orig.strip().upper() if en_orig else ""
@@ -474,7 +560,21 @@ def post_process_uzbek_naturalization(uz_text: str, en_orig: str = "", character
             if re.match(pat, en_upper, re.IGNORECASE) or (en_core and re.match(pat, en_core, re.IGNORECASE)):
                 return normalize_uzbek_comic_typography(rep)
 
-    result = uz_text.strip()
+    # Step 1b: If uz_text itself is untranslated English leaking through
+    uz_upper = uz_text.strip().upper() if uz_text else ""
+    uz_core = re.sub(r"^[\.\-_\s]+", "", uz_upper)
+    uz_core = re.sub(r"[\.\-_\s!?:,]+$", "", uz_core).strip()
+    if uz_upper:
+        for pat, rep in EXACT_COMIC_IDIOMS:
+            if re.match(pat, uz_upper, re.IGNORECASE) or (uz_core and re.match(pat, uz_core, re.IGNORECASE)):
+                return normalize_uzbek_comic_typography(rep)
+
+    result = uz_text.strip() if uz_text else ""
+
+    # Clean leading OCR quotation marks or apostrophes before accusative suffixes (e.g. "'ni qo'lga qo'ying" -> "uni qo'lga qo'ying")
+    result = re.sub(r"^['\"`´‘ʼ]+ni\b", "uni", result, flags=re.IGNORECASE)
+    # Clean OCR trailing underscore artifacts (e.g. "QO'YING _" -> "QO'YING.")
+    result = re.sub(r"\s*_+[\s._]*$", ".", result)
 
     # Step 2: Unmask proper nouns & character names via glossary
     result = names_glossary.unmask_proper_nouns(result)
@@ -482,6 +582,17 @@ def post_process_uzbek_naturalization(uz_text: str, en_orig: str = "", character
     # Step 3: Apply calque and MT error substitutions
     for pat, rep in CALQUE_SUBSTITUTIONS:
         result = re.sub(pat, rep, result, flags=re.IGNORECASE)
+
+    # Step 3b: Resolve dangling single-word genitives from multi-bubble split dialogue (e.g. "...so'zning" -> "...so'z haqida")
+    gen_m = re.match(r"^(\.\.\.?|--)?\s*([a-zA-Zʻʼ'`]+)ning([!\.:_—\s]*)$", result, re.IGNORECASE)
+    if gen_m:
+        lead = gen_m.group(1) or "..."
+        stem = gen_m.group(2)
+        trail = gen_m.group(3) or "."
+        if stem.lower() in ("hayvon", "maxluq", "yirtqich"):
+            result = f"{lead}maxluq tabiati haqida{trail}"
+        else:
+            result = f"{lead}{stem} haqida{trail}"
 
     # Step 4: Grammatical Person Agreement for Protagonist Gerund/Elliptical Responses
     # E.g., "--FOR BRINGING THIS BACK...?" spoken by Spider-Man must be 1st-person (-ganim uchun)

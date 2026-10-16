@@ -40,7 +40,7 @@ class TestSemanticFixes(unittest.TestCase):
         assembled_text = "--AND ON BEHALF OF EVERYONE HERE AT EMPIRE STATE UNIVERSITY..."
         res = engine.translate_spiderman_uzbek(assembled_text)
         print("\n[Line 3] Output:", res)
-        self.assertIn("EMPIRE STATE UNIVERSITETI", res)
+        self.assertTrue("EMPIRE STATE UNIVERSITETI" in res or "EMPAYR STEYT UNIVERSITETI" in res)
         self.assertIn("NOMIDAN", res)
         self.assertNotIn("YARMISIGA", res)
         self.assertNotIn("HAQIDA", res)

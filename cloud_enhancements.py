@@ -47,34 +47,25 @@ logger = logging.getLogger("cloud_enhancements")
 
 
 def _get_api_key(key_name: str) -> Optional[str]:
-    """Retrieves API key from session state, environment, or Streamlit secrets."""
-    # 1. Check session state (UI entered)
-    try:
-        import streamlit as st
-        import streamlit.runtime as runtime
-        if runtime.exists() and hasattr(st, "session_state"):
-            if key_name in st.session_state and st.session_state[key_name]:
-                return str(st.session_state[key_name]).strip()
-            if "GOOGLE_API_KEY" in st.session_state and st.session_state["GOOGLE_API_KEY"]:
-                return str(st.session_state["GOOGLE_API_KEY"]).strip()
-    except Exception:
-        pass
-
-    # 2. Check environment variables
+    """Retrieves API key from environment variables or .env file."""
+    # 1. Check environment variables
     val = os.getenv(key_name) or os.getenv("GOOGLE_API_KEY")
     if val and val.strip():
         return val.strip()
 
-    # 3. Check Streamlit secrets
-    try:
-        import streamlit as st
-        if hasattr(st, "secrets"):
-            if key_name in st.secrets:
-                return str(st.secrets[key_name]).strip()
-            if "GOOGLE_API_KEY" in st.secrets:
-                return str(st.secrets["GOOGLE_API_KEY"]).strip()
-    except Exception:
-        pass
+    # 2. Check .env file
+    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+    if os.path.exists(env_path):
+        try:
+            with open(env_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith(f"{key_name}=") or line.startswith("GOOGLE_API_KEY="):
+                        k_val = line.split("=", 1)[1].strip().strip('"').strip("'")
+                        if k_val:
+                            return k_val
+        except Exception:
+            pass
 
     return None
 

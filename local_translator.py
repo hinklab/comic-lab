@@ -134,21 +134,8 @@ def get_process_rss_mb() -> float:
     except Exception:
         return 0.0
 
-try:
-    import streamlit as st
-    @st.cache_resource(show_spinner=False)
-    def _cached_nllb_translator(model_dir: Optional[str] = None):
-        t = OfflineNLLBTranslator(model_dir)
-        print(f"[DIAGNOSTIKA 4] NLLB modeli yuklangandan keyin (RAM RSS): {get_process_rss_mb():.1f} MB", flush=True)
-        return t
-except Exception:
-    _cached_nllb_translator = None
-
-
 def get_translator(model_dir: Optional[str] = None) -> OfflineNLLBTranslator:
-    """Returns a singleton CTranslate2 NLLB translator cached by Streamlit."""
-    if _cached_nllb_translator is not None:
-        return _cached_nllb_translator(model_dir)
+    """Returns a singleton CTranslate2 NLLB translator."""
     t = OfflineNLLBTranslator.get_instance(model_dir)
     print(f"[DIAGNOSTIKA 4] NLLB modeli yuklangandan keyin (RAM RSS): {get_process_rss_mb():.1f} MB", flush=True)
     return t
@@ -156,11 +143,6 @@ def get_translator(model_dir: Optional[str] = None) -> OfflineNLLBTranslator:
 
 def release_translator():
     """Releases CTranslate2 translator from memory and runs garbage collection."""
-    try:
-        if _cached_nllb_translator is not None and hasattr(_cached_nllb_translator, "clear"):
-            _cached_nllb_translator.clear()
-    except Exception:
-        pass
     OfflineNLLBTranslator._instance = None
     import gc
     gc.collect()

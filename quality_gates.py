@@ -381,12 +381,19 @@ def _resolve_background_art_leak(contour_state: Dict[str, Any], context: Dict[st
         ], dtype=np.int32).reshape(-1, 1, 2)
         return rect_pts, True
 
-    rx = min(int(bw * 0.75 + 16), max(20, (x1 - x0) // 2 + 25))
-    ry = min(int(bh * 0.85 + 16), max(15, (y1 - y0) // 2 + 20))
+    rx = max(15, min(int(bw * 0.58), (x1 - x0) // 2 + 15))
+    ry = max(12, min(int(bh * 0.62), (y1 - y0) // 2 + 12))
     pts = cv2.ellipse2Poly((int(cx), int(cy)), (rx, ry), 0, 0, 360, 6)
     synth = pts.reshape(-1, 1, 2).astype(np.int32)
     synth[:, :, 0] = np.clip(synth[:, :, 0], 0, W - 1)
     synth[:, :, 1] = np.clip(synth[:, :, 1], 0, H - 1)
+    gray_img = context.get("gray_image")
+    if gray_img is not None:
+        try:
+            import bubble_lettering
+            synth = bubble_lettering.clamp_contour_to_dark_edges(synth, gray_img)
+        except Exception:
+            pass
     return synth, False
 
 
