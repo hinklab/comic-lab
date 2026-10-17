@@ -2227,28 +2227,15 @@ def fit_text_to_bubble(text, contour, image_shape, font_path, safety_padding=12,
                             cur_line = trial
                             word_idx += 1
                         else:
-                            # Attempt Uzbek hyphenation for overflowing word
-                            if fit_word_with_hyphen is not None:
-                                cur_clean = re.sub(r"\*\*", "", cur_line)
-                                cur_w = (font.getbbox(cur_clean)[2] - font.getbbox(cur_clean)[0]) if cur_clean else 0
-                                sp_w = (font.getbbox(" ")[2] - font.getbbox(" ")[0]) if cur_clean else 0
-                                rem_w = max_w - cur_w - sp_w
-                                if cur_line and rem_w >= 24:
-                                    h_fit = fit_word_with_hyphen(next_word, rem_w, lambda s: font.getbbox(re.sub(r"\*\*", "", s))[2] - font.getbbox(re.sub(r"\*\*", "", s))[0])
-                                    if h_fit:
-                                        pref, suff = h_fit
-                                        cur_line = (cur_line + " " + pref).strip()
-                                        cur_para = cur_para[:word_idx] + [suff] + cur_para[word_idx + 1:]
-                                        trial_paras[para_idx] = cur_para
-                                        break
-                                elif not cur_line:
-                                    h_fit = fit_word_with_hyphen(next_word, max_w, lambda s: font.getbbox(re.sub(r"\*\*", "", s))[2] - font.getbbox(re.sub(r"\*\*", "", s))[0])
-                                    if h_fit:
-                                        pref, suff = h_fit
-                                        cur_line = pref
-                                        cur_para = cur_para[:word_idx] + [suff] + cur_para[word_idx + 1:]
-                                        trial_paras[para_idx] = cur_para
-                                        break
+                            # Only attempt hyphenation if a single word cannot fit on an empty line at all
+                            if fit_word_with_hyphen is not None and not cur_line:
+                                h_fit = fit_word_with_hyphen(next_word, max_w, lambda s: font.getbbox(re.sub(r"\*\*", "", s))[2] - font.getbbox(re.sub(r"\*\*", "", s))[0])
+                                if h_fit:
+                                    pref, suff = h_fit
+                                    cur_line = pref
+                                    cur_para = cur_para[:word_idx] + [suff] + cur_para[word_idx + 1:]
+                                    trial_paras[para_idx] = cur_para
+                                    break
                             break
 
                     if not cur_line:

@@ -197,9 +197,14 @@ EXACT_COMIC_IDIOMS: List[Tuple[str, str]] = [
     (r"^LET'?S\s+SCHEDULE\s+A\s+48[\-\s]*HOUR\s+INFUSION\s+AND\s+WAKE\s+(HIM|HER|THEM)\s+UP[!\.:_—\s]*$", "48 SOATLIK INFUZIYA TAYINLAB, KEYIN UNI UYG'OTAMIZ."),
     (r"^SCHEDULE\s+A\s+48[\-\s]*HOUR\s+INFUSION\s+AND\s+WAKE\s+(HIM|HER|THEM)\s+UP[!\.:_—\s]*$", "48 SOATLIK INFUZIYA TAYINLAB, KEYIN UNI UYG'OTAMIZ."),
     (r"^SCHEDULE\s+A\s+48[\-\s]*HOUR\s+INFUSION[!\.:_—\s]*$", "48 SOATLIK INFUZIYA TAYINLANG."),
-    (r"^WAKE\s+(HIM|HER|THEM)\s+UP[!\.:_—\s]*$", "UNI UYG'OTAMIZ."),
     (r"^YOUR\s+FEARS\s+AND\s+(OUR\s+)?(SAFETY|SECURIT(?:Y|IES))\s+ARE\s+ONE\s+AND\s+THE\s+SAME[!\.:_—\s]*$", "SIZNING QO'RQUVLARINGIZ VA XAVFSIZLIGIMIZ BITTA NARSADIR."),
     (r"^ONE\s+AND\s+THE\s+SAME[!\.:_—\s]*$", "BITTA NARSADIR."),
+
+    # Doctor Doom - All-On-One monologue lines
+    (r"^\.\.\.?\s*WERE\s+I\s+NOT\s+MASTER\s+OF\s+BOTH[\.!\s]*$", "...AGAR IKKALASINING HAM USTASI BO'LMAGANIMDA EDI."),
+    (r"^FOR\s+THE\s+SCIENTIFIC\s+HERO\s+IRON\s+MAN.*(DISMANTLE|UNRAVELING)\s+ITSELF[\.!\s]*$", "ILMIY QAHRAMON TEMIR ODAMGA NISBATAN SEHRDAN FOYDALANAMAN -- ODDIY JISMNI PARCHALASH JODUSI UNING ACHINARLI ZIRHINI O'Z-O'ZIDAN PARCHALANISHGA MAJBURLAYDI."),
+    (r"^FOR\s+THE\s+MAGICIANS.*(INVOCATION|SPELL)[\.!\s]*$", "SEHRGARLAR UCHUN ESA FANDAN FOYDALANILADI. ULARNING ICHKI QULOG'IGA TO'G'RIDAN-TO'G'RI UZATILADIGAN PAST CHASTOTALI TEBRANISHLAR BIRORTA FIKR YOKI JODUNI SHAKLLANTIRISHNI IMKONSIZ QILADI."),
+    (r"^WHO'?S\s+NEXT\??[\.!\s]*$", "KEYINGISI KIM?"),
 ]
 
 # ------------------------------------------------------------------------------
@@ -207,6 +212,9 @@ EXACT_COMIC_IDIOMS: List[Tuple[str, str]] = [
 # Fixes literal machine translation quirks into idiomatic Uzbek
 # ------------------------------------------------------------------------------
 CALQUE_SUBSTITUTIONS: List[Tuple[str, str]] = [
+    # Magic/spell calque: never translate "magic" into "sevgi/sevgidan" in comic context
+    (r"\bsevgidan\s+foydalanaman\b", "sehrdan foydalanaman"),
+    (r"\bsevgidan\b", "sehrdan"),
     # Subordinate acknowledgement calques: "You got it, boss"
     (r"\bto['’`]?g['’`]?ri,\s+boshi\b", "xo'p bo'ladi, boshliq"),
     (r"\bto['’`]?g['’`]?ri\s+boshi\b", "xo'p bo'ladi, boshliq"),

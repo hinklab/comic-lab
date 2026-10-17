@@ -2511,64 +2511,297 @@ def scan_bubbles_ocr_tesseract(image: Image.Image) -> List[SpeechBubble]:
     return bubbles
 
 
-def snap_box_to_bubble_borders(gray_img: np.ndarray, box: List[int], max_up: int = 80, max_down: int = 35, max_h: int = 40) -> List[int]:
+def realign_misplaced_bubble(gray_img: np.ndarray, box: List[int]) -> Tuple[List[int], Optional[str]]:
     """
-    Expands a slightly truncated or misaligned OCR/Gemini bounding box outward
-    to the authentic dark edge barriers of the speech bubble, ensuring top and bottom
-    letter lines (e.g. 'Stop!', 'I think', 'THE WORLD.') are never truncated out of the bubble.
-    Asymmetric expansion ensures boxes never spill downward into open water, character art, or gutters.
+    Detects if an AI vision / Gemini bounding box was accidentally placed on dark background / art,
+    and searches the nearby neighborhood for the authentic bright dialogue bubble or caption box.
+    Returns (realigned_box, detected_type).
     """
     bx0, by0, bx1, by1 = box
+    bw = max(10, bx1 - bx0)
+    bh = max(10, by1 - by0)
+    H, W = gray_img.shape[:2]
+
+    interior = gray_img[max(0, by0):min(H, by1), max(0, bx0):min(W, bx1)]
+    # In comics, authentic text bubbles or captions have bright background (> 195) >= 45% and ink (> 125) >= 4%
+    if interior.size > 0 and np.mean(interior > 195) >= 0.45 and np.mean(interior < 125) >= 0.04:
+        return box, None
+
+    # Search window: scan horizontally ±140px, vertically ±240px
+    s_y0 = max(0, by0 - 180)
+    s_y1 = min(H, by1 + 250)
+    s_x0 = max(0, bx0 - 140)
+    s_x1 = min(W, bx1 + 140)
+
+    search_crop = gray_img[s_y0:s_y1, s_x0:s_x1]
+    bright = (search_crop > 195).astype(np.uint8) * 255
+    cnts, _ = cv2.findContours(bright, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    best_box = None
+    best_score = -1
+    detected_shape = None
+
+    for c in cnts:
+        x, y, w, h = cv2.boundingRect(c)
+        if w >= 25 and h >= 15:
+            crop_cand = search_crop[y:y+h, x:x+w]
+            bright_ratio = np.mean(crop_cand > 195)
+            ink_ratio = np.mean(crop_cand < 125)
+            # A true dialogue bubble or caption has mostly bright paper and 4%-35% dark text ink
+            if bright_ratio >= 0.50 and 0.04 <= ink_ratio <= 0.35:
+                fill_ratio = cv2.contourArea(c) / float(w * h)
+                score = (w * h) * bright_ratio * (1.0 + ink_ratio)
+                if score > best_score:
+                    best_score = score
+                    best_box = [s_x0 + x, s_y0 + y, s_x0 + x + w, s_y0 + y + h]
+                    peri = cv2.arcLength(c, True)
+                    approx = cv2.approxPolyDP(c, 0.05 * peri, True)
+                    if len(approx) == 4 or fill_ratio > 0.80:
+                        detected_shape = "caption"
+
+    if best_box:
+        return best_box, detected_shape
+    return box, None
+
+
+def snap_caption_rectangle(gray_img: np.ndarray, box: List[int], other_boxes: Optional[List[List[int]]] = None) -> List[int]:
+    """
+    Snaps an approximate rectangular caption or narrative box to its authentic
+    outer dark border strokes with sub-pixel precision. Tightly bounds search to ±25%
+    of box dimension around each edge to strictly prevent expanding into character art.
+    """
+    bx0, by0, bx1, by1 = box
+    bw = max(10, bx1 - bx0)
+    bh = max(10, by1 - by0)
+    H, W = gray_img.shape[:2]
+
+    # Search window: tightly bounded to ±25% of box dimension (max 35px)
+    max_dx = max(12, min(35, int(bw * 0.25)))
+    max_dy = max(12, min(35, int(bh * 0.25)))
+
+    # Evaluate along safe inner span
+    eval_y0 = max(0, by0 + int(bh * 0.20))
+    eval_y1 = min(H, by1 - int(bh * 0.20))
+    if eval_y1 <= eval_y0:
+        eval_y0, eval_y1 = max(0, by0), min(H, by1)
+
+    # Left border: search near bx0
+    best_left = bx0
+    best_left_score = -1
+    for x in range(max(0, bx0 - max_dx), min(W, bx0 + max_dx)):
+        col = gray_img[eval_y0:eval_y1, x]
+        if col.size > 0:
+            dark_ratio = np.mean(col < 130)
+            if dark_ratio >= 0.65:
+                score = dark_ratio - abs(x - bx0) * 0.01
+                if score > best_left_score:
+                    best_left_score = score
+                    best_left = x + 1
+
+    # Right border: search near bx1
+    best_right = bx1
+    best_right_score = -1
+    for x in range(max(0, bx1 - max_dx), min(W, bx1 + max_dx)):
+        col = gray_img[eval_y0:eval_y1, x]
+        if col.size > 0:
+            dark_ratio = np.mean(col < 130)
+            if dark_ratio >= 0.65:
+                score = dark_ratio - abs(x - bx1) * 0.01
+                if score > best_right_score:
+                    best_right_score = score
+                    best_right = x
+
+    eval_x0 = max(0, best_left + int((best_right - best_left) * 0.20))
+    eval_x1 = min(W, best_right - int((best_right - best_left) * 0.20))
+    if eval_x1 <= eval_x0:
+        eval_x0, eval_x1 = max(0, best_left), min(W, best_right)
+
+    # Top border: search near by0
+    best_top = by0
+    best_top_score = -1
+    for y in range(max(0, by0 - max_dy), min(H, by0 + max_dy)):
+        row = gray_img[y, eval_x0:eval_x1]
+        if row.size > 0:
+            dark_ratio = np.mean(row < 130)
+            if dark_ratio >= 0.65:
+                score = dark_ratio - abs(y - by0) * 0.01
+                if score > best_top_score:
+                    best_top_score = score
+                    best_top = y + 1
+
+    # Bottom border: search near by1
+    best_bot = by1
+    best_bot_score = -1
+    for y in range(max(0, by1 - max_dy), min(H, by1 + max_dy)):
+        row = gray_img[y, eval_x0:eval_x1]
+        if row.size > 0:
+            dark_ratio = np.mean(row < 130)
+            if dark_ratio >= 0.65:
+                score = dark_ratio - abs(y - by1) * 0.01
+                if score > best_bot_score:
+                    best_bot_score = score
+                    best_bot = y
+
+    if best_right <= best_left + 15:
+        best_left, best_right = bx0, bx1
+    if best_bot <= best_top + 15:
+        best_top, best_bot = by0, by1
+
+    return [best_left, best_top, best_right, best_bot]
+
+
+def snap_box_to_bubble_borders(gray_img: np.ndarray, box: List[int], max_up: int = 100, max_down: int = 50, max_h: int = 60, other_boxes: Optional[List[List[int]]] = None) -> List[int]:
+    """
+    Expands a slightly truncated or misaligned OCR/Gemini bounding box outward
+    to the authentic dark edge barriers of the speech bubble or caption box, ensuring top and bottom
+    letter lines (e.g. 'Stop!', 'I think', 'THE WORLD.') are never truncated out of the bubble.
+    Asymmetric expansion ensures boxes never spill downward into open water, character art, or gutters.
+    Strictly clamps to neighboring bubble boxes to prevent multi-bubble overlap.
+    """
+    bx0, by0, bx1, by1 = box
+    bw = bx1 - bx0
+    bh = by1 - by0
     H, W = gray_img.shape[:2]
     cx = (bx0 + bx1) // 2
-    span_w = max(10, min(35, (bx1 - bx0) // 3))
+    span_w = max(10, min(40, bw // 3))
+
+    max_up = max(max_up, int(bh * 0.8))
+    max_down = max(max_down, int(bh * 0.4))
+    max_h = max(max_h, int(bw * 0.35))
+
+    min_x, max_x = 0, W - 1
+    min_y, max_y = 0, H - 1
+    if other_boxes:
+        for ob in other_boxes:
+            ox0, oy0, ox1, oy1 = ob
+            v_overlap = max(0, min(by1, oy1) - max(by0, oy0))
+            if v_overlap > 5:
+                if ox0 >= bx0:
+                    max_x = min(max_x, ox0 - 4)
+                if ox1 <= bx1:
+                    min_x = max(min_x, ox1 + 4)
+            h_overlap = max(0, min(bx1, ox1) - max(bx0, ox0))
+            if h_overlap > 5:
+                if oy0 >= by0:
+                    max_y = min(max_y, oy0 - 4)
+                if oy1 <= by1:
+                    min_y = max(min_y, oy1 + 4)
 
     interior = gray_img[by0:by1, bx0:bx1]
     if interior.size > 0:
-        p75_interior = float(np.percentile(interior, 75))
-        light_thresh = max(135, int(p75_interior - 25))
+        p70_interior = float(np.percentile(interior, 70))
+        light_thresh = max(125, int(p70_interior - 25))
     else:
-        light_thresh = 180
+        light_thresh = 160
 
     # Expand upward to capture clipped top lines
     new_y0 = by0
-    for y in range(by0 - 1, max(0, by0 - max_up), -1):
+    for y in range(by0 - 1, max(min_y, by0 - max_up), -1):
         strip = gray_img[y, max(0, cx - span_w):min(W, cx + span_w)]
-        if strip.size > 0 and np.percentile(strip, 80) >= light_thresh and np.min(strip) > 55:
+        if strip.size > 0 and np.percentile(strip, 70) >= light_thresh and np.mean(strip) >= 80 and np.min(strip) >= 50:
             new_y0 = y
         else:
             break
 
     # Expand downward conservatively
     new_y1 = by1
-    for y in range(by1 + 1, min(H, by1 + max_down)):
+    for y in range(by1 + 1, min(max_y, by1 + max_down)):
         strip = gray_img[y, max(0, cx - span_w):min(W, cx + span_w)]
-        if strip.size > 0 and np.percentile(strip, 80) >= light_thresh and np.min(strip) > 55:
+        if strip.size > 0 and np.percentile(strip, 70) >= light_thresh and np.mean(strip) >= 80 and np.min(strip) >= 50:
             new_y1 = y
         else:
             break
 
     # Expand left:
     cy = (new_y0 + new_y1) // 2
-    span_h = max(10, min(35, (new_y1 - new_y0) // 3))
+    span_h = max(10, min(40, (new_y1 - new_y0) // 3))
     new_x0 = bx0
-    for x in range(bx0 - 1, max(0, bx0 - max_h), -1):
+    for x in range(bx0 - 1, max(min_x, bx0 - max_h), -1):
         strip = gray_img[max(0, cy - span_h):min(H, cy + span_h), x]
-        if strip.size > 0 and np.percentile(strip, 80) >= light_thresh and np.min(strip) > 55:
+        if strip.size > 0 and np.percentile(strip, 70) >= light_thresh and np.mean(strip) >= 80 and np.min(strip) >= 50:
             new_x0 = x
         else:
             break
 
     # Expand right:
     new_x1 = bx1
-    for x in range(bx1 + 1, min(W, bx1 + max_h)):
+    for x in range(bx1 + 1, min(max_x, bx1 + max_h)):
         strip = gray_img[max(0, cy - span_h):min(H, cy + span_h), x]
-        if strip.size > 0 and np.percentile(strip, 80) >= light_thresh and np.min(strip) > 55:
+        if strip.size > 0 and np.percentile(strip, 70) >= light_thresh and np.mean(strip) >= 80 and np.min(strip) >= 50:
             new_x1 = x
         else:
             break
 
     return [new_x0, new_y0, new_x1, new_y1]
+
+
+def find_authentic_caption_boxes(gray_img: np.ndarray) -> List[Dict[str, Any]]:
+    """
+    Finds authentic speech bubbles and rectangular caption/narrative boxes directly from
+    the high-resolution image using external connected components of bright paper with text ink.
+    Filters out solid bright artwork (like armor highlights) by requiring 5%-35% dark text ink.
+    """
+    H, W = gray_img.shape[:2]
+    bright = (gray_img > 190).astype("uint8") * 255
+    cnts, _ = cv2.findContours(bright, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    candidates = []
+    for c in cnts:
+        x, y, w, h = cv2.boundingRect(c)
+        if w >= 45 and h >= 25 and w * h < int(W * H * 0.40):
+            crop = gray_img[y:y+h, x:x+w]
+            bright_ratio = np.mean(crop > 190)
+            ink_ratio = np.mean(crop < 120)
+            if bright_ratio >= 0.50 and 0.04 <= ink_ratio <= 0.40:
+                peri = cv2.arcLength(c, True)
+                approx = cv2.approxPolyDP(c, 0.04 * peri, True)
+                fill = cv2.contourArea(c) / float(w * h)
+                is_rect = (len(approx) == 4 or fill >= 0.85)
+                candidates.append({
+                    "box": [x, y, x + w, y + h],
+                    "contour": c,
+                    "is_rect": is_rect,
+                    "ink": ink_ratio,
+                    "area": w * h
+                })
+    return candidates
+
+
+def match_gemini_to_authentic_box(gem_box: List[int], authentic_candidates: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """
+    Matches an AI vision / Gemini bounding box to the ground-truth authentic comic bubble
+    or caption box using IoU, area intersection, and centroid proximity.
+    """
+    gx0, gy0, gx1, gy1 = gem_box
+    g_cx = (gx0 + gx1) / 2.0
+    g_cy = (gy0 + gy1) / 2.0
+    g_area = max(1, (gx1 - gx0) * (gy1 - gy0))
+
+    best_match = None
+    best_score = -1.0
+
+    for cand in authentic_candidates:
+        cx0, cy0, cx1, cy1 = cand["box"]
+        ix0 = max(gx0, cx0)
+        iy0 = max(gy0, cy0)
+        ix1 = min(gx1, cx1)
+        iy1 = min(gy1, cy1)
+        inter = max(0, ix1 - ix0) * max(0, iy1 - iy0)
+        c_area = max(1, (cx1 - cx0) * (cy1 - cy0))
+        iou = inter / float(g_area + c_area - inter)
+
+        c_cx = (cx0 + cx1) / 2.0
+        c_cy = (cy0 + cy1) / 2.0
+        dist = np.hypot(g_cx - c_cx, g_cy - c_cy)
+
+        # Match criteria: high IoU, or strong intersection within reasonable distance, or close center proximity
+        if iou > 0.25 or (inter > 0.35 * min(g_area, c_area) and dist < 220) or (dist < 160 and cand["is_rect"]):
+            score = iou * 2.0 + (1.0 / (1.0 + dist * 0.01))
+            if score > best_score:
+                best_score = score
+                best_match = cand
+
+    return best_match
 
 
 def scan_bubbles_ocr(image: Image.Image, use_subprocess: bool = True, timeout_seconds: int = 120, ocr_engine: Optional[str] = None, force_refresh: bool = False) -> List[SpeechBubble]:
@@ -2655,12 +2888,12 @@ def scan_bubbles_ocr(image: Image.Image, use_subprocess: bool = True, timeout_se
 
                 # - CRITICAL: Reject candidates located on pitch dark artwork, dark clothing (e.g. Ben's shirt)
                 if crop_gray.size > 0:
-                    p85_cand = float(np.percentile(crop_gray, 85))
-                    # Authentic speech bubbles have white or light paper with p85 >= 180
-                    # If even the top 15% brightest pixels in this candidate are dark (< 115),
+                    p95_cand = float(np.percentile(crop_gray, 95))
+                    # Authentic speech bubbles have white or light paper with max >= 135 or p95 >= 115
+                    # If even the top 5% brightest pixels in this candidate are dark (< 115) and max is dark (< 135),
                     # it is dark artwork, shadow, or clothing, NOT a dialogue bubble!
-                    if p85_cand < 115:
-                        print(f"[OCR_FILTER] Rejected dark artwork/clothing candidate '{orig}' (p85={p85_cand:.1f} < 115)", flush=True)
+                    if p95_cand < 115 and np.max(crop_gray) < 135:
+                        print(f"[OCR_FILTER] Rejected dark artwork/clothing candidate '{orig}' (p95={p95_cand:.1f} < 115)", flush=True)
                         continue
 
                 words = [w for w in re.findall(r"[a-zA-Z0-9']+", orig.lower()) if len(w) > 0]
@@ -2720,103 +2953,153 @@ def scan_bubbles_ocr(image: Image.Image, use_subprocess: bool = True, timeout_se
                 except Exception as _batch_ex:
                     print(f"[OCR_BATCH_WARN] Batch pre-translation failed: {_batch_ex}", flush=True)
 
-            seeds = []
-            for item in gemini_results:
-                bx0, by0, bx1, by1 = item["box"]
-                seeds.append(((bx0 + bx1) // 2, (by0 + by1) // 2))
+            def _find_interior_seed(gray_img, box):
+                bx0, by0, bx1, by1 = box
+                cx, cy = (bx0 + bx1) // 2, (by0 + by1) // 2
+                if 0 <= cy < gray_img.shape[0] and 0 <= cx < gray_img.shape[1] and gray_img[cy, cx] >= 140:
+                    return (cx, cy)
+                crop = gray_img[max(0, by0):min(gray_img.shape[0], by1), max(0, bx0):min(gray_img.shape[1], bx1)]
+                if crop.size > 0:
+                    y_idxs, x_idxs = np.where(crop >= 150)
+                    if len(y_idxs) > 0:
+                        ch, cw = crop.shape
+                        dists = (y_idxs - ch // 2) ** 2 + (x_idxs - cw // 2) ** 2
+                        best_i = np.argmin(dists)
+                        return (bx0 + int(x_idxs[best_i]), by0 + int(y_idxs[best_i]))
+                return (cx, cy)
+
+            seeds = [_find_interior_seed(gray_full, item["box"]) for item in gemini_results]
+
+            # Pre-scan for authentic bright text regions/captions on full-resolution image
+            authentic_candidates = find_authentic_caption_boxes(gray_full)
 
             for idx, item in enumerate(gemini_results):
                 bx0, by0, bx1, by1 = item["box"]
                 bw = bx1 - bx0
                 bh = by1 - by0
                 b_type = item.get("bubble_type", "speech")
-                shape_type = "rectangle" if b_type == "caption" else "oval"
 
-                # 1. Edge-aware flood-fill contour detection via bubble_lettering.get_bubble_contour
-                # Snaps box outward to bubble borders so top/bottom text lines are never truncated.
-                snapped_box = snap_box_to_bubble_borders(gray_full, [bx0, by0, bx1, by1])
-                other_seeds = [s for j, s in enumerate(seeds) if j != idx]
-                cnt_page, is_rect = bubble_lettering.get_bubble_contour(
-                    img_cv,
-                    snapped_box,
-                    neighbor_seeds=other_seeds,
-                    approx_glyph_height=max(28, int(bh * 0.40))
-                )
-                cnt_page = bubble_lettering.clamp_contour_to_dark_edges(cnt_page, gray_full)
-
-                # 2. Guard against leaks into colored background (e.g. speech bubble tail opening to yellow wall/skin)
-                if b_type != "caption":
-                    c_mask = np.zeros((H_img, W_img), dtype=np.uint8)
-                    cv2.drawContours(c_mask, [cnt_page], -1, 255, -1)
-                    leaked_colored = (hsv_full[:, :, 1] > 38) & (c_mask > 0)
-                    leak_ratio = np.count_nonzero(leaked_colored) / float(max(1, np.count_nonzero(c_mask)))
-                    if leak_ratio > 0.05:
-                        pure_mask = c_mask.copy()
-                        pure_mask[hsv_full[:, :, 1] > 35] = 0
-                        k_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9))
-                        closed = cv2.morphologyEx(pure_mask, cv2.MORPH_CLOSE, k_close)
-                        num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(closed)
-                        best_lbl = 0
-                        best_inter = 0
-                        for lbl in range(1, num_labels):
-                            lx, ly, lw, lh, _ = stats[lbl]
-                            ix0 = max(bx0, lx)
-                            iy0 = max(by0, ly)
-                            ix1 = min(bx1, lx + lw)
-                            iy1 = min(by1, ly + lh)
-                            inter = max(0, ix1 - ix0) * max(0, iy1 - iy0)
-                            if inter > best_inter:
-                                best_inter = inter
-                                best_lbl = lbl
-                        if best_lbl > 0:
-                            lbl_mask = (labels == best_lbl).astype(np.uint8) * 255
-                            cnts, _ = cv2.findContours(lbl_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                            if cnts:
-                                cnt_page = max(cnts, key=cv2.contourArea)
-                                cnt_page = bubble_lettering.clamp_contour_to_dark_edges(cnt_page, gray_full)
-
-                rx, ry, rw, rh = cv2.boundingRect(cnt_page)
-                cnt_area = rw * rh
-                gemini_area = bw * bh
-                sbx0, sby0, sbx1, sby1 = snapped_box
-                ref_area = max(1, (sbx1 - sbx0) * (sby1 - sby0))
-
-                inter_x0 = max(sbx0, rx)
-                inter_y0 = max(sby0, ry)
-                inter_x1 = min(sbx1, rx + rw)
-                inter_y1 = min(sby1, ry + rh)
-                inter_w = max(0, inter_x1 - inter_x0)
-                inter_h = max(0, inter_y1 - inter_y0)
-                inter_area = inter_w * inter_h
-                overlap_ratio = (inter_area / float(min(ref_area, cnt_area))) if min(ref_area, cnt_area) > 0 else 0.0
-
-                is_valid_contour = (
-                    (overlap_ratio >= 0.35)
-                    and (cnt_area >= 0.15 * ref_area)
-                    and (cnt_area <= 12.0 * ref_area or cnt_area <= 4.0 * max(1, gemini_area))
-                    and (cnt_area < 0.25 * (W_img * H_img))
-                )
-                if is_valid_contour:
-                    use_x0 = rx
-                    use_y0 = ry
-                    use_x1 = rx + rw
-                    use_y1 = ry + rh
-                    cnt_pts = cnt_page.reshape(-1, 2).tolist()
-                    if item.get("bubble_type") == "caption" or is_rect:
+                # 1. Match against ground-truth authentic comic boxes/bubbles
+                auth_match = match_gemini_to_authentic_box([bx0, by0, bx1, by1], authentic_candidates)
+                if auth_match is not None:
+                    ab = auth_match["box"]
+                    use_x0, use_y0, use_x1, use_y1 = ab[0], ab[1], ab[2], ab[3]
+                    bw = use_x1 - use_x0
+                    bh = use_y1 - use_y0
+                    if auth_match["is_rect"] or b_type == "caption":
                         shape_type = "rectangle"
-                else:
-                    # Fallback to verified Gemini bubble box, strictly clamped to dark comic borders
-                    use_x0 = bx0
-                    use_y0 = by0
-                    use_x1 = bx1
-                    use_y1 = by1
-                    if shape_type == "rectangle":
-                        synth_cnt = np.array([[[bx0, by0]], [[bx1, by0]], [[bx1, by1]], [[bx0, by1]]], dtype=np.int32)
-                        synth_cnt = bubble_lettering.clamp_contour_to_dark_edges(synth_cnt, gray_full)
+                        synth_cnt = np.array([[[use_x0, use_y0]], [[use_x1, use_y0]], [[use_x1, use_y1]], [[use_x0, use_y1]]], dtype=np.int32)
+                        cnt_page = synth_cnt
+                        cnt_pts = synth_cnt.reshape(-1, 2).tolist()
                     else:
-                        synth_cnt = bubble_lettering._synthetic_ellipse_contour((bx0 + bx1) // 2, (by0 + by1) // 2, bw, bh, gray_img=gray_full)
-                    cnt_page = synth_cnt
-                    cnt_pts = synth_cnt.reshape(-1, 2).tolist()
+                        shape_type = "oval"
+                        cnt_page = auth_match["contour"]
+                        cnt_pts = cnt_page.reshape(-1, 2).tolist()
+                else:
+                    # Adaptive snapping fallback if no authentic box matched
+                    realigned_box, detected_type = realign_misplaced_bubble(gray_full, [bx0, by0, bx1, by1])
+                    if realigned_box != [bx0, by0, bx1, by1]:
+                        bx0, by0, bx1, by1 = realigned_box
+                        bw = bx1 - bx0
+                        bh = by1 - by0
+                        if detected_type:
+                            b_type = detected_type
+
+                    shape_type = "rectangle" if b_type == "caption" else "oval"
+                    other_neighbors = [other["box"] for j, other in enumerate(gemini_results) if j != idx]
+
+                    if b_type == "caption":
+                        # Rectangular caption/monologue box: snap to authentic border strokes and preserve rectilinear geometry
+                        shape_type = "rectangle"
+                        snapped_box = snap_caption_rectangle(gray_full, [bx0, by0, bx1, by1], other_boxes=other_neighbors)
+                        sbx0, sby0, sbx1, sby1 = snapped_box
+                        use_x0, use_y0, use_x1, use_y1 = sbx0, sby0, sbx1, sby1
+                        synth_cnt = np.array([[[use_x0, use_y0]], [[use_x1, use_y0]], [[use_x1, use_y1]], [[use_x0, use_y1]]], dtype=np.int32)
+                        cnt_page = synth_cnt
+                        cnt_pts = synth_cnt.reshape(-1, 2).tolist()
+                    else:
+                        # Speech bubble: edge-aware flood-fill contour detection
+                        snapped_box = snap_box_to_bubble_borders(gray_full, [bx0, by0, bx1, by1], other_boxes=other_neighbors)
+                        sbx0, sby0, sbx1, sby1 = snapped_box
+                        cnt_page, is_rect = bubble_lettering.get_bubble_contour(
+                            img_cv,
+                            snapped_box,
+                            neighbor_seeds=other_neighbors,
+                            approx_glyph_height=max(28, int(bh * 0.40))
+                        )
+                        cnt_page = bubble_lettering.clamp_contour_to_dark_edges(cnt_page, gray_full)
+
+                        # Guard against leaks into colored background
+                        c_mask = np.zeros((H_img, W_img), dtype=np.uint8)
+                        cv2.drawContours(c_mask, [cnt_page], -1, 255, -1)
+                        leaked_colored = (hsv_full[:, :, 1] > 38) & (c_mask > 0)
+                        leak_ratio = np.count_nonzero(leaked_colored) / float(max(1, np.count_nonzero(c_mask)))
+                        if leak_ratio > 0.05:
+                            pure_mask = c_mask.copy()
+                            pure_mask[hsv_full[:, :, 1] > 35] = 0
+                            k_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9))
+                            closed = cv2.morphologyEx(pure_mask, cv2.MORPH_CLOSE, k_close)
+                            num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(closed)
+                            best_lbl = 0
+                            best_inter = 0
+                            for lbl in range(1, num_labels):
+                                lx, ly, lw, lh, _ = stats[lbl]
+                                ix0 = max(bx0, lx)
+                                iy0 = max(by0, ly)
+                                ix1 = min(bx1, lx + lw)
+                                iy1 = min(by1, ly + lh)
+                                inter = max(0, ix1 - ix0) * max(0, iy1 - iy0)
+                                if inter > best_inter:
+                                    best_inter = inter
+                                    best_lbl = lbl
+                            if best_lbl > 0:
+                                lbl_mask = (labels == best_lbl).astype(np.uint8) * 255
+                                cnts, _ = cv2.findContours(lbl_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                                if cnts:
+                                    cnt_page = max(cnts, key=cv2.contourArea)
+                                    cnt_page = bubble_lettering.clamp_contour_to_dark_edges(cnt_page, gray_full)
+
+                        rx, ry, rw, rh = cv2.boundingRect(cnt_page)
+                        cnt_area = rw * rh
+                        gemini_area = bw * bh
+                        ref_area = max(1, (sbx1 - sbx0) * (sby1 - sby0))
+
+                        inter_x0 = max(sbx0, rx)
+                        inter_y0 = max(sby0, ry)
+                        inter_x1 = min(sbx1, rx + rw)
+                        inter_y1 = min(sby1, ry + rh)
+                        inter_w = max(0, inter_x1 - inter_x0)
+                        inter_h = max(0, inter_y1 - inter_y0)
+                        inter_area = inter_w * inter_h
+                        overlap_ratio = (inter_area / float(min(ref_area, cnt_area))) if min(ref_area, cnt_area) > 0 else 0.0
+
+                        is_valid_contour = (
+                            (overlap_ratio >= 0.35)
+                            and (cnt_area >= 0.15 * ref_area)
+                            and (cnt_area <= 12.0 * ref_area or cnt_area <= 4.0 * max(1, gemini_area))
+                            and (cnt_area < 0.25 * (W_img * H_img))
+                        )
+                        if is_valid_contour:
+                            use_x0 = rx
+                            use_y0 = ry
+                            use_x1 = rx + rw
+                            use_y1 = ry + rh
+                            cnt_pts = cnt_page.reshape(-1, 2).tolist()
+                            if is_rect:
+                                shape_type = "rectangle"
+                        else:
+                            # Fallback to snapped bubble box clamped to comic borders
+                            use_x0 = sbx0
+                            use_y0 = sby0
+                            use_x1 = sbx1
+                            use_y1 = sby1
+                            if shape_type == "rectangle":
+                                synth_cnt = np.array([[[use_x0, use_y0]], [[use_x1, use_y0]], [[use_x1, use_y1]], [[use_x0, use_y1]]], dtype=np.int32)
+                                synth_cnt = bubble_lettering.clamp_contour_to_dark_edges(synth_cnt, gray_full)
+                            else:
+                                synth_cnt = bubble_lettering._synthetic_ellipse_contour((use_x0 + use_x1) // 2, (use_y0 + use_y1) // 2, use_x1 - use_x0, use_y1 - use_y0, gray_img=gray_full)
+                            cnt_page = synth_cnt
+                            cnt_pts = synth_cnt.reshape(-1, 2).tolist()
 
                 orig = item.get("original_text", "").strip()
                 uz = item.get("uzbek_translation", "").strip()
@@ -4679,6 +4962,33 @@ def typeset_lettering_on_page(
                     lx = cx - lw // 2
                     draw.text((lx, curr_y), line_txt, fill=text_color, font=active_f)
                     curr_y += max(lh + 2, target_fs + 3)
+                continue
+
+            # Per-bubble outline and alignment
+            b_outline_w = getattr(b, "outline_width", 0) if hasattr(b, "outline_width") else (b.get("outline_width", 0) if isinstance(b, dict) else 0)
+            b_outline_c = getattr(b, "outline_color", None) if hasattr(b, "outline_color") else (b.get("outline_color", None) if isinstance(b, dict) else None)
+            b_align = getattr(b, "text_align", "center") if hasattr(b, "text_align") else (b.get("text_align", "center") if isinstance(b, dict) else "center")
+            eff_stroke_w = int(b_outline_w) if b_outline_w and int(b_outline_w) > 0 else stroke_width
+            eff_stroke_f = b_outline_c if b_outline_c else stroke_fill
+
+            is_rect_b = ((getattr(b, "shape_type", "oval") if hasattr(b, "shape_type") else b.get("shape_type", "oval")) == "rectangle") or is_shape_hidden
+            if is_rect_b and not is_occluded:
+                target_box = (box[0] + off_x, box[1] + off_y, box[2] + off_x, box[3] + off_y)
+                fit_text(
+                    draw=draw,
+                    text=uzbek_text,
+                    box=target_box,
+                    font_path=active_font_path,
+                    max_font_size=effective_max,
+                    min_font_size=min_font_size,
+                    line_gap=line_gap,
+                    size_offset=0,
+                    uppercase=True,
+                    text_color=text_color,
+                    stroke_width=eff_stroke_w,
+                    stroke_fill=eff_stroke_f,
+                    align=b_align
+                )
                 continue
 
             # Single-contour typesetting (including individual BubbleFragments)

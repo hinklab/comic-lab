@@ -51,3 +51,5 @@ space_letters.py
 try_freefonts_dl.py
 prepare_clean.py
 all_results.py
+test_*.py
+render_debug_*.py
