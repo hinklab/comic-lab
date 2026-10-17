@@ -18490,5 +18490,29 @@
       "description": "Duplicate or non-sequential bubble IDs in assembled bubble list"
     },
     "timestamp": 1792214787.0299118
+  },
+  {
+    "page": null,
+    "bubble_id": null,
+    "stage": "ocr_filtering",
+    "pattern_name": "sfx_false_positive",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Non-speech stylized sound effect or background text on dark/colored art"
+    },
+    "timestamp": 1792217285.5390427
+  },
+  {
+    "page": null,
+    "bubble_id": null,
+    "stage": "bubble_list_indexing",
+    "pattern_name": "duplicate_bubble_id",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Duplicate or non-sequential bubble IDs in assembled bubble list"
+    },
+    "timestamp": 1792217285.9220335
   }
 ]
