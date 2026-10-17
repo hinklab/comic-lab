@@ -11,6 +11,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
+  <!-- Client-side ZIP Engine (Offline & Fast) -->
+  <script src="/assets/jszip.min.js"></script>
+
   <!-- Restored Original Comic Lettering Fonts -->
   <style>
     @font-face {
@@ -10363,17 +10366,78 @@
         if (document.fonts && document.fonts.ready) {
           await document.fonts.ready;
         }
+
+        // 1. FAST, BULLET-PROOF CLIENT-SIDE ZIP (JSZip)
+        if (typeof JSZip !== 'undefined') {
+          const zip = new JSZip();
+
+          for (let i = 0; i < pageQueue.length; i++) {
+            const p = pageQueue[i];
+            showSpinner(`Sahifa ${i + 1}/${pageQueue.length} tayyorlanmoqda...`);
+
+            // Normalize filename to PNG
+            let outName = p.sequentialName || `page_${String(i + 1).padStart(2, '0')}.png`;
+            if (!outName.toLowerCase().endsWith('.png')) {
+              outName = outName.replace(/\.[^.]+$/, '') + '.png';
+            }
+
+            const pageImg = await ensurePageImagesLoaded(p);
+            if (pageImg) {
+              const bubblesToRender = (p.status === 'skipped')
+                ? []
+                : ((p.id === pageQueue[currentPageIndex]?.id && Array.isArray(bubbles) && bubbles.length > 0)
+                    ? bubbles
+                    : (Array.isArray(p.bubbles) ? p.bubbles : []));
+
+              const exportCanvas = renderPristinePageCanvas(pageImg, bubblesToRender);
+              const blob = await new Promise(res => exportCanvas.toBlob(res, 'image/png'));
+              if (blob) {
+                zip.file(outName, blob);
+                continue;
+              }
+            }
+
+            // Fallback: If image canvas rendering fails, write raw file
+            if (p.file) {
+              zip.file(p.sequentialName || outName, p.file);
+            }
+          }
+
+          showSpinner("ZIP arxiv shakllantirilmoqda...");
+          const zipBlob = await zip.generateAsync({
+            type: "blob",
+            compression: "DEFLATE",
+            compressionOptions: { level: 6 }
+          });
+          hideSpinner();
+
+          const url = URL.createObjectURL(zipBlob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `comic_chapter_uzbek.zip`;
+          a.click();
+          URL.revokeObjectURL(url);
+          showToast(`Butun bob (${pageQueue.length} ta sahifa) to'liq ZIP formatida yuklab olindi!`);
+          return;
+        }
+
+        // 2. SERVER FALLBACK IF JSZip IS NOT LOADED
         const pagesPayload = [];
         for (let i = 0; i < pageQueue.length; i++) {
           const p = pageQueue[i];
           let renderedB64 = null;
+          let origB64 = p.originalImageB64 || null;
 
-          if (p.status !== 'skipped') {
-            const pageImg = await ensurePageImagesLoaded(p);
-            if (pageImg) {
-              const exportCanvas = renderPristinePageCanvas(pageImg, p.bubbles);
-              renderedB64 = exportCanvas.toDataURL('image/png');
-            }
+          const pageImg = await ensurePageImagesLoaded(p);
+          if (pageImg) {
+            const bubblesToRender = (p.status === 'skipped')
+              ? []
+              : ((p.id === pageQueue[currentPageIndex]?.id && Array.isArray(bubbles) && bubbles.length > 0)
+                  ? bubbles
+                  : (Array.isArray(p.bubbles) ? p.bubbles : []));
+
+            const exportCanvas = renderPristinePageCanvas(pageImg, bubblesToRender);
+            renderedB64 = exportCanvas.toDataURL('image/png');
           }
 
           pagesPayload.push({
@@ -10381,7 +10445,8 @@
             page_num: p.pageNum,
             filename: p.sequentialName,
             status: p.status,
-            rendered_image_b64: renderedB64
+            rendered_image_b64: renderedB64,
+            original_image_b64: origB64
           });
         }
 

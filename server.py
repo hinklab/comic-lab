@@ -774,6 +774,21 @@ async def api_export_chapter_zip(request):
                 p_id = p_info.get("page_id")
                 p_filename = p_info.get("filename", f"page_{p_info.get('page_num', 1):02d}.png")
                 status = p_info.get("status", "pending")
+                rendered_b64 = p_info.get("rendered_image_b64")
+                orig_b64 = p_info.get("original_image_b64")
+
+                if rendered_b64:
+                    if "," in rendered_b64:
+                        rendered_b64 = rendered_b64.split(",", 1)[1]
+                    zf.writestr(p_filename, base64.b64decode(rendered_b64))
+                    continue
+
+                if orig_b64 and (status == "skipped" or status == "pending"):
+                    if "," in orig_b64:
+                        orig_b64 = orig_b64.split(",", 1)[1]
+                    zf.writestr(p_filename, base64.b64decode(orig_b64))
+                    continue
+
                 p_entry = PAGES_CACHE.get(p_id)
                 if not p_entry:
                     continue
@@ -782,12 +797,7 @@ async def api_export_chapter_zip(request):
                 cleaned_img = p_entry.get("cleaned_image")
                 bubbles_data = p_info.get("bubbles", [])
 
-                rendered_b64 = p_info.get("rendered_image_b64")
-                if rendered_b64:
-                    if "," in rendered_b64:
-                        rendered_b64 = rendered_b64.split(",", 1)[1]
-                    zf.writestr(p_filename, base64.b64decode(rendered_b64))
-                elif status == "skipped" or not cleaned_img or not bubbles_data:
+                if status == "skipped" or not cleaned_img or not bubbles_data:
                     # Pristine original page byte-for-byte with exact sequential number
                     if p_entry and p_entry.get("original_bytes"):
                         zf.writestr(p_filename, p_entry["original_bytes"])
