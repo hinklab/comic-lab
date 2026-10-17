@@ -1,18 +1,9 @@
 {
   "version": 2,
-  "cleanUrls": true,
   "rewrites": [
     {
       "source": "/api/:path*",
       "destination": "https://comic-lab-backend.onrender.com/api/:path*"
-    },
-    {
-      "source": "/",
-      "destination": "/web/index.html"
-    },
-    {
-      "source": "/static/:path*",
-      "destination": "/web/:path*"
     }
   ]
 }

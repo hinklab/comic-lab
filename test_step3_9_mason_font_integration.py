@@ -58,12 +58,12 @@ class TestMasonFontIntegration(unittest.TestCase):
         self.assertIn("document.fonts.load(\"16px 'Mason'\")", content)
 
     def test_server_http_font_endpoint(self):
-        url = "http://localhost:8000/fonts/Mason-Regular.ttf"
-        req = urllib.request.Request(url)
-        with urllib.request.urlopen(req) as resp:
-            self.assertEqual(resp.status, 200)
-            data = resp.read()
-            self.assertGreater(len(data), 10000)
+        from starlette.testclient import TestClient
+        import server
+        client = TestClient(server.app)
+        resp = client.get("/fonts/Mason-Regular.ttf")
+        self.assertEqual(resp.status_code, 200)
+        self.assertGreater(len(resp.content), 10000)
 
 if __name__ == "__main__":
     unittest.main()

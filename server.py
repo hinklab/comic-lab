@@ -58,10 +58,11 @@ def pil_to_png_bytes(img: Image.Image) -> bytes:
 
 async def serve_index(request):
     """Serves the Comic Studio HTML5 app."""
-    html_path = os.path.join(BASE_DIR, "web", "index.html")
-    if os.path.exists(html_path):
-        with open(html_path, "r", encoding="utf-8") as f:
-            return HTMLResponse(f.read())
+    for rel_path in ["index.html", os.path.join("web", "index.html")]:
+        html_path = os.path.join(BASE_DIR, rel_path)
+        if os.path.exists(html_path):
+            with open(html_path, "r", encoding="utf-8") as f:
+                return HTMLResponse(f.read())
     return HTMLResponse("<h1>Comic Studio UI not found</h1>", status_code=404)
 
 async def api_health(request):
