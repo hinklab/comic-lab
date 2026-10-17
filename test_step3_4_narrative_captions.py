@@ -91,7 +91,7 @@ class TestStep34NarrativeCaptions(unittest.TestCase):
 
         self.assertGreaterEqual(len(bubbles), 4, f"Expected at least 4 bubbles, got {len(bubbles)}")
 
-        all_orig_texts = " ".join([b["original_text"].upper() for b in bubbles])
+        all_orig_texts = " ".join(" ".join([b["original_text"].upper() for b in bubbles]).split())
 
         # 1. First caption box
         self.assertIn("WHO AM I", all_orig_texts)

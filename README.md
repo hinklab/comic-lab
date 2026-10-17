@@ -1,4 +1,12 @@
-# 💥 100% Local Comic Book Translation & Typesetting Studio
+---
+title: Comic Lab Ultra
+colorFrom: indigo
+colorTo: pink
+sdk: docker
+app_port: 7860
+---
+
+# 100% Local Comic Book Translation & Typesetting Studio
 
 A standalone, local & free comic book translation and typesetting web application built with **Starlette/FastAPI**, **HTML5 Canvas Studio**, **OpenCV**, **EasyOCR / Tesseract**, **deep-translator**, and **Pillow (PIL)**.
 
@@ -6,7 +14,8 @@ A standalone, local & free comic book translation and typesetting web applicatio
 
 ---
 
-## 🌟 Key Features
+## Key Features
+
 
 1. **Flawless Bubble Detection & 100% Clean Erase (OpenCV)**:
    - High-luminance binary thresholding ($> 225$) and morphological closing to discover speech bubble contours ($1,200 \le \text{area} \le 150,000$).

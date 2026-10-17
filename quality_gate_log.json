@@ -17674,5 +17674,701 @@
       "description": "Monochromatic tinted speech bubble or spectral dialogue ink requiring authentic tint preservation and Zero Whiteout inpainting"
     },
     "timestamp": 1792174203.0037653
+  },
+  {
+    "page": null,
+    "bubble_id": 1,
+    "stage": "bubble_inpainting",
+    "pattern_name": "earpiece_rect_misclassification",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Speech bubble misclassified as earpiece rectangle, risking whiteout corners"
+    },
+    "timestamp": 1792174721.3335419
+  },
+  {
+    "page": null,
+    "bubble_id": 2,
+    "stage": "bubble_inpainting",
+    "pattern_name": "earpiece_rect_misclassification",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Speech bubble misclassified as earpiece rectangle, risking whiteout corners"
+    },
+    "timestamp": 1792174721.6001368
+  },
+  {
+    "page": null,
+    "bubble_id": 3,
+    "stage": "bubble_inpainting",
+    "pattern_name": "earpiece_rect_misclassification",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Speech bubble misclassified as earpiece rectangle, risking whiteout corners"
+    },
+    "timestamp": 1792174721.7647908
+  },
+  {
+    "page": null,
+    "bubble_id": 1,
+    "stage": "bubble_inpainting",
+    "pattern_name": "tinted_spectral_bubble_preservation",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Monochromatic tinted speech bubble or spectral dialogue ink requiring authentic tint preservation and Zero Whiteout inpainting"
+    },
+    "timestamp": 1792174722.0637665
+  },
+  {
+    "page": null,
+    "bubble_id": 2,
+    "stage": "bubble_inpainting",
+    "pattern_name": "tinted_spectral_bubble_preservation",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Monochromatic tinted speech bubble or spectral dialogue ink requiring authentic tint preservation and Zero Whiteout inpainting"
+    },
+    "timestamp": 1792174722.3318286
+  },
+  {
+    "page": null,
+    "bubble_id": 3,
+    "stage": "bubble_inpainting",
+    "pattern_name": "tinted_spectral_bubble_preservation",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Monochromatic tinted speech bubble or spectral dialogue ink requiring authentic tint preservation and Zero Whiteout inpainting"
+    },
+    "timestamp": 1792174722.6290839
+  },
+  {
+    "page": null,
+    "bubble_id": 1,
+    "stage": "bubble_inpainting",
+    "pattern_name": "earpiece_rect_misclassification",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Speech bubble misclassified as earpiece rectangle, risking whiteout corners"
+    },
+    "timestamp": 1792175782.2277582
+  },
+  {
+    "page": null,
+    "bubble_id": 2,
+    "stage": "bubble_inpainting",
+    "pattern_name": "earpiece_rect_misclassification",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Speech bubble misclassified as earpiece rectangle, risking whiteout corners"
+    },
+    "timestamp": 1792175782.5269787
+  },
+  {
+    "page": null,
+    "bubble_id": 3,
+    "stage": "bubble_inpainting",
+    "pattern_name": "earpiece_rect_misclassification",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Speech bubble misclassified as earpiece rectangle, risking whiteout corners"
+    },
+    "timestamp": 1792175782.8341494
+  },
+  {
+    "page": null,
+    "bubble_id": 1,
+    "stage": "bubble_inpainting",
+    "pattern_name": "tinted_spectral_bubble_preservation",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Monochromatic tinted speech bubble or spectral dialogue ink requiring authentic tint preservation and Zero Whiteout inpainting"
+    },
+    "timestamp": 1792175783.2012186
+  },
+  {
+    "page": null,
+    "bubble_id": 2,
+    "stage": "bubble_inpainting",
+    "pattern_name": "tinted_spectral_bubble_preservation",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Monochromatic tinted speech bubble or spectral dialogue ink requiring authentic tint preservation and Zero Whiteout inpainting"
+    },
+    "timestamp": 1792175783.5593355
+  },
+  {
+    "page": null,
+    "bubble_id": 3,
+    "stage": "bubble_inpainting",
+    "pattern_name": "tinted_spectral_bubble_preservation",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Monochromatic tinted speech bubble or spectral dialogue ink requiring authentic tint preservation and Zero Whiteout inpainting"
+    },
+    "timestamp": 1792175783.9951715
+  },
+  {
+    "page": null,
+    "bubble_id": 1,
+    "stage": "bubble_inpainting",
+    "pattern_name": "earpiece_rect_misclassification",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Speech bubble misclassified as earpiece rectangle, risking whiteout corners"
+    },
+    "timestamp": 1792177688.3061523
+  },
+  {
+    "page": null,
+    "bubble_id": 2,
+    "stage": "bubble_inpainting",
+    "pattern_name": "earpiece_rect_misclassification",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Speech bubble misclassified as earpiece rectangle, risking whiteout corners"
+    },
+    "timestamp": 1792177688.5689743
+  },
+  {
+    "page": null,
+    "bubble_id": 1,
+    "stage": "bubble_inpainting",
+    "pattern_name": "tinted_spectral_bubble_preservation",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Monochromatic tinted speech bubble or spectral dialogue ink requiring authentic tint preservation and Zero Whiteout inpainting"
+    },
+    "timestamp": 1792177688.9362018
+  },
+  {
+    "page": null,
+    "bubble_id": 2,
+    "stage": "bubble_inpainting",
+    "pattern_name": "tinted_spectral_bubble_preservation",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Monochromatic tinted speech bubble or spectral dialogue ink requiring authentic tint preservation and Zero Whiteout inpainting"
+    },
+    "timestamp": 1792177689.2548344
+  },
+  {
+    "page": null,
+    "bubble_id": 1,
+    "stage": "bubble_inpainting",
+    "pattern_name": "earpiece_rect_misclassification",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Speech bubble misclassified as earpiece rectangle, risking whiteout corners"
+    },
+    "timestamp": 1792178017.9018073
+  },
+  {
+    "page": null,
+    "bubble_id": 2,
+    "stage": "bubble_inpainting",
+    "pattern_name": "earpiece_rect_misclassification",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Speech bubble misclassified as earpiece rectangle, risking whiteout corners"
+    },
+    "timestamp": 1792178018.1540365
+  },
+  {
+    "page": null,
+    "bubble_id": 3,
+    "stage": "bubble_inpainting",
+    "pattern_name": "earpiece_rect_misclassification",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Speech bubble misclassified as earpiece rectangle, risking whiteout corners"
+    },
+    "timestamp": 1792178018.3712873
+  },
+  {
+    "page": null,
+    "bubble_id": 1,
+    "stage": "bubble_inpainting",
+    "pattern_name": "tinted_spectral_bubble_preservation",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Monochromatic tinted speech bubble or spectral dialogue ink requiring authentic tint preservation and Zero Whiteout inpainting"
+    },
+    "timestamp": 1792178018.6997347
+  },
+  {
+    "page": null,
+    "bubble_id": 2,
+    "stage": "bubble_inpainting",
+    "pattern_name": "tinted_spectral_bubble_preservation",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Monochromatic tinted speech bubble or spectral dialogue ink requiring authentic tint preservation and Zero Whiteout inpainting"
+    },
+    "timestamp": 1792178019.0433047
+  },
+  {
+    "page": null,
+    "bubble_id": 3,
+    "stage": "bubble_inpainting",
+    "pattern_name": "tinted_spectral_bubble_preservation",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Monochromatic tinted speech bubble or spectral dialogue ink requiring authentic tint preservation and Zero Whiteout inpainting"
+    },
+    "timestamp": 1792178019.4656796
+  },
+  {
+    "page": null,
+    "bubble_id": null,
+    "stage": "contour_extraction",
+    "pattern_name": "background_art_leak",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Flood-fill leak escaping into open background art past broken or docked border"
+    },
+    "timestamp": 1792178285.1416094
+  },
+  {
+    "page": null,
+    "bubble_id": 1,
+    "stage": "bubble_inpainting",
+    "pattern_name": "earpiece_rect_misclassification",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Speech bubble misclassified as earpiece rectangle, risking whiteout corners"
+    },
+    "timestamp": 1792178288.5515585
+  },
+  {
+    "page": null,
+    "bubble_id": 2,
+    "stage": "bubble_inpainting",
+    "pattern_name": "earpiece_rect_misclassification",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Speech bubble misclassified as earpiece rectangle, risking whiteout corners"
+    },
+    "timestamp": 1792178288.8170514
+  },
+  {
+    "page": null,
+    "bubble_id": 3,
+    "stage": "bubble_inpainting",
+    "pattern_name": "earpiece_rect_misclassification",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Speech bubble misclassified as earpiece rectangle, risking whiteout corners"
+    },
+    "timestamp": 1792178289.0423195
+  },
+  {
+    "page": null,
+    "bubble_id": 1,
+    "stage": "bubble_inpainting",
+    "pattern_name": "tinted_spectral_bubble_preservation",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Monochromatic tinted speech bubble or spectral dialogue ink requiring authentic tint preservation and Zero Whiteout inpainting"
+    },
+    "timestamp": 1792178289.503056
+  },
+  {
+    "page": null,
+    "bubble_id": 2,
+    "stage": "bubble_inpainting",
+    "pattern_name": "tinted_spectral_bubble_preservation",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Monochromatic tinted speech bubble or spectral dialogue ink requiring authentic tint preservation and Zero Whiteout inpainting"
+    },
+    "timestamp": 1792178289.8563468
+  },
+  {
+    "page": null,
+    "bubble_id": 3,
+    "stage": "bubble_inpainting",
+    "pattern_name": "tinted_spectral_bubble_preservation",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Monochromatic tinted speech bubble or spectral dialogue ink requiring authentic tint preservation and Zero Whiteout inpainting"
+    },
+    "timestamp": 1792178290.1993692
+  },
+  {
+    "page": null,
+    "bubble_id": null,
+    "stage": "contour_extraction",
+    "pattern_name": "background_art_leak",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Flood-fill leak escaping into open background art past broken or docked border"
+    },
+    "timestamp": 1792201274.0421956
+  },
+  {
+    "page": null,
+    "bubble_id": 1,
+    "stage": "bubble_inpainting",
+    "pattern_name": "earpiece_rect_misclassification",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Speech bubble misclassified as earpiece rectangle, risking whiteout corners"
+    },
+    "timestamp": 1792201277.6903973
+  },
+  {
+    "page": null,
+    "bubble_id": 2,
+    "stage": "bubble_inpainting",
+    "pattern_name": "earpiece_rect_misclassification",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Speech bubble misclassified as earpiece rectangle, risking whiteout corners"
+    },
+    "timestamp": 1792201277.9138057
+  },
+  {
+    "page": null,
+    "bubble_id": 3,
+    "stage": "bubble_inpainting",
+    "pattern_name": "earpiece_rect_misclassification",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Speech bubble misclassified as earpiece rectangle, risking whiteout corners"
+    },
+    "timestamp": 1792201278.0973055
+  },
+  {
+    "page": null,
+    "bubble_id": 4,
+    "stage": "bubble_inpainting",
+    "pattern_name": "earpiece_rect_misclassification",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Speech bubble misclassified as earpiece rectangle, risking whiteout corners"
+    },
+    "timestamp": 1792201278.3468828
+  },
+  {
+    "page": null,
+    "bubble_id": 1,
+    "stage": "bubble_inpainting",
+    "pattern_name": "tinted_spectral_bubble_preservation",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Monochromatic tinted speech bubble or spectral dialogue ink requiring authentic tint preservation and Zero Whiteout inpainting"
+    },
+    "timestamp": 1792201279.5023246
+  },
+  {
+    "page": null,
+    "bubble_id": 2,
+    "stage": "bubble_inpainting",
+    "pattern_name": "tinted_spectral_bubble_preservation",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Monochromatic tinted speech bubble or spectral dialogue ink requiring authentic tint preservation and Zero Whiteout inpainting"
+    },
+    "timestamp": 1792201280.3181589
+  },
+  {
+    "page": null,
+    "bubble_id": 3,
+    "stage": "bubble_inpainting",
+    "pattern_name": "tinted_spectral_bubble_preservation",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Monochromatic tinted speech bubble or spectral dialogue ink requiring authentic tint preservation and Zero Whiteout inpainting"
+    },
+    "timestamp": 1792201280.733687
+  },
+  {
+    "page": null,
+    "bubble_id": 4,
+    "stage": "bubble_inpainting",
+    "pattern_name": "tinted_spectral_bubble_preservation",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Monochromatic tinted speech bubble or spectral dialogue ink requiring authentic tint preservation and Zero Whiteout inpainting"
+    },
+    "timestamp": 1792201281.0666423
+  },
+  {
+    "page": null,
+    "bubble_id": 1,
+    "stage": "bubble_inpainting",
+    "pattern_name": "earpiece_rect_misclassification",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Speech bubble misclassified as earpiece rectangle, risking whiteout corners"
+    },
+    "timestamp": 1792201336.971089
+  },
+  {
+    "page": null,
+    "bubble_id": 3,
+    "stage": "bubble_inpainting",
+    "pattern_name": "earpiece_rect_misclassification",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Speech bubble misclassified as earpiece rectangle, risking whiteout corners"
+    },
+    "timestamp": 1792202736.133561
+  },
+  {
+    "page": null,
+    "bubble_id": 1,
+    "stage": "bubble_inpainting",
+    "pattern_name": "tinted_spectral_bubble_preservation",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Monochromatic tinted speech bubble or spectral dialogue ink requiring authentic tint preservation and Zero Whiteout inpainting"
+    },
+    "timestamp": 1792202736.5895834
+  },
+  {
+    "page": null,
+    "bubble_id": 2,
+    "stage": "bubble_inpainting",
+    "pattern_name": "tinted_spectral_bubble_preservation",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Monochromatic tinted speech bubble or spectral dialogue ink requiring authentic tint preservation and Zero Whiteout inpainting"
+    },
+    "timestamp": 1792202736.9709067
+  },
+  {
+    "page": null,
+    "bubble_id": 3,
+    "stage": "bubble_inpainting",
+    "pattern_name": "tinted_spectral_bubble_preservation",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Monochromatic tinted speech bubble or spectral dialogue ink requiring authentic tint preservation and Zero Whiteout inpainting"
+    },
+    "timestamp": 1792202737.270741
+  },
+  {
+    "page": null,
+    "bubble_id": 1,
+    "stage": "bubble_inpainting",
+    "pattern_name": "earpiece_rect_misclassification",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Speech bubble misclassified as earpiece rectangle, risking whiteout corners"
+    },
+    "timestamp": 1792203679.010774
+  },
+  {
+    "page": null,
+    "bubble_id": 1,
+    "stage": "bubble_inpainting",
+    "pattern_name": "tinted_spectral_bubble_preservation",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Monochromatic tinted speech bubble or spectral dialogue ink requiring authentic tint preservation and Zero Whiteout inpainting"
+    },
+    "timestamp": 1792203679.505922
+  },
+  {
+    "page": null,
+    "bubble_id": 1,
+    "stage": "bubble_inpainting",
+    "pattern_name": "tinted_spectral_bubble_preservation",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Monochromatic tinted speech bubble or spectral dialogue ink requiring authentic tint preservation and Zero Whiteout inpainting"
+    },
+    "timestamp": 1792206063.6344142
+  },
+  {
+    "page": null,
+    "bubble_id": 2,
+    "stage": "bubble_inpainting",
+    "pattern_name": "tinted_spectral_bubble_preservation",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Monochromatic tinted speech bubble or spectral dialogue ink requiring authentic tint preservation and Zero Whiteout inpainting"
+    },
+    "timestamp": 1792206064.1351712
+  },
+  {
+    "page": null,
+    "bubble_id": 3,
+    "stage": "bubble_inpainting",
+    "pattern_name": "tinted_spectral_bubble_preservation",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Monochromatic tinted speech bubble or spectral dialogue ink requiring authentic tint preservation and Zero Whiteout inpainting"
+    },
+    "timestamp": 1792206064.7233064
+  },
+  {
+    "page": null,
+    "bubble_id": 2,
+    "stage": "bubble_inpainting",
+    "pattern_name": "earpiece_rect_misclassification",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Speech bubble misclassified as earpiece rectangle, risking whiteout corners"
+    },
+    "timestamp": 1792206266.4763756
+  },
+  {
+    "page": null,
+    "bubble_id": 3,
+    "stage": "bubble_inpainting",
+    "pattern_name": "earpiece_rect_misclassification",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Speech bubble misclassified as earpiece rectangle, risking whiteout corners"
+    },
+    "timestamp": 1792206266.697513
+  },
+  {
+    "page": null,
+    "bubble_id": 4,
+    "stage": "bubble_inpainting",
+    "pattern_name": "earpiece_rect_misclassification",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Speech bubble misclassified as earpiece rectangle, risking whiteout corners"
+    },
+    "timestamp": 1792206266.847065
+  },
+  {
+    "page": null,
+    "bubble_id": 2,
+    "stage": "bubble_inpainting",
+    "pattern_name": "tinted_spectral_bubble_preservation",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Monochromatic tinted speech bubble or spectral dialogue ink requiring authentic tint preservation and Zero Whiteout inpainting"
+    },
+    "timestamp": 1792206267.3829129
+  },
+  {
+    "page": null,
+    "bubble_id": 3,
+    "stage": "bubble_inpainting",
+    "pattern_name": "tinted_spectral_bubble_preservation",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Monochromatic tinted speech bubble or spectral dialogue ink requiring authentic tint preservation and Zero Whiteout inpainting"
+    },
+    "timestamp": 1792206267.7005916
+  },
+  {
+    "page": null,
+    "bubble_id": 4,
+    "stage": "bubble_inpainting",
+    "pattern_name": "tinted_spectral_bubble_preservation",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Monochromatic tinted speech bubble or spectral dialogue ink requiring authentic tint preservation and Zero Whiteout inpainting"
+    },
+    "timestamp": 1792206268.0596662
+  },
+  {
+    "page": null,
+    "bubble_id": null,
+    "stage": "ocr_filtering",
+    "pattern_name": "sfx_false_positive",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Non-speech stylized sound effect or background text on dark/colored art"
+    },
+    "timestamp": 1792210971.0927298
+  },
+  {
+    "page": null,
+    "bubble_id": null,
+    "stage": "bubble_list_indexing",
+    "pattern_name": "duplicate_bubble_id",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Duplicate or non-sequential bubble IDs in assembled bubble list"
+    },
+    "timestamp": 1792210971.4371896
+  },
+  {
+    "page": null,
+    "bubble_id": null,
+    "stage": "ocr_filtering",
+    "pattern_name": "sfx_false_positive",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Non-speech stylized sound effect or background text on dark/colored art"
+    },
+    "timestamp": 1792210998.3405347
+  },
+  {
+    "page": null,
+    "bubble_id": null,
+    "stage": "bubble_list_indexing",
+    "pattern_name": "duplicate_bubble_id",
+    "severity": "auto_fix",
+    "action_taken": "auto_fix_applied",
+    "details": {
+      "description": "Duplicate or non-sequential bubble IDs in assembled bubble list"
+    },
+    "timestamp": 1792210998.7759984
   }
 ]
