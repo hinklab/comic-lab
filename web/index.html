@@ -3749,14 +3749,12 @@
 
   <script>
     // --- API ENDPOINT ROUTING ---
-    // Direct backend connection on Vercel to bypass Edge 10s timeout & 4.5MB payload limit
-    const API_BASE = (window.location.hostname.includes("vercel.app"))
-      ? "https://comic-lab-backend.onrender.com"
-      : "";
+    // Use same-origin Vercel reverse proxy (/api/*) to guarantee zero CORS and maximum browser compatibility
+    const API_BASE = "";
 
-    // Immediate background warmup ping to wake Render from cold-start while user is browsing
+    // Immediate background warmup ping to wake Render backend from idle while user is browsing
     try {
-      fetch(`${API_BASE}/api/health`, { mode: 'cors' }).catch(() => {});
+      fetch("/api/health").catch(() => {});
     } catch (_) {}
 
     // --- STATE ---
@@ -6542,7 +6540,12 @@
         formData.append("force_refresh", "true");
       }
 
-      const resp = await fetch(`${API_BASE}/api/process_page`, { method: "POST", body: formData });
+      let resp;
+      try {
+        resp = await fetch(`${API_BASE}/api/process_page`, { method: "POST", body: formData });
+      } catch (networkErr) {
+        throw new Error("Server bilan aloqa o'rnatib bo'lmadi. Iltimos, internet aloqasini tekshiring yoki bir necha soniyadan so'ng qayta urinib ko'ring.");
+      }
       if (!resp.ok) {
         let errMsg = `Server xatoligi (${resp.status})`;
         try {
