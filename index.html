@@ -6532,7 +6532,24 @@
       }
 
       const resp = await fetch("/api/process_page", { method: "POST", body: formData });
-      const res = await resp.json();
+      if (!resp.ok) {
+        let errMsg = `Server xatoligi (${resp.status})`;
+        try {
+          const errData = await resp.json();
+          errMsg = errData.message || errData.error || errMsg;
+        } catch (_) {
+          if (resp.status === 502 || resp.status === 503 || resp.status === 504) {
+            errMsg = "Server yangilanmoqda yoki qayta ishga tushmoqda. Iltimos, bir necha soniyadan so'ng qayta urinib ko'ring.";
+          }
+        }
+        throw new Error(errMsg);
+      }
+      let res;
+      try {
+        res = await resp.json();
+      } catch (_) {
+        throw new Error("Serverdan to'liq bo'lmagan javob keldi. Iltimos, qaytadan urinib ko'ring.");
+      }
 
       if (res.status === "success" || res.status === "warning") {
         item.bubbles = (res.bubbles || []).map(b => ({
