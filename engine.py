@@ -2693,6 +2693,33 @@ def scan_bubbles_ocr(image: Image.Image, use_subprocess: bool = True, timeout_se
                 valid_gemini_results.append(item)
             gemini_results = valid_gemini_results
 
+            # Batch pre-translate any missed/untranslated bubbles in ONE unified Gemini call to eliminate loop latency
+            untranslated_items = []
+            untranslated_map = {}
+            for g_idx, g_item in enumerate(gemini_results):
+                orig_txt = g_item.get("original_text", "").strip()
+                uz_txt = g_item.get("uzbek_translation", "").strip()
+                c_o = re.sub(r'[^a-zA-Z0-9]', '', orig_txt).lower()
+                c_u = re.sub(r'[^a-zA-Z0-9]', '', uz_txt).lower()
+                if orig_txt and ((not uz_txt) or (c_o and c_u and c_o == c_u and not is_pure_sfx_text(orig_txt) and len(c_o) >= 2)):
+                    untranslated_map[len(untranslated_items)] = g_idx
+                    untranslated_items.append({"text": orig_txt, "speaker": g_item.get("speaker")})
+
+            if untranslated_items:
+                try:
+                    import gemini_enhancements
+                    if gemini_enhancements.is_gemini_enabled():
+                        print(f"[OCR_BATCH] Translating {len(untranslated_items)} untranslated bubbles in single batch call...", flush=True)
+                        batch_res = gemini_enhancements.gemini_translate_dialogues_batch(untranslated_items)
+                        for b_idx, b_tr in enumerate(batch_res):
+                            if b_tr:
+                                target_idx = untranslated_map.get(b_idx)
+                                if target_idx is not None:
+                                    gemini_results[target_idx]["uzbek_translation"] = b_tr
+                                    gemini_results[target_idx]["_batch_translated"] = True
+                except Exception as _batch_ex:
+                    print(f"[OCR_BATCH_WARN] Batch pre-translation failed: {_batch_ex}", flush=True)
+
             seeds = []
             for item in gemini_results:
                 bx0, by0, bx1, by1 = item["box"]
@@ -2798,7 +2825,7 @@ def scan_bubbles_ocr(image: Image.Image, use_subprocess: bool = True, timeout_se
                 # Fallback: if translation is missing or untranslated leak, translate on-the-fly
                 clean_o = re.sub(r'[^a-zA-Z0-9]', '', orig).lower()
                 clean_u = re.sub(r'[^a-zA-Z0-9]', '', uz).lower()
-                is_untranslated = (not uz) or (clean_o and clean_u and clean_o == clean_u and not is_pure_sfx_text(orig) and len(clean_o) >= 2)
+                is_untranslated = (not item.get("_batch_translated")) and ((not uz) or (clean_o and clean_u and clean_o == clean_u and not is_pure_sfx_text(orig) and len(clean_o) >= 2))
 
                 if orig and is_untranslated:
                     try:

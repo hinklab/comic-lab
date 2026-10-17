@@ -3748,6 +3748,17 @@
   <input type="file" id="page-insert-file-input" accept="image/png,image/jpeg,image/webp" multiple style="display: none;">
 
   <script>
+    // --- API ENDPOINT ROUTING ---
+    // Direct backend connection on Vercel to bypass Edge 10s timeout & 4.5MB payload limit
+    const API_BASE = (window.location.hostname.includes("vercel.app"))
+      ? "https://comic-lab-backend.onrender.com"
+      : "";
+
+    // Immediate background warmup ping to wake Render from cold-start while user is browsing
+    try {
+      fetch(`${API_BASE}/api/health`, { mode: 'cors' }).catch(() => {});
+    } catch (_) {}
+
     // --- STATE ---
     let originalImage = null;
     let cleanedImage = null;
@@ -4988,7 +4999,7 @@
         const fd = new FormData();
         fd.append("file", item.file);
         fd.append("page_id", item.id);
-        fetch("/api/register_page", { method: "POST", body: fd }).catch(() => {});
+        fetch(`${API_BASE}/api/register_page`, { method: "POST", body: fd }).catch(() => {});
       }
     }
 
@@ -6531,15 +6542,17 @@
         formData.append("force_refresh", "true");
       }
 
-      const resp = await fetch("/api/process_page", { method: "POST", body: formData });
+      const resp = await fetch(`${API_BASE}/api/process_page`, { method: "POST", body: formData });
       if (!resp.ok) {
         let errMsg = `Server xatoligi (${resp.status})`;
         try {
           const errData = await resp.json();
           errMsg = errData.message || errData.error || errMsg;
         } catch (_) {
-          if (resp.status === 502 || resp.status === 503 || resp.status === 504) {
-            errMsg = "Server yangilanmoqda yoki qayta ishga tushmoqda. Iltimos, bir necha soniyadan so'ng qayta urinib ko'ring.";
+          if (resp.status === 502 || resp.status === 503) {
+            errMsg = "Server qayta ishga tushmoqda yoki vaqtincha band. Iltimos, bir necha soniyadan so'ng qayta urinib ko'ring.";
+          } else if (resp.status === 504) {
+            errMsg = "Server javob berish vaqti tugadi (Timeout). Iltimos, qaytadan urinib ko'ring.";
           }
         }
         throw new Error(errMsg);
@@ -7895,7 +7908,7 @@
       showToast("Pufak hoshiyasiga magnitdek yopishtirilmoqda...");
 
       try {
-        const resp = await fetch("/api/snap_bubble", {
+        const resp = await fetch(`${API_BASE}/api/snap_bubble`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -10137,7 +10150,7 @@
       if (!b) return;
       showSpinner("Gemini qayta tarjima qilmoqda...");
       try {
-        const res = await fetch("/api/retranslate", {
+        const res = await fetch(`${API_BASE}/api/retranslate`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ text: b.original_text, speaker: b.speaker })
@@ -10467,7 +10480,7 @@
           });
         }
 
-        const res = await fetch("/api/export_zip", {
+        const res = await fetch(`${API_BASE}/api/export_zip`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -10561,7 +10574,7 @@
 
     async function loadTeamGlossary() {
       try {
-        const res = await fetch("/api/glossary");
+        const res = await fetch(`${API_BASE}/api/glossary`);
         const data = await res.json();
         if (data && data.terms) {
           teamGlossary = data.terms;
@@ -10713,7 +10726,7 @@
       }
 
       try {
-        const res = await fetch("/api/glossary", {
+        const res = await fetch(`${API_BASE}/api/glossary`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ source: src, target: tgt })
@@ -10740,7 +10753,7 @@
     async function deleteGlossaryTerm(sourceKey) {
       if (!confirm(`"${sourceKey}" atamasini lug'atdan o'chirishni xohlaysizmi?`)) return;
       try {
-        const res = await fetch("/api/glossary", {
+        const res = await fetch(`${API_BASE}/api/glossary`, {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ source: sourceKey })
@@ -11522,7 +11535,7 @@
           const fd = new FormData();
           fd.append("file", p.file, p.name);
           fd.append("page_id", p.id);
-          fetch("/api/register_page", { method: "POST", body: fd }).catch(() => {});
+          fetch(`${API_BASE}/api/register_page`, { method: "POST", body: fd }).catch(() => {});
         }
       }
 
