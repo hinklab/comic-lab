@@ -3713,6 +3713,12 @@
     <div id="pages-context-menu-title" style="padding: 5px 8px; font-size: 0.72rem; font-weight: 700; color: var(--text-muted); border-bottom: 1px solid var(--border); margin-bottom: 3px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
       Sahifa
     </div>
+    <div class="context-menu-item" onclick="pageContextActionDownload()">
+      <div class="context-menu-item-left">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span>Sahifani yuklab olish</span>
+      </div>
+    </div>
     <div class="context-menu-item" onclick="pageContextActionInsert()">
       <div class="context-menu-item-left">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
@@ -5033,7 +5039,7 @@
 
       menu.style.display = 'flex';
       const menuW = 210;
-      const menuH = 145;
+      const menuH = 185;
       const posX = Math.min(window.innerWidth - menuW - 10, Math.max(10, e.clientX));
       const posY = (e.clientY + menuH > window.innerHeight - 10)
         ? Math.max(10, e.clientY - menuH)
@@ -5048,6 +5054,13 @@
       if (menu) menu.style.display = 'none';
       document.querySelectorAll('.ps-card.context-target').forEach(c => c.classList.remove('context-target'));
       targetPageContextIndex = -1;
+    }
+
+    async function pageContextActionDownload() {
+      const idx = targetPageContextIndex;
+      closePageContextMenu();
+      if (idx < 0 || idx >= pageQueue.length) return;
+      await downloadPageHD(idx);
     }
 
     function pageContextActionDelete() {
@@ -10261,6 +10274,66 @@
 
         // Render EXACT WYSIWYG clean canvas at 100% full original native resolution
         const exportCanvas = renderPristinePageCanvas(activeImg, bubbles);
+
+        exportCanvas.toBlob((blob) => {
+          hideSpinner();
+          if (!blob) {
+            alert("Rasm eksportida xatolik yuz berdi");
+            return;
+          }
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = item.sequentialName;
+          a.click();
+          URL.revokeObjectURL(url);
+          showToast(`${item.sequentialName} aynan tahrirlangan holatda (WYSIWYG) yuklab olindi!`);
+        }, 'image/png');
+      } catch (err) {
+        hideSpinner();
+        alert("Yuklab olishda xatolik: " + err);
+      }
+    }
+
+    // --- DOWNLOAD SPECIFIC PAGE HD PNG BY INDEX ---
+    async function downloadPageHD(pageIndex) {
+      if (pageQueue.length === 0 || pageIndex < 0 || pageIndex >= pageQueue.length) return;
+      if (pageIndex === currentPageIndex) {
+        return downloadCurrentPageHD();
+      }
+
+      const item = pageQueue[pageIndex];
+      if (!item) return;
+
+      showSpinner(`${item.sequentialName} HD tayyorlanmoqda...`);
+
+      try {
+        if (item.status === 'skipped' && item.file) {
+          const url = URL.createObjectURL(item.file);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = item.sequentialName;
+          a.click();
+          URL.revokeObjectURL(url);
+          hideSpinner();
+          showToast(`${item.sequentialName} yuklab olindi`);
+          return;
+        }
+
+        // Ensure all web fonts are fully rasterized before export
+        if (document.fonts && document.fonts.ready) {
+          await document.fonts.ready;
+        }
+
+        const pageImg = await ensurePageImagesLoaded(item);
+        if (!pageImg) {
+          hideSpinner();
+          showToast("Ushbu sahifaning rasmi yuklanmadi");
+          return;
+        }
+
+        const pageBubbles = (Array.isArray(item.bubbles) && item.bubbles.length > 0) ? item.bubbles : [];
+        const exportCanvas = renderPristinePageCanvas(pageImg, pageBubbles);
 
         exportCanvas.toBlob((blob) => {
           hideSpinner();
