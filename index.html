@@ -6669,10 +6669,26 @@
       }
 
       let resp;
-      try {
-        resp = await fetch(`${API_BASE}/api/process_page`, { method: "POST", body: formData });
-      } catch (networkErr) {
-        throw new Error("Server bilan aloqa o'rnatib bo'lmadi. Iltimos, internet aloqasini tekshiring yoki bir necha soniyadan so'ng qayta urinib ko'ring.");
+      const maxRetries = 4;
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          resp = await fetch(`${API_BASE}/api/process_page`, { method: "POST", body: formData });
+        } catch (networkErr) {
+          if (attempt < maxRetries) {
+            showSpinner(`Server uyg'onmoqda (${attempt}/${maxRetries})... Iltimos, kuting...`);
+            await new Promise(r => setTimeout(r, 4000));
+            continue;
+          }
+          throw new Error("Server bilan aloqa o'rnatib bo'lmadi. Iltimos, internet aloqasini tekshiring yoki bir necha soniyadan so'ng qayta urinib ko'ring.");
+        }
+        if (resp.status === 502 || resp.status === 503 || resp.status === 504) {
+          if (attempt < maxRetries) {
+            showSpinner(`Server uyqudan uyg'onmoqda (${attempt}/${maxRetries})... Iltimos, biroz kuting...`);
+            await new Promise(r => setTimeout(r, 4500));
+            continue;
+          }
+        }
+        break;
       }
       if (!resp.ok) {
         let errMsg = `Server xatoligi (${resp.status})`;
