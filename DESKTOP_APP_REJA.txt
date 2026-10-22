@@ -1,0 +1,174 @@
+================================================================================
+COMIC-LAB DESKTOP ILOVASINI ISHLAB CHIQISH VA YIG'ISH REJASI
+(Boshqa AI agent yoki dasturchi uchun to'liq texnik qo'llanma)
+================================================================================
+
+LOYIHA HAQIDA QISQACHA:
+Comic-Lab - komikslarni tahlil qilish, nutq pufaklarini Canny qirralari orqali
+shikastlamasdan tozalash (zero-leak inpainting), matnlarni o'zbek tiliga
+tabiiy tarjima qilish va HD formatda tayerlash (typesetting) studiyasi.
+Hozirda loyiha Starlette/FastAPI backend (server.py) va HTML5 Canvas frontend
+(web/index.html) ko'rinishida ishlamoqda.
+
+MAQSAD:
+Mavjud veb-kod bazasiga (server.py va web/index.html) zarar yetkazmagan holda,
+foydalanuvchining shaxsiy kompyuteri operativ xotirasi (RAM) va quvvatidan to'liq
+foydalanuvchi mustaqil Windows kompyuter ilovasi (Desktop Standalone .exe) yaratish.
+
+TANLANGAN TEXNOLOGIK YECHIM:
+- Texnologiya: Python + pywebview + PyInstaller.
+- Sababi:
+  1. Frontend (web/index.html) va Backend (server.py) allaqachon tayyor. Boshqa
+     tilga (C#, C++, Rust) o'tib kodni noldan yozish shart emas.
+  2. pywebview Windows 10/11 da o'rnatilgan Microsoft Edge WebView2 dvigatelidan
+     foydalanadi. Natijada ilova hajmi yengil, xotira sarfi minimal (30-40 MB)
+     va zamonaviy Chromium standartlarida 60 FPS Canvas ishlaydi.
+  3. Server fondagi lokal portda (localhost) ishlaydi va foydalanuvchiga hech
+     qanday brauzer yoki konsol oynasisiz bitta yaxlit Windows dasturi bo'lib ko'rinadi.
+
+--------------------------------------------------------------------------------
+1-BOSQICH: ATROF-MUHIT VA KUTUBXONALARNI SOZLASH
+--------------------------------------------------------------------------------
+
+1.1. Yangi virtual muhit (yoki mavjud muhitda) desktop kutubxonalarni o'rnatish:
+     pip install pywebview pyinstaller
+
+1.2. Kerakli qo'shimcha paketlar:
+     - pywebview (versiya >= 5.0)
+     - pyinstaller (versiya >= 6.0)
+     - pystray (agar tizim patnisida - System Tray da ishlash kerak bo'lsa)
+
+--------------------------------------------------------------------------------
+2-BOSQICH: DESKTOP KIRISH NUQTASINI YARATISH (desktop_app.py)
+--------------------------------------------------------------------------------
+
+Loyiha ildizida `desktop_app.py` nomli fayl yaratiladi. Ushbu fayl quyidagi
+vazifalarni bajarishi shart:
+
+2.1. Dinamik bo'sh port tanlash:
+     Port 8080 band bo'lib qolishi mumkinligini hisobga olib, `socket` moduli
+     orqali bo'sh port (masalan, 127.0.0.1 da ixtiyoriy bo'sh port) aniqlanadi.
+
+2.2. Uvicorn serverini alohida fondagi oqimda (threading.Thread) ishga tushirish:
+     - `server.py` dagi `app` (Starlette) import qilinadi.
+     - `uvicorn.Config` va `uvicorn.Server` orqali daemon thread sifatida ishga
+       tushiriladi.
+     - Server to'liq ishga tushib, 200 OK berguncha 0.5-1 soniya kutish
+       (health check) qilinadi.
+
+2.3. pywebview oynasini yaratish:
+     - Oyna sarlavhasi: "Comic-Lab Ultra Studio"
+     - URL: `http://127.0.0.1:{port}/`
+     - Boshlang'ich o'lcham: 1400x900 (min_size=(1024, 700))
+     - Oynani kengaytirish (resizable=True)
+     - Ilova yopilganda orqa fondagi Python serverini ham toza to'xtatish
+       (clean shutdown on window close).
+
+2.4. Python bilan JavaScript o'rtasida Native Bridge (JS API):
+     - `desktop_app.py` da `DesktopAPI` klassi yaratilib, pywebview ga uzatiladi:
+       * `open_folder_dialog()`: Windows-ning mahalliy papka tanlash oynasini
+         ochadi (foydalanuvchi komikslar turgan papkani tanlashi uchun).
+       * `save_file_dialog()`: Tayyor ZIP yoki rasmni qayerga saqlashni tanlash.
+       * `get_system_specs()`: Kompyuter RAM hajmi va CPU yadrolarini ko'rsatish.
+
+--------------------------------------------------------------------------------
+3-BOSQICH: FAYL YO'LLARI (PATHS) VA RESURSLARNI MOSLASHTIRISH
+--------------------------------------------------------------------------------
+
+Desktop ilova `.exe` qilib yig'ilganda (PyInstaller MEIPASS muhitida), fayl
+yo'llari odatdagi nisbiy yo'llardan farq qiladi. Shuning uchun:
+
+3.1. Resurs yo'llarini aniqlovchi universal funksiya (`resource_path`):
+     ```python
+     def get_resource_path(relative_path):
+         if hasattr(sys, '_MEIPASS'):
+             return os.path.join(sys._MEIPASS, relative_path)
+         return os.path.join(os.path.abspath("."), relative_path)
+     ```
+
+3.2. Quyidagi statik resurslar yo'li ushbu funksiya orqali olinishi shart:
+     - `web/` papkasi va `web/index.html`
+     - `fonts/` papkasidagi barcha shriftlar (CCWildWords.ttf, Mason va h.k.)
+     - `assets/` papkasidagi ikonka va tasvirlar
+     - `.cache/` va `glossary.json` (bular ilova yonidagi yoki AppData dagi
+       haqiqiy papkaga yo'naltirilishi lozim, chunki MEIPASS vaqtinchalik va
+       faqat o'qish uchun bo'ladi).
+
+3.3. Foydalanuvchi ma'lumotlari xavfsizligi:
+     - `glossary.json`, keshlar va sozlamalar Windows-ning
+       `%APPDATA%/ComicLab/` katalogida saqlanishi kerak, toki ilova har safar
+       ochilganda lug'atlar va loyihalar o'chib ketmasin.
+
+--------------------------------------------------------------------------------
+4-BOSQICH: PYINSTALLER SPEC FAYLINI TAYYORLASH (comic_lab.spec)
+--------------------------------------------------------------------------------
+
+Ilovani `.exe` formatiga yig'ish uchun `comic_lab.spec` fayli sozlanadi:
+
+4.1. Barcha resurslarni (datas) to'g'ri bog'lash:
+     ```python
+     datas = [
+         ('web', 'web'),
+         ('fonts', 'fonts'),
+         ('assets', 'assets'),
+         ('glossary.json', '.'),
+         ('naturalization_rules.py', '.'),
+     ]
+     ```
+
+4.2. Yashirin importlar (hiddenimports):
+     PyInstaller dinamik importlarni ba'zan ko'rmay qoladi. Quyidagilar
+     majburiy ko'rsatiladi:
+     - uvicorn.logging, uvicorn.loops, uvicorn.loops.auto, uvicorn.protocols
+     - uvicorn.protocols.http, uvicorn.protocols.http.auto, uvicorn.lifespan
+     - uvicorn.lifespan.on, starlette, pydantic, cv2, PIL, pywebview
+     - urllib, json, numpy, requests
+
+4.3. Konsol oynasini yashirish:
+     - Sinov davrida: `console=True` (xatoliklarni ko'rish uchun).
+     - Yakuniy relizda: `console=False` (foydalanuvchiga faqat chiroyli oyna
+       ko'rinadi, qora konsol oynasi chiqmaydi).
+
+4.4. Ilova ikonkasini (.ico) ulash:
+     - `icon='assets/app_icon.ico'`
+
+--------------------------------------------------------------------------------
+5-BOSQICH: YIG'ISH (BUILD) VA TESTLASH
+--------------------------------------------------------------------------------
+
+5.1. Yig'ish buyrug'i:
+     pyinstaller --clean comic_lab.spec
+
+5.2. Yig'ish natijasini tekshirish (`dist/comic_lab/`):
+     - Dasturni ishga tushirish: `dist/comic_lab/comic_lab.exe`
+     - Tekshiruv mezonlari:
+       a) Oyna silliq ochilishi va Canvas 60 FPS ishlashi.
+       b) Shriftlar (fonts/) to'g'ri yuklanishi va matnda aks etishi.
+       c) Gemini Vision API orqali pufaklar topilishi va tarjima qilinishi.
+       d) Canny qirralar to'sig'i bilan tozalash (daraxt shoxlari va devorlarga
+          sizmasligi).
+       e) HD render va ZIP eksport kompyuter diskiga to'liq saqlanishi.
+       f) Ilova yopilganda orqa fonda osilib qolgan Python jarayonlari
+          qolmasligi (Task Manager orqali tekshirish).
+
+--------------------------------------------------------------------------------
+6-BOSQICH: O'RNATUVCHI (INSTALLER / SETUP WIZARD) YARATISH (IXTIYORIY)
+--------------------------------------------------------------------------------
+
+Foydalanuvchilarga qulay bo'lishi uchun:
+- Inno Setup yoki NSIS dasturi orqali `ComicLab_Setup.exe` yig'iladi.
+- Dastur "Program Files/ComicLab" ga o'rnatiladi, Ishchi stolga (Desktop) va
+  "Pusk" menyusiga yorliq (shortcut) qo'yadi.
+- Kerak bo'lsa Microsoft Edge WebView2 Bootstrapper-ni o'z ichiga oladi
+  (agar foydalanuvchida eski Windows bo'lsa, avtomatik o'rnatib beradi).
+
+--------------------------------------------------------------------------------
+MUHIM ESLATMALAR VA TAVSIYALAR:
+--------------------------------------------------------------------------------
+1. Mavjud veb-versiya (`server.py` va `web/index.html`) aslo buzilmasin.
+   Desktop ilova shunchaki ushbu server va veb-interfeysni alohida lokal
+   oynada ko'rsatib beruvchi qobiq (wrapper) bo'lishi lozim.
+2. Veb-sayt ham o'z yo'lida (masalan, Vercel + Backend ko'rinishida) ishlayveradi,
+   desktop ilova esa kompyuterda og'ir yuklamalarni bepul va cheklovlarsiz bajarish
+   uchun xizmat qiladi.
+================================================================================

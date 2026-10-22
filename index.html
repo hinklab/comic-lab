@@ -5,17 +5,35 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>COMIC-LAB Studio</title>
   <link rel="icon" type="image/png" href="/assets/favicon.png">
+  <script>
+    if (new URLSearchParams(window.location.search).get('desktop') === '1' || window.__COMICLAB_DESKTOP__) {
+      document.documentElement.classList.add('is-desktop-app');
+    }
+  </script>
 
-  <!-- Typography: Bangers for Brand Logotype + Inter for Minimalist Studio UI -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Fast Local Typography Preloading (Instant 0ms, Zero FOUT) -->
+  <link rel="preload" href="/fonts/Inter-VariableFont.ttf" as="font" type="font/ttf" crossorigin>
+  <link rel="preload" href="/fonts/Bangers-Regular.ttf" as="font" type="font/ttf" crossorigin>
 
   <!-- Client-side ZIP Engine (Offline & Fast) -->
   <script src="/assets/jszip.min.js"></script>
 
   <!-- Restored Original Comic Lettering Fonts -->
   <style>
+    @font-face {
+      font-family: 'Inter';
+      src: url('/fonts/Inter-VariableFont.ttf') format('truetype');
+      font-weight: 100 900;
+      font-style: normal;
+      font-display: block;
+    }
+    @font-face {
+      font-family: 'Bangers';
+      src: url('/fonts/Bangers-Regular.ttf') format('truetype');
+      font-weight: normal;
+      font-style: normal;
+      font-display: block;
+    }
     @font-face {
       font-family: 'CC Wild Words';
       src: url('/fonts/CCWildWords.ttf') format('truetype');
@@ -512,6 +530,87 @@
       align-items: center;
       gap: 8px;
       flex-shrink: 0;
+    }
+    .header-desktop-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      height: 25px;
+      padding: 0 9px;
+      background: transparent;
+      border: none;
+      outline: none;
+      border-radius: 6px;
+      color: #00e676;
+      font-size: 0.74rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s ease, color 0.15s ease;
+      margin-left: 6px;
+      white-space: nowrap;
+      user-select: none;
+      text-decoration: none;
+    }
+    .header-desktop-badge:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: #00e676;
+    }
+    .header-desktop-badge:active {
+      background: rgba(255, 255, 255, 0.14);
+    }
+    html.is-desktop-app .header-desktop-badge,
+    html.is-desktop-app #btn-download-app,
+    html.is-desktop-app #download-app-modal {
+      display: none !important;
+    }
+    .header-update-badge {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      height: 26px;
+      padding: 0 11px;
+      background: linear-gradient(135deg, rgba(0, 230, 118, 0.16), rgba(0, 230, 118, 0.3));
+      border: 1px solid rgba(0, 230, 118, 0.55);
+      outline: none;
+      border-radius: 13px;
+      color: #00e676;
+      font-size: 0.74rem;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      margin-left: 8px;
+      white-space: nowrap;
+      user-select: none;
+      box-shadow: 0 0 10px rgba(0, 230, 118, 0.2);
+      animation: updatePillGlow 2.5s infinite ease-in-out;
+    }
+    .header-update-badge:hover {
+      background: linear-gradient(135deg, rgba(0, 230, 118, 0.32), rgba(0, 230, 118, 0.5));
+      border-color: #00e676;
+      color: #ffffff;
+      box-shadow: 0 0 18px rgba(0, 230, 118, 0.45);
+      transform: translateY(-1px);
+    }
+    .header-update-badge:active {
+      transform: translateY(0);
+    }
+    .update-pulse-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background-color: #00e676;
+      box-shadow: 0 0 6px #00e676;
+      animation: updateDotPulse 1.6s infinite ease-in-out;
+      flex-shrink: 0;
+    }
+    @keyframes updateDotPulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.35; transform: scale(1.35); }
+    }
+    @keyframes updatePillGlow {
+      0%, 100% { box-shadow: 0 0 8px rgba(0, 230, 118, 0.18); }
+      50% { box-shadow: 0 0 18px rgba(0, 230, 118, 0.4); }
     }
     .comic-site-logo {
       display: inline-flex;
@@ -2592,6 +2691,19 @@
         <img src="/assets/comic-lab-logo.png" class="comic-logo-icon" alt="COMIC-LAB Logo" />
         <span class="comic-logo-text">COMIC-LAB</span>
       </a>
+
+      <!-- Minimalist Desktop App Pill (Web browser only) -->
+      <a href="/download/desktop" download="ComicLab_Portable_v1.0.0.zip" class="header-desktop-badge" id="btn-download-app" onclick="openDownloadModal()" title="Windows ish stoli ilovasi (Yuklab olish)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width: 12px; height: 12px; stroke-width: 2.2;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span>Desktop App</span>
+      </a>
+
+      <!-- Dynamic Update Available Badge (Desktop App & Web) -->
+      <button type="button" class="header-update-badge" id="btn-update-available" onclick="openUpdateModal()" title="Yangi yangilanish mavjud! Ko'rish uchun bosing">
+        <span class="update-pulse-dot"></span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width: 12px; height: 12px; stroke-width: 2.4;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span id="update-badge-text">Yangilanish: v1.0.1</span>
+      </button>
     </div>
 
     <div class="top-actions">
@@ -2795,6 +2907,14 @@
       <button class="btn btn-secondary" id="btn-restore-brush" onclick="toggleRestoreBrushMode()" disabled title="Asl rasmni tiklash cho'tkasi (Alt+R)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m9.06 11.9 8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08"/><path d="M7.07 14.94c-1.66 0-3 1.34-3 3 0 1.31-1.16 2-2 2 .92.83 2.25 1 3.5 1 2.49 0 4.5-2.01 4.5-4.5 0-.44-.06-.88-.15-1.3z"/></svg>
         <span id="btn-restore-brush-text">Tiklash</span>
+      </button>
+
+      <!-- Clean 1px Toolbar Group Divider -->
+      <div style="width: 1px; height: 18px; background: rgba(255,255,255,0.12); margin: 0 4px; flex-shrink: 0;"></div>
+
+      <button class="btn btn-secondary" id="btn-settings" onclick="openSettingsModal()" title="Gemini AI va API kalit sozlamalari">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width: 14px; height: 14px;"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span id="btn-settings-label">Sozlamalar</span>
       </button>
 
       <button class="btn btn-secondary" id="btn-find-replace" onclick="openFindReplaceModal()" title="Bob bo'yicha qidiruv va almashtirish (Ctrl+H / Ctrl+F)">
@@ -3569,6 +3689,201 @@
     </div>
   </div>
 
+  <!-- SETTINGS MODAL -->
+  <div id="settings-modal" style="display: none; position: fixed; inset: 0; background: rgba(13, 15, 20, 0.85); backdrop-filter: blur(6px); z-index: 2100; align-items: center; justify-content: center;">
+    <div style="background: var(--bg-surface); border: 1px solid var(--border); border-radius: 14px; width: 520px; max-width: 95vw; box-shadow: 0 24px 60px rgba(0,0,0,0.92); display: flex; flex-direction: column; overflow: hidden;">
+      
+      <!-- Modal Header -->
+      <div style="padding: 16px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" style="width: 20px; height: 20px; stroke-width: 2.2;"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <span style="font-weight: 700; font-size: 1.1rem; color: var(--text-main);">Gemini AI Sozlamalari</span>
+        </div>
+        <button class="ps-btn" onclick="closeSettingsModal()" title="Yopish (Esc)" style="border: none; background: transparent; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width: 18px; height: 18px; stroke-width: 2;"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      <!-- Modal Body -->
+      <div style="padding: 24px; display: flex; flex-direction: column; gap: 18px;">
+        <!-- Status indicator -->
+        <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-card); padding: 12px 16px; border-radius: 10px; border: 1px solid var(--border);">
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <span style="font-size: 0.78rem; color: var(--text-muted); font-weight: 600;">AI HOLATI</span>
+            <span id="settings-status-badge" style="font-size: 0.92rem; font-weight: 700; color: #ff3366;">Kalit ulanmagan</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <div id="settings-key-display" style="font-size: 0.84rem; font-family: monospace; color: var(--text-muted);">---</div>
+            <button type="button" id="btn-delete-key" onclick="deleteGeminiApiKey()" style="display: none; background: rgba(255,51,102,0.12); border: 1px solid rgba(255,51,102,0.3); color: #ff3366; font-size: 0.72rem; font-weight: 600; padding: 4px 8px; border-radius: 6px; cursor: pointer;" title="Kalitni uzish va o'chirish">Uzish</button>
+          </div>
+        </div>
+
+        <!-- Input group -->
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <label style="font-size: 0.86rem; font-weight: 600; color: var(--text-main);">Google Gemini API Kaliti</label>
+          <div style="position: relative; display: flex; align-items: center;">
+            <input type="password" id="input-gemini-key" placeholder="AIzaSy..." style="width: 100%; height: 42px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 0 44px 0 14px; color: var(--text-main); font-family: monospace; font-size: 0.9rem;" autocomplete="off" spellcheck="false">
+            <button type="button" onclick="toggleKeyVisibility()" style="position: absolute; right: 10px; background: transparent; border: none; color: var(--text-muted); cursor: pointer; padding: 4px;" title="Ko'rsatish / Yashirish">
+              <svg id="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width: 18px; height: 18px;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+          <span style="font-size: 0.78rem; color: var(--text-muted); line-height: 1.4;">
+            Google AI Studio dan olingan Gemini API kalitini kiriting. Kalit faqat o'z kompyuteringizda xavfsiz saqlanadi.
+          </span>
+        </div>
+
+        <!-- App Version & Update Check -->
+        <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-card); padding: 12px 16px; border-radius: 10px; border: 1px solid var(--border);">
+          <div style="display: flex; flex-direction: column; gap: 3px;">
+            <span style="font-size: 0.78rem; color: var(--text-muted); font-weight: 600;">ILOVA VERSIYASI</span>
+            <span style="font-size: 0.88rem; font-weight: 700; color: var(--text-main);" id="settings-app-version">v1.0.0</span>
+          </div>
+          <button type="button" class="btn btn-secondary" onclick="checkForAppUpdates(true)" style="height: 32px; padding: 0 12px; font-size: 0.78rem; font-weight: 600; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width: 13px; height: 13px;"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            <span>Yangilanishni tekshirish</span>
+          </button>
+        </div>
+
+        <div id="settings-feedback" style="display: none; padding: 10px 14px; border-radius: 8px; font-size: 0.84rem; font-weight: 600;"></div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div style="padding: 16px 24px; border-top: 1px solid var(--border); background: rgba(0,0,0,0.25); display: flex; align-items: center; justify-content: flex-end; gap: 12px;">
+        <button class="btn btn-secondary" onclick="closeSettingsModal()" style="height: 38px; padding: 0 18px; font-size: 0.88rem; font-weight: 600; border-radius: 8px; cursor: pointer;">Bekor qilish</button>
+        <button class="btn btn-primary" id="btn-save-key" onclick="saveGeminiApiKey()" style="height: 38px; padding: 0 20px; font-size: 0.88rem; font-weight: 600; border-radius: 8px; cursor: pointer;">Tekshirish va Saqlash</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MINIMALIST DOWNLOAD DESKTOP APP MODAL -->
+  <div id="download-app-modal" onclick="if(event.target === this) closeDownloadModal()" style="display: none; position: fixed; inset: 0; background: rgba(10, 11, 15, 0.82); backdrop-filter: blur(8px); z-index: 2200; align-items: center; justify-content: center;">
+    <div style="background: var(--bg-surface); border: 1px solid var(--border); border-radius: 14px; width: 400px; max-width: 92vw; padding: 22px 24px; box-shadow: 0 20px 50px rgba(0,0,0,0.85); display: flex; flex-direction: column; gap: 15px;">
+      
+      <!-- Modal Header (Compact) -->
+      <div style="display: flex; align-items: center; justify-content: space-between;">
+        <div style="display: flex; align-items: center; gap: 9px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#00e676" style="width: 18px; height: 18px; stroke-width: 2.2;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span style="font-weight: 700; font-size: 1.05rem; color: var(--text-main);">ComicLab Desktop</span>
+        </div>
+        <button class="ps-btn" onclick="closeDownloadModal()" title="Yopish (Esc)" style="border: none; background: transparent; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text-muted);">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width: 16px; height: 16px; stroke-width: 2;"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      <!-- Download Started Status Banner -->
+      <div style="display: flex; align-items: center; gap: 11px; background: rgba(0, 230, 118, 0.08); border: 1px solid rgba(0, 230, 118, 0.24); border-radius: 8px; padding: 11px 13px;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#00e676" style="width: 18px; height: 18px; stroke-width: 2.2; flex-shrink: 0;"><polyline points="20 6 9 17 4 12"/></svg>
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <span style="font-weight: 600; font-size: 0.88rem; color: #00e676;">Yuklab olish boshlandi</span>
+          <span style="font-size: 0.76rem; color: var(--text-muted);">ComicLab_Portable_v1.0.0.zip &bull; 116 MB</span>
+        </div>
+      </div>
+
+      <!-- Essential Instructions -->
+      <div style="display: flex; flex-direction: column; gap: 8px; font-size: 0.82rem; color: var(--text-main); line-height: 1.45; background: var(--bg-card); padding: 12px 14px; border-radius: 8px; border: 1px solid var(--border);">
+        <div style="display: flex; gap: 9px; align-items: flex-start;">
+          <span style="color: #00e676; font-weight: 700; flex-shrink: 0;">1.</span>
+          <span>Yuklab olingan arxivni papkaga oching (extract qiling).</span>
+        </div>
+        <div style="display: flex; gap: 9px; align-items: flex-start;">
+          <span style="color: #00e676; font-weight: 700; flex-shrink: 0;">2.</span>
+          <span><strong>ComicLab.exe</strong> faylini ishga tushiring.</span>
+        </div>
+        <div style="display: flex; gap: 9px; align-items: flex-start; font-size: 0.77rem; color: var(--text-muted); border-top: 1px solid var(--border); padding-top: 8px; margin-top: 2px;">
+          <span style="color: #00e676; font-weight: 700; flex-shrink: 0;">*</span>
+          <span>SmartScreen ogohlantirishi chiqsa: <em>"Batafsil" &rarr; "Baribir ishga tushirish"</em> ni bosing.</span>
+        </div>
+      </div>
+
+      <!-- Close Button -->
+      <button type="button" class="btn btn-secondary" onclick="closeDownloadModal()" style="width: 100%; height: 38px; border-radius: 8px; font-weight: 600; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+        Tushunarli
+      </button>
+
+    </div>
+  </div>
+
+  <!-- MODERN FAST UPDATE MODAL -->
+  <div id="update-modal" onclick="if(event.target === this) closeUpdateModal()" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.76); backdrop-filter: blur(8px); z-index: 2300; align-items: center; justify-content: center; padding: 16px;">
+    <div style="background: var(--bg-surface); border: 1px solid var(--border); border-radius: 14px; width: 480px; max-width: 95vw; box-shadow: 0 24px 60px rgba(0,0,0,0.92); overflow: hidden; display: flex; flex-direction: column;">
+      
+      <!-- Modal Header -->
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--border); background: var(--bg-card);">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div style="width: 32px; height: 32px; border-radius: 8px; background: rgba(0, 230, 118, 0.15); border: 1px solid rgba(0, 230, 118, 0.35); display: flex; align-items: center; justify-content: center; color: #00e676;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width: 18px; height: 18px; stroke-width: 2.2;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          </div>
+          <div>
+            <div style="font-size: 0.96rem; font-weight: 700; color: var(--text-main);">Comic-Lab Studio Yangilanishi</div>
+            <div style="font-size: 0.72rem; color: var(--text-muted);" id="update-modal-subtitle">Yangi versiya chiqdi</div>
+          </div>
+        </div>
+        <button class="ps-btn" onclick="closeUpdateModal()" title="Yopish (Esc)" style="border: none; background: transparent; color: var(--text-muted); cursor: pointer; padding: 6px; border-radius: 6px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width: 16px; height: 16px;"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      <!-- Modal Body -->
+      <div style="padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+        <!-- Version Badge Pill -->
+        <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px;">
+          <div>
+            <span style="font-size: 0.74rem; color: var(--text-muted);">Joriy versiya:</span>
+            <span style="font-size: 0.8rem; font-weight: 600; color: var(--text-main); margin-left: 4px;" id="update-current-ver">v1.0.0</span>
+          </div>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width: 14px; height: 14px; color: var(--text-muted);"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          <div>
+            <span style="font-size: 0.74rem; color: #00e676;">Yangi versiya:</span>
+            <span style="font-size: 0.86rem; font-weight: 700; color: #00e676; margin-left: 4px;" id="update-new-ver">v1.0.1</span>
+          </div>
+        </div>
+
+        <!-- Changelog Box -->
+        <div>
+          <div style="font-size: 0.76rem; font-weight: 600; color: var(--text-muted); margin-bottom: 6px;">YANGILIKLAR VA TUZATISHLAR:</div>
+          <div id="update-changelog-text" style="font-size: 0.78rem; color: var(--text-main); line-height: 1.5; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 12px; max-height: 140px; overflow-y: auto; white-space: pre-line;">
+            Yuklanmoqda...
+          </div>
+        </div>
+
+        <!-- Progress Box -->
+        <div id="update-progress-container" style="display: none; flex-direction: column; gap: 6px;">
+          <div style="display: flex; justify-content: space-between; font-size: 0.74rem; color: var(--text-muted);">
+            <span id="update-progress-label">Yuklab olinmoqda...</span>
+            <span id="update-progress-stats" style="font-weight: 600; color: #00e676;">0%</span>
+          </div>
+          <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.08); border-radius: 4px; overflow: hidden;">
+            <div id="update-progress-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #00e676, #00b0ff); transition: width 0.2s ease;"></div>
+          </div>
+          <div style="font-size: 0.68rem; color: var(--text-muted);" id="update-progress-sub">Yuklanmalar (Downloads) papkasiga saqlanmoqda...</div>
+        </div>
+
+        <!-- Success Box -->
+        <div id="update-success-box" style="display: none; align-items: center; gap: 10px; background: rgba(0, 230, 118, 0.1); border: 1px solid rgba(0, 230, 118, 0.3); border-radius: 8px; padding: 10px 14px; color: #00e676; font-size: 0.78rem;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width: 18px; height: 18px; flex-shrink: 0;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          <span id="update-success-msg">Yangilanish yuklab olindi! 'Yuklanmalar' papkasiga saqlandi.</span>
+        </div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div style="padding: 14px 20px; border-top: 1px solid var(--border); background: var(--bg-card); display: flex; gap: 10px; justify-content: flex-end;">
+        <button type="button" class="btn btn-secondary" onclick="closeUpdateModal()" style="height: 34px; padding: 0 14px; font-size: 0.8rem; border-radius: 7px; cursor: pointer;">
+          Keyinroq
+        </button>
+        <button type="button" class="btn btn-primary" id="btn-start-update-dl" onclick="startFastUpdateDownload()" style="height: 34px; padding: 0 18px; font-size: 0.8rem; background: #00e676; color: #000000; font-weight: 700; border: none; border-radius: 7px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width: 14px; height: 14px; stroke-width: 2.4;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span id="btn-start-update-text">Tezda yuklab olish</span>
+        </button>
+        <button type="button" class="btn btn-primary" id="btn-open-update-folder" onclick="openUpdateFolder()" style="display: none; height: 34px; padding: 0 18px; font-size: 0.8rem; background: #00e676; color: #000000; font-weight: 700; border: none; border-radius: 7px; cursor: pointer; align-items: center; gap: 6px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width: 14px; height: 14px; stroke-width: 2.2;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          <span>Papkani ochish</span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
   <!-- TEAM GLOSSARY MODAL -->
   <div id="glossary-modal" style="display: none; position: fixed; inset: 0; background: rgba(13, 15, 20, 0.82); backdrop-filter: blur(6px); z-index: 2000; align-items: center; justify-content: center;">
     <div style="background: var(--bg-surface); border: 1px solid var(--border); border-radius: 14px; width: 880px; max-width: 95vw; height: 86vh; max-height: 90vh; box-shadow: 0 24px 60px rgba(0,0,0,0.92); display: flex; flex-direction: column; overflow: hidden;">
@@ -3748,6 +4063,28 @@
   <input type="file" id="page-insert-file-input" accept="image/png,image/jpeg,image/webp" multiple style="display: none;">
 
   <script>
+    // --- DESKTOP APP ENVIRONMENT & TOKEN INTERCEPTOR ---
+    const _urlParams = new URLSearchParams(window.location.search);
+    const _sessionToken = _urlParams.get('token') || '';
+    const _isDesktopParam = _urlParams.get('desktop') === '1';
+
+    if (_sessionToken) {
+      window.__COMICLAB_TOKEN__ = _sessionToken;
+      const _origFetch = window.fetch;
+      window.fetch = function(resource, init) {
+        init = init || {};
+        init.headers = init.headers || {};
+        if (init.headers instanceof Headers) {
+          if (!init.headers.has('X-ComicLab-Token')) init.headers.set('X-ComicLab-Token', _sessionToken);
+        } else if (Array.isArray(init.headers)) {
+          init.headers.push(['X-ComicLab-Token', _sessionToken]);
+        } else {
+          init.headers['X-ComicLab-Token'] = _sessionToken;
+        }
+        return _origFetch.call(this, resource, init);
+      };
+    }
+
     // --- API ENDPOINT ROUTING ---
     // Use same-origin Vercel reverse proxy (/api/*) to guarantee zero CORS and maximum browser compatibility
     const API_BASE = "";
@@ -4629,7 +4966,6 @@
           if (f.name && f.url && !deleted.some(d => d.toLowerCase() === f.name.toLowerCase())) {
             try {
               const ff = new FontFace(f.name, `url('${f.url}')`);
-              await ff.load();
               document.fonts.add(ff);
             } catch (e) {}
             registerCustomFontInUI(f.name, f.filename, f.url);
@@ -4654,7 +4990,6 @@
             if (!knownDefaults.some(kd => lower.includes(kd))) {
               try {
                 const ff = new FontFace(f.font_name, `url('${f.url}')`);
-                await ff.load();
                 document.fonts.add(ff);
               } catch (e) {}
               registerCustomFontInUI(f.font_name, f.filename, f.url);
@@ -7537,9 +7872,9 @@
     function getHyphenationPointsUzbek(word) {
       if (!word) return [];
       const cleanWord = String(word).replace(/[^\w'-]/g, '').trim();
-      // Foydalanuvchi qoidasi: 7 ta va undan kam harfli so'zlarda bo'g'in ko'chirilmaydi.
-      // Faqat 7 harfdan ko'p bo'lgan (kamida 8 harf) uzun so'zlargina bo'g'inlab ko'chiriladi.
-      if (cleanWord.length <= 7 || isProtectedEntityUzbek(word)) {
+      // Foydalanuvchi qoidasi: So'zdagi 10 tadan kam harfli (<= 9 ta) so'zlarda bo'g'in ko'chirilmaydi.
+      // Faqat kamida 10 ta harfdan iborat uzun so'zlargina bo'g'in ko'chirilishi mumkin.
+      if (cleanWord.length < 10 || isProtectedEntityUzbek(word)) {
         if (cleanWord.includes('-') && !isProtectedEntityUzbek(cleanWord)) {
           const parts = cleanWord.split('-', 2);
           if (parts[0].length >= 2 && parts[1].length >= 2) {
@@ -7616,7 +7951,7 @@
     }
 
     // Helper: Layout words into diamond/elliptic or rectangular lines, strictly preserving manual paragraph breaks
-    function layoutDiamondText(ctx, parasWords, bw, bh, isRect, fs, lineH, fontName = null, fontWeight = null, fontStyle = null, b = null) {
+    function layoutDiamondText(ctx, parasWords, bw, bh, isRect, fs, lineH, fontName = null, fontWeight = null, fontStyle = null, b = null, allowHyphen = false) {
       if (!parasWords || parasWords.length === 0) return null;
       if (typeof parasWords[0] === 'string') {
         parasWords = [parasWords];
@@ -7670,21 +8005,26 @@
               curLineWidth += spaceW + nextW;
               wordIdx++;
             } else {
-              // Word overflow: try Uzbek hyphenation if remaining space permits
-              const remW = maxW - curLineWidth - spaceW;
-              if (curLineTokens.length > 0 && remW >= 24) {
-                const hyphenFit = fitWordWithHyphenUzbek(nextWord, remW, ctx, fs, fontName, fontWeight, fontStyle);
-                if (hyphenFit) {
-                  curLineTokens.push(hyphenFit.prefixToken);
-                  curPara[wordIdx] = hyphenFit.suffixToken;
-                  break;
-                }
-              } else if (curLineTokens.length === 0) {
-                const fullHyphenFit = fitWordWithHyphenUzbek(nextWord, maxW, ctx, fs, fontName, fontWeight, fontStyle);
-                if (fullHyphenFit) {
-                  curLineTokens.push(fullHyphenFit.prefixToken);
-                  curPara[wordIdx] = fullHyphenFit.suffixToken;
-                  break;
+              // Word overflow:
+              // Professional comic lettering rule: NEVER hyphenate prematurely during normal font size search.
+              // Hyphenation is strictly a LAST RESORT only permitted when allowHyphen is true (emergency fallback)
+              // and a single gigantic word cannot fit on an empty line.
+              if (allowHyphen) {
+                const remW = maxW - curLineWidth - spaceW;
+                if (curLineTokens.length > 0 && remW >= 24) {
+                  const hyphenFit = fitWordWithHyphenUzbek(nextWord, remW, ctx, fs, fontName, fontWeight, fontStyle);
+                  if (hyphenFit) {
+                    curLineTokens.push(hyphenFit.prefixToken);
+                    curPara[wordIdx] = hyphenFit.suffixToken;
+                    break;
+                  }
+                } else if (curLineTokens.length === 0) {
+                  const fullHyphenFit = fitWordWithHyphenUzbek(nextWord, maxW, ctx, fs, fontName, fontWeight, fontStyle);
+                  if (fullHyphenFit) {
+                    curLineTokens.push(fullHyphenFit.prefixToken);
+                    curPara[wordIdx] = fullHyphenFit.suffixToken;
+                    break;
+                  }
                 }
               }
               break;
@@ -7710,7 +8050,7 @@
       return null;
     }
 
-    function greedyWrapParagraphs(ctx, parasWords, maxW, fs = 16, fontName = null, fontWeight = null, fontStyle = null) {
+    function greedyWrapParagraphs(ctx, parasWords, maxW, fs = 16, fontName = null, fontWeight = null, fontStyle = null, allowHyphen = false) {
       if (!parasWords || parasWords.length === 0) return [];
       if (typeof parasWords[0] === 'string') {
         parasWords = [parasWords];
@@ -7741,22 +8081,24 @@
           } else {
             const remW = maxW - curLineWidth - spaceW;
             let hyphenated = false;
-            if (curLineTokens.length > 0 && remW >= 24) {
-              const hFit = fitWordWithHyphenUzbek(w, remW, ctx, fs, fontName, fontWeight, fontStyle);
-              if (hFit) {
-                curLineTokens.push(hFit.prefixToken);
-                lines.push(curLineTokens);
-                curLineTokens = [];
-                curLineWidth = 0;
-                activeWords[wIdx] = hFit.suffixToken;
-                hyphenated = true;
-              }
-            } else if (curLineTokens.length === 0) {
-              const fullHFit = fitWordWithHyphenUzbek(w, maxW, ctx, fs, fontName, fontWeight, fontStyle);
-              if (fullHFit) {
-                lines.push([fullHFit.prefixToken]);
-                activeWords[wIdx] = fullHFit.suffixToken;
-                hyphenated = true;
+            if (allowHyphen) {
+              if (curLineTokens.length > 0 && remW >= 24) {
+                const hFit = fitWordWithHyphenUzbek(w, remW, ctx, fs, fontName, fontWeight, fontStyle);
+                if (hFit) {
+                  curLineTokens.push(hFit.prefixToken);
+                  lines.push(curLineTokens);
+                  curLineTokens = [];
+                  curLineWidth = 0;
+                  activeWords[wIdx] = hFit.suffixToken;
+                  hyphenated = true;
+                }
+              } else if (curLineTokens.length === 0) {
+                const fullHFit = fitWordWithHyphenUzbek(w, maxW, ctx, fs, fontName, fontWeight, fontStyle);
+                if (fullHFit) {
+                  lines.push([fullHFit.prefixToken]);
+                  activeWords[wIdx] = fullHFit.suffixToken;
+                  hyphenated = true;
+                }
               }
             }
 
@@ -7784,21 +8126,20 @@
       const minReadableFs = (bw < 55 || bh < 32) ? 8 : 10;
       const minFs = Math.max(minReadableFs, Math.min(11, maxFs));
 
-      // 1. Primary: Diamond-shaped layout for smooth comic bubble aesthetic
+      // 1. Primary: Diamond-shaped layout with 100% whole intact words (zero hyphenation)
       for (let fs = maxFs; fs >= minFs; fs--) {
         const lineH = fs * lineSpacing;
-        const lines = layoutDiamondText(ctx, parasWords, bw, bh, isRect, fs, lineH, fontName, fontWeight, fontStyle, b);
+        const lines = layoutDiamondText(ctx, parasWords, bw, bh, isRect, fs, lineH, fontName, fontWeight, fontStyle, b, false);
         if (lines) {
           return { fontSize: fs, lines: lines };
         }
       }
 
-      // 2. Secondary: High-Quality Greedy Wrap searching from maxFs down to minReadableFs
-      // Prevents premature font collapse when diamond constraints fail on long words
+      // 2. Secondary: High-Quality Greedy Wrap searching from maxFs down to minReadableFs with whole intact words
       const targetMaxW = bw * (isRect ? 0.82 : 0.84);
       for (let fs = maxFs; fs >= minReadableFs; fs--) {
         const lineH = fs * lineSpacing;
-        const fallbackLines = greedyWrapParagraphs(ctx, parasWords, targetMaxW, fs, fontName, fontWeight, fontStyle);
+        const fallbackLines = greedyWrapParagraphs(ctx, parasWords, targetMaxW, fs, fontName, fontWeight, fontStyle, false);
         const totalH = fallbackLines.length * lineH;
         if (totalH <= bh * (isRect ? 0.86 : 0.90)) {
           let allLinesFit = true;
@@ -7817,10 +8158,10 @@
         }
       }
 
-      // 3. Fallback: Search smaller font sizes down to 7 to guarantee that ALL lines fit inside the safe chord
+      // 3. Fallback: Search smaller font sizes down to 7 (still whole intact words)
       for (let safeFs = minReadableFs - 1; safeFs >= 7; safeFs--) {
         const lineH = safeFs * lineSpacing;
-        const fallbackLines = greedyWrapParagraphs(ctx, parasWords, targetMaxW, safeFs, fontName, fontWeight, fontStyle);
+        const fallbackLines = greedyWrapParagraphs(ctx, parasWords, targetMaxW, safeFs, fontName, fontWeight, fontStyle, false);
         const totalH = fallbackLines.length * lineH;
         if (totalH <= bh * (isRect ? 0.86 : 0.92)) {
           let allLinesFit = true;
@@ -7838,7 +8179,18 @@
           }
         }
       }
-      return { fontSize: 8, lines: greedyWrapParagraphs(ctx, parasWords, targetMaxW, 8, fontName, fontWeight, fontStyle) };
+
+      // 4. Ultimate emergency fallback: If and only if a huge word (>= 10 letters) cannot fit on an entire line even at small sizes, allow hyphenation
+      for (let emFs = minReadableFs; emFs >= 7; emFs--) {
+        const lineH = emFs * lineSpacing;
+        const lines = layoutDiamondText(ctx, parasWords, bw, bh, isRect, emFs, lineH, fontName, fontWeight, fontStyle, b, true)
+          || greedyWrapParagraphs(ctx, parasWords, targetMaxW, emFs, fontName, fontWeight, fontStyle, true);
+        if (lines) {
+          return { fontSize: emFs, lines: lines };
+        }
+      }
+
+      return { fontSize: 8, lines: greedyWrapParagraphs(ctx, parasWords, targetMaxW, 8, fontName, fontWeight, fontStyle, true) };
     }
 
     function isColorDark(hex) {
@@ -10869,6 +11221,305 @@
       }
     }
 
+    async function loadSettingsStatus() {
+      try {
+        const res = await fetch('/api/settings');
+        if (res.ok) {
+          const data = await res.json();
+          const badge = document.getElementById('settings-status-badge');
+          const disp = document.getElementById('settings-key-display');
+          const btnLabel = document.getElementById('btn-settings-label');
+          const delBtn = document.getElementById('btn-delete-key');
+          if (data.has_key && data.gemini_active) {
+            if (badge) {
+              badge.textContent = "Faol va Ulanish mavjud";
+              badge.style.color = "#00e676";
+            }
+            if (disp) disp.textContent = data.masked_key;
+            if (btnLabel) btnLabel.textContent = "Sozlamalar";
+            if (delBtn) delBtn.style.display = 'inline-block';
+          } else {
+            if (badge) {
+              badge.textContent = "Kalit ulanmagan";
+              badge.style.color = "#ff3366";
+            }
+            if (disp) disp.textContent = "---";
+            if (btnLabel) btnLabel.textContent = "Kalit Kiritish";
+            if (delBtn) delBtn.style.display = 'none';
+          }
+        }
+      } catch (e) {
+        console.warn("Settings status fetch failed:", e);
+      }
+    }
+
+    async function deleteGeminiApiKey() {
+      if (!confirm("Haqiqatan ham saqlangan Gemini API kalitini uzmoqchimisiz?")) return;
+      try {
+        const res = await fetch('/api/settings', { method: 'DELETE' });
+        if (res.ok) {
+          showToast("Gemini API kaliti uzildi va o'chirildi.");
+          await loadSettingsStatus();
+        }
+      } catch (e) {
+        showToast("Xatolik yuz berdi: " + e.message);
+      }
+    }
+    }
+
+    function openSettingsModal() {
+      const modal = document.getElementById('settings-modal');
+      if (modal) {
+        modal.style.display = 'flex';
+        loadSettingsStatus();
+        const inp = document.getElementById('input-gemini-key');
+        if (inp) {
+          inp.value = '';
+          setTimeout(() => inp.focus(), 50);
+        }
+        const fb = document.getElementById('settings-feedback');
+        if (fb) fb.style.display = 'none';
+      }
+    }
+
+    function closeSettingsModal() {
+      const modal = document.getElementById('settings-modal');
+      if (modal) modal.style.display = 'none';
+    }
+
+    function toggleKeyVisibility() {
+      const inp = document.getElementById('input-gemini-key');
+      if (!inp) return;
+      inp.type = inp.type === 'password' ? 'text' : 'password';
+    }
+
+    async function saveGeminiApiKey() {
+      const inp = document.getElementById('input-gemini-key');
+      const btn = document.getElementById('btn-save-key');
+      const fb = document.getElementById('settings-feedback');
+      const key = (inp ? inp.value : "").trim();
+      if (!key) {
+        if (fb) {
+          fb.style.display = 'block';
+          fb.style.background = 'rgba(255, 51, 102, 0.15)';
+          fb.style.border = '1px solid #ff3366';
+          fb.style.color = '#ff6b8b';
+          fb.textContent = "Iltimos, Gemini API kalitini kiriting.";
+        }
+        return;
+      }
+
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = "Tekshirilmoqda...";
+      }
+      if (fb) {
+        fb.style.display = 'block';
+        fb.style.background = 'rgba(0, 150, 255, 0.15)';
+        fb.style.border = '1px solid #0099ff';
+        fb.style.color = '#70c0ff';
+        fb.textContent = "Google AI bilan ulanish tekshirilmoqda...";
+      }
+
+      try {
+        const res = await fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ gemini_api_key: key })
+        });
+        const result = await res.json();
+        if (res.ok && result.status === 'ok') {
+          if (fb) {
+            fb.style.background = 'rgba(0, 230, 118, 0.15)';
+            fb.style.border = '1px solid #00e676';
+            fb.style.color = '#69f0ae';
+            fb.textContent = result.message || "Kalit muvaffaqiyatli saqlandi!";
+          }
+          await loadSettingsStatus();
+          setTimeout(() => closeSettingsModal(), 1200);
+        } else {
+          if (fb) {
+            fb.style.background = 'rgba(255, 51, 102, 0.15)';
+            fb.style.border = '1px solid #ff3366';
+            fb.style.color = '#ff6b8b';
+            fb.textContent = result.message || "Xatolik yuz berdi.";
+          }
+        }
+      } catch (err) {
+        if (fb) {
+          fb.style.background = 'rgba(255, 51, 102, 0.15)';
+          fb.style.border = '1px solid #ff3366';
+          fb.style.color = '#ff6b8b';
+          fb.textContent = "Server bilan bog'lanib bo'lmadi: " + err.message;
+        }
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = "Tekshirish va Saqlash";
+        }
+      }
+    }
+
+    function openDownloadModal() {
+      const modal = document.getElementById('download-app-modal');
+      if (modal) modal.style.display = 'flex';
+    }
+
+    function closeDownloadModal() {
+      const modal = document.getElementById('download-app-modal');
+      if (modal) modal.style.display = 'none';
+    }
+
+    function checkDesktopEnvironment() {
+      // If running inside pywebview desktop application, hide the download button
+      const isDesktop = (_isDesktopParam || window.pywebview || window.__COMICLAB_DESKTOP__);
+      if (isDesktop) {
+        const btn = document.getElementById('btn-download-app');
+        if (btn) btn.style.display = 'none';
+      }
+    }
+    window.addEventListener('pywebviewready', checkDesktopEnvironment);
+    document.addEventListener('DOMContentLoaded', checkDesktopEnvironment);
+
+    // --- MODERN AUTO-UPDATE MANAGER ---
+    let updateDownloadPollTimer = null;
+    let currentUpdateInfo = null;
+
+    async function checkForAppUpdates(manual = false) {
+      const btnCheck = (window.event && window.event.target) ? window.event.target.closest('button') : null;
+      let origCheckText = "";
+      if (btnCheck) {
+        origCheckText = btnCheck.innerHTML;
+        btnCheck.disabled = true;
+        btnCheck.innerHTML = `<span>Tekshirilmoqda...</span>`;
+      }
+
+      try {
+        const res = await fetch('/api/check_update');
+        if (!res.ok) throw new Error("Status " + res.status);
+        const data = await res.json();
+        currentUpdateInfo = data;
+
+        const badge = document.getElementById('btn-update-available');
+        const badgeText = document.getElementById('update-badge-text');
+        const verDisplay = document.getElementById('settings-app-version');
+        if (verDisplay) {
+          verDisplay.textContent = `v${data.current_version || '1.0.0'}`;
+        }
+
+        if (data.update_available) {
+          if (badge) {
+            badge.style.display = 'inline-flex';
+            if (badgeText) badgeText.textContent = `Yangilanish: v${data.latest_version}`;
+          }
+          if (manual) {
+            openUpdateModal();
+          }
+        } else {
+          if (badge) badge.style.display = 'none';
+          if (manual) {
+            showToast(`Sizda eng so'nggi versiya o'rnatilgan (v${data.current_version || '1.0.0'})`);
+          }
+        }
+      } catch (e) {
+        if (manual) showToast("Yangilanishlarni tekshirishda xatolik yuz berdi.");
+      } finally {
+        if (btnCheck) {
+          btnCheck.disabled = false;
+          btnCheck.innerHTML = origCheckText;
+        }
+      }
+    }
+
+    function openUpdateModal() {
+      const modal = document.getElementById('update-modal');
+      if (!modal) return;
+      if (currentUpdateInfo) {
+        const curVer = document.getElementById('update-current-ver');
+        const newVer = document.getElementById('update-new-ver');
+        const changelog = document.getElementById('update-changelog-text');
+        const sub = document.getElementById('update-modal-subtitle');
+        if (curVer) curVer.textContent = `v${currentUpdateInfo.current_version}`;
+        if (newVer) newVer.textContent = `v${currentUpdateInfo.latest_version}`;
+        if (sub) sub.textContent = currentUpdateInfo.release_date ? `Yangi versiya (${currentUpdateInfo.release_date})` : "Yangi versiya chiqdi";
+        if (changelog) changelog.textContent = currentUpdateInfo.changelog || "Kadrlararo sakrash xatoligi va bo'g'in ko'chish algoritmlari to'liq bartaraf etildi.";
+      }
+      modal.style.display = 'flex';
+    }
+
+    function closeUpdateModal() {
+      const modal = document.getElementById('update-modal');
+      if (modal) modal.style.display = 'none';
+    }
+
+    async function startFastUpdateDownload() {
+      const btn = document.getElementById('btn-start-update-dl');
+      const btnText = document.getElementById('btn-start-update-text');
+      const progressBox = document.getElementById('update-progress-container');
+      const progressBar = document.getElementById('update-progress-bar');
+      const progressStats = document.getElementById('update-progress-stats');
+      const successBox = document.getElementById('update-success-box');
+      const openFolderBtn = document.getElementById('btn-open-update-folder');
+
+      btn.disabled = true;
+      btnText.textContent = "Yuklanmoqda...";
+      progressBox.style.display = 'flex';
+      successBox.style.display = 'none';
+
+      try {
+        const targetVer = currentUpdateInfo ? currentUpdateInfo.latest_version : '1.0.1';
+        const dlUrl = currentUpdateInfo ? currentUpdateInfo.download_url : '/download/desktop';
+
+        const resp = await fetch('/api/start_update_download', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ version: targetVer, download_url: dlUrl })
+        });
+        const resData = await resp.json();
+
+        if (updateDownloadPollTimer) clearInterval(updateDownloadPollTimer);
+        updateDownloadPollTimer = setInterval(async () => {
+          try {
+            const pRes = await fetch('/api/update_download_progress');
+            const pData = await pRes.json();
+
+            if (pData.status === 'downloading') {
+              const pct = Math.max(0, Math.min(100, pData.percent || 0));
+              progressBar.style.width = `${pct}%`;
+              progressStats.textContent = `${pct}% (${pData.downloaded_mb || '0'} MB / ${pData.total_mb || '124'} MB)`;
+            } else if (pData.status === 'completed') {
+              clearInterval(updateDownloadPollTimer);
+              updateDownloadPollTimer = null;
+              progressBar.style.width = '100%';
+              progressStats.textContent = '100%';
+              progressBox.style.display = 'none';
+              successBox.style.display = 'flex';
+              btn.style.display = 'none';
+              if (openFolderBtn) openFolderBtn.style.display = 'inline-flex';
+              showToast("Yangilanish to'liq yuklab olindi!");
+            } else if (pData.status === 'error') {
+              clearInterval(updateDownloadPollTimer);
+              updateDownloadPollTimer = null;
+              btn.disabled = false;
+              btnText.textContent = "Qayta urinish";
+              showToast(`Xatolik: ${pData.error || 'Yuklab bo\'lmadi'}`);
+            }
+          } catch (_) {}
+        }, 500);
+
+      } catch (err) {
+        btn.disabled = false;
+        btnText.textContent = "Tezda yuklab olish";
+        showToast("Yuklab olishni boshlashda xatolik yuz berdi.");
+      }
+    }
+
+    async function openUpdateFolder() {
+      try {
+        await fetch('/api/open_download_folder', { method: 'POST' });
+      } catch (_) {}
+    }
+
     function openGlossaryModal() {
       const modal = document.getElementById('glossary-modal');
       modal.style.display = 'flex';
@@ -11488,6 +12139,16 @@
           closeOriginalPageModal();
           return;
         }
+        const dlModal = document.getElementById('download-app-modal');
+        if (dlModal && dlModal.style.display === 'flex') {
+          closeDownloadModal();
+          return;
+        }
+        const upModal = document.getElementById('update-modal');
+        if (upModal && upModal.style.display === 'flex') {
+          closeUpdateModal();
+          return;
+        }
         const gloModal = document.getElementById('glossary-modal');
         if (gloModal && gloModal.style.display === 'flex') {
           closeGlossaryModal();
@@ -11704,41 +12365,30 @@
 
     // --- SESSION RESTORATION & RESET ---
     window.addEventListener('DOMContentLoaded', async () => {
-      // Preload all comic lettering fonts into browser cache
+      // Preload active primary font immediately for 0ms canvas render
       if (document.fonts && document.fonts.load) {
         document.fonts.load("16px 'CC Wild Words'");
-        document.fonts.load("16px 'Comic Mode Regular'");
-        document.fonts.load("500 16px 'Comic Mode Medium'");
-        document.fonts.load("italic 500 16px 'Comic Mode Medium Oblique'");
-        document.fonts.load("16px 'CCYadaYadaYada'");
-        document.fonts.load("italic 16px 'CCYadaYadaYada Italic'");
-        document.fonts.load("16px 'Jet Set'");
-        document.fonts.load("italic 16px 'Jet Set Italic'");
-        document.fonts.load("bold 16px 'Comic Neue'");
-        document.fonts.load("bold 16px 'Komika Text'");
-        document.fonts.load("bold 16px 'Manga Temple'");
-        document.fonts.load("16px 'Gandur New'");
-        document.fonts.load("16px 'Gandur New Light'");
-        document.fonts.load("16px 'Spinner Rack Pro BB'");
-        document.fonts.load("bold 16px 'Spinner Rack Pro BB'");
-        document.fonts.load("italic 16px 'Spinner Rack Pro BB'");
-        document.fonts.load("bold italic 16px 'Spinner Rack Pro BB'");
-        document.fonts.load("16px 'Back Issues BB'");
-        document.fonts.load("bold 16px 'Back Issues BB'");
-        document.fonts.load("italic 16px 'Back Issues BB'");
-        document.fonts.load("bold italic 16px 'Back Issues BB'");
-        document.fonts.load("16px 'VC Joe Caramagna'");
-        document.fonts.load("bold 16px 'VC Joe Caramagna'");
-        document.fonts.load("italic 16px 'VC Joe Caramagna'");
-        document.fonts.load("bold italic 16px 'VC Joe Caramagna'");
-        document.fonts.load("16px 'VC Joe Caramagna Regular'");
-        document.fonts.load("16px 'VC Joe Caramagna Bold'");
-        document.fonts.load("16px 'VC Joe Caramagna Italic'");
-        document.fonts.load("16px 'VC Joe Caramagna Bold Italic'");
-        document.fonts.load("16px 'Mason'");
-        document.fonts.load("bold 16px 'Mason'");
-        document.fonts.load("16px 'Mason Serif'");
-        document.fonts.load("bold 16px 'Mason Serif'");
+        const savedInitial = localStorage.getItem('comic_selected_font');
+        if (savedInitial && savedInitial !== 'CC Wild Words') {
+          try { document.fonts.load(`16px '${savedInitial}'`); } catch (_) {}
+        }
+        // Defer secondary font cache warming to background idle time
+        const warmOtherFonts = () => {
+          const deferredList = [
+            "16px 'Comic Mode Regular'", "500 16px 'Comic Mode Medium'", "16px 'CCYadaYadaYada'",
+            "16px 'Jet Set'", "bold 16px 'Comic Neue'", "bold 16px 'Komika Text'",
+            "bold 16px 'Manga Temple'", "16px 'Gandur New'", "16px 'Spinner Rack Pro BB'",
+            "16px 'Back Issues BB'", "16px 'VC Joe Caramagna'", "16px 'Mason'"
+          ];
+          deferredList.forEach(f => {
+            try { document.fonts.load(f); } catch (_) {}
+          });
+        };
+        if ('requestIdleCallback' in window) {
+          requestIdleCallback(warmOtherFonts, { timeout: 3000 });
+        } else {
+          setTimeout(warmOtherFonts, 1500);
+        }
       }
 
       // Load and discover custom uploaded fonts
@@ -11782,6 +12432,9 @@
 
       updateProcessButtons();
       checkSavedSession();
+      loadSettingsStatus();
+      checkDesktopEnvironment();
+      checkForAppUpdates();
     });
 
     async function checkSavedSession() {

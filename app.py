@@ -1,5 +1,5 @@
 """
-app.py - Comic-Lab Ultra Studio Entrypoint.
+app.py - Comic-Lab Studio Entrypoint.
 Standalone ASGI application powered by Starlette & Uvicorn.
 Zero Streamlit dependency.
 Zero AI API Keys (free/local translation model); online services for data storage are fine.
@@ -19,7 +19,7 @@ def main():
     port = int(os.environ.get("PORT", 8000))
     host = os.environ.get("HOST", "0.0.0.0")
     print(f"\n=======================================================")
-    print(f"[OK] COMIC-LAB ULTRA STUDIO (FastAPI/Starlette Engine)")
+    print(f"[OK] COMIC-LAB STUDIO (FastAPI/Starlette Engine)")
     print(f"[URL] Studio URL: http://localhost:{port}")
     print(f"[INFO] Zero Streamlit | RAM: ~35 MB | 60 FPS Canvas")
     print(f"=======================================================\n")

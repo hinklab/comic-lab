@@ -59,22 +59,24 @@ class TestStep32HyphenationEngine(unittest.TestCase):
         points_ota = get_hyphenation_points("ota")
         self.assertEqual(points_ota, [])
 
-        # Valid 3+ syllable word (> 7 chars) should allow multi-letter splits
-        points_qahramon = get_hyphenation_points("qahramon")
-        self.assertIn(("qah-", "ramon"), points_qahramon)
-        self.assertIn(("qahra-", "mon"), points_qahramon)
+        # Valid 3+ syllable word (>= 10 chars) should allow multi-letter splits
+        points_qahramon = get_hyphenation_points("qahramonimiz")
+        self.assertIn(("qah-", "ramonimiz"), points_qahramon)
+        self.assertIn(("qahra-", "monimiz"), points_qahramon)
 
-    def test_words_with_seven_or_fewer_letters_no_hyphenation(self):
-        """Words with 7 or fewer letters must never be hyphenated; only words > 7 letters qualify."""
-        # 7 or fewer letters: prohibited
+    def test_words_with_nine_or_fewer_letters_no_hyphenation(self):
+        """Words with 9 or fewer letters must never be hyphenated; only words >= 10 letters qualify."""
+        # 9 or fewer letters: prohibited
         self.assertEqual(get_hyphenation_points("bolalar"), [], "7-letter word must NOT be hyphenated")
         self.assertEqual(get_hyphenation_points("maktab"), [], "6-letter word must NOT be hyphenated")
         self.assertEqual(get_hyphenation_points("kitob"), [], "5-letter word must NOT be hyphenated")
         self.assertEqual(get_hyphenation_points("dastlab"), [], "7-letter word must NOT be hyphenated")
+        self.assertEqual(get_hyphenation_points("qahramon"), [], "8-letter word must NOT be hyphenated")
+        self.assertEqual(get_hyphenation_points("qarshilik"), [], "9-letter word must NOT be hyphenated")
 
-        # More than 7 letters: allowed
-        self.assertTrue(len(get_hyphenation_points("qahramon")) > 0, "8-letter word must be allowed to hyphenate")
+        # 10 or more letters: allowed
         self.assertTrue(len(get_hyphenation_points("hukmdorlar")) > 0, "10-letter word must be allowed to hyphenate")
+        self.assertTrue(len(get_hyphenation_points("qahramonimiz")) > 0, "12-letter word must be allowed to hyphenate")
 
     def test_protected_proper_nouns_no_hyphenation(self):
         """Hero names and comic characters must never be split by hyphenation."""
@@ -94,21 +96,21 @@ class TestStep32HyphenationEngine(unittest.TestCase):
         def mock_measure(text: str) -> float:
             return len(text) * 10.0
 
-        # 'qahramon' has split points:
-        # 'qah-' (4 chars = 40px) and 'qahra-' (6 chars = 60px)
+        # 'qahramonimiz' (12 chars) has split points:
+        # 'qah-' (4 chars = 40px), 'qahra-', 'qahramon-', 'qahramoni-', 'qahramonimi-'
         
         # When max_w is 50px: only 'qah-' fits
-        fit1 = fit_word_with_hyphen("qahramon", 50.0, mock_measure)
+        fit1 = fit_word_with_hyphen("qahramonimiz", 50.0, mock_measure)
         self.assertIsNotNone(fit1)
-        self.assertEqual(fit1, ("qah-", "ramon"))
+        self.assertEqual(fit1, ("qah-", "ramonimiz"))
 
         # When max_w is 70px: 'qahra-' fits (longer prefix preferred)
-        fit2 = fit_word_with_hyphen("qahramon", 70.0, mock_measure)
+        fit2 = fit_word_with_hyphen("qahramonimiz", 70.0, mock_measure)
         self.assertIsNotNone(fit2)
-        self.assertEqual(fit2, ("qahra-", "mon"))
+        self.assertEqual(fit2, ("qahra-", "monimiz"))
 
-        # When max_w is 30px: neither fits
-        fit3 = fit_word_with_hyphen("qahramon", 30.0, mock_measure)
+        # When max_w is 30px: none fits
+        fit3 = fit_word_with_hyphen("qahramonimiz", 30.0, mock_measure)
         self.assertIsNone(fit3)
 
     def test_wrap_words_with_hyphenation_overflow_recovery(self):

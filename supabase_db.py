@@ -64,6 +64,11 @@ def get_supabase_client():
     if _CLIENT_INITIALIZED:
         return _SUPABASE_CLIENT
 
+    if os.getenv("COMICLAB_STANDALONE") == "1" or os.getenv("SUPABASE_DISABLED") == "1":
+        _CLIENT_INITIALIZED = True
+        _SUPABASE_CLIENT = None
+        return None
+
     url = _get_credential("SUPABASE_URL")
     key = (
         _get_credential("SUPABASE_KEY")
@@ -72,6 +77,22 @@ def get_supabase_client():
     )
 
     if not url or not key:
+        _CLIENT_INITIALIZED = True
+        _SUPABASE_CLIENT = None
+        return None
+
+    # Quick connectivity check to avoid 10-second DNS/network retry stalls when offline
+    try:
+        from urllib.parse import urlparse
+        import socket
+        parsed = urlparse(url)
+        host = parsed.hostname
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        if host:
+            with socket.create_connection((host, port), timeout=0.8):
+                pass
+    except Exception as e:
+        logger.warning(f"[SUPABASE_WARN] Supabase host is unreachable ({e}). Falling back to local storage.")
         _CLIENT_INITIALIZED = True
         _SUPABASE_CLIENT = None
         return None

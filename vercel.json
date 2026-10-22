@@ -4,6 +4,10 @@
     {
       "source": "/api/:path*",
       "destination": "https://comic-lab-backend.onrender.com/api/:path*"
+    },
+    {
+      "source": "/download/:path*",
+      "destination": "https://comic-lab-backend.onrender.com/download/:path*"
     }
   ]
 }

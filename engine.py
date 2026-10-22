@@ -2513,8 +2513,9 @@ def scan_bubbles_ocr_tesseract(image: Image.Image) -> List[SpeechBubble]:
 
 def realign_misplaced_bubble(gray_img: np.ndarray, box: List[int]) -> Tuple[List[int], Optional[str]]:
     """
-    Detects if an AI vision / Gemini bounding box was accidentally placed on dark background / art,
-    and searches the nearby neighborhood for the authentic bright dialogue bubble or caption box.
+    Validates if an AI vision / Gemini bounding box requires minor border realignment.
+    Strictly bounded: will NEVER jump across comic panels or shift by more than 20%
+    of the bubble dimension. Requires IoU >= 0.65 with original box.
     Returns (realigned_box, detected_type).
     """
     bx0, by0, bx1, by1 = box
@@ -2523,37 +2524,62 @@ def realign_misplaced_bubble(gray_img: np.ndarray, box: List[int]) -> Tuple[List
     H, W = gray_img.shape[:2]
 
     interior = gray_img[max(0, by0):min(H, by1), max(0, bx0):min(W, bx1)]
-    # In comics, authentic text bubbles or captions have bright background (> 195) >= 45% and ink (> 125) >= 4%
-    if interior.size > 0 and np.mean(interior > 195) >= 0.45 and np.mean(interior < 125) >= 0.04:
-        return box, None
+    # If the box already contains bright comic paper (> 150) and text ink (< 125) >= 1%,
+    # Gemini has placed the box right on the dialogue. Do NOT move it!
+    if interior.size > 0:
+        bright_mean = np.mean(interior > 150)
+        ink_ratio = np.mean(interior < 125)
+        if bright_mean >= 0.35 and ink_ratio >= 0.01:
+            return box, None
 
-    # Search window: scan horizontally ±140px, vertically ±240px
-    s_y0 = max(0, by0 - 180)
-    s_y1 = min(H, by1 + 250)
-    s_x0 = max(0, bx0 - 140)
-    s_x1 = min(W, bx1 + 140)
+    # Tightly bound neighborhood: max ±25px (or 20% of dimension)
+    max_dx = max(8, min(25, int(bw * 0.20)))
+    max_dy = max(8, min(25, int(bh * 0.20)))
+
+    s_y0 = max(0, by0 - max_dy)
+    s_y1 = min(H, by1 + max_dy)
+    s_x0 = max(0, bx0 - max_dx)
+    s_x1 = min(W, bx1 + max_dx)
 
     search_crop = gray_img[s_y0:s_y1, s_x0:s_x1]
-    bright = (search_crop > 195).astype(np.uint8) * 255
+    if search_crop.size == 0:
+        return box, None
+
+    bright = (search_crop > 185).astype(np.uint8) * 255
     cnts, _ = cv2.findContours(bright, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     best_box = None
-    best_score = -1
+    best_score = -1.0
     detected_shape = None
+    orig_area = float(bw * bh)
 
     for c in cnts:
         x, y, w, h = cv2.boundingRect(c)
-        if w >= 25 and h >= 15:
+        cand_x0 = s_x0 + x
+        cand_y0 = s_y0 + y
+        cand_x1 = cand_x0 + w
+        cand_y1 = cand_y0 + h
+
+        # Calculate IoU with original box
+        ix0 = max(bx0, cand_x0)
+        iy0 = max(by0, cand_y0)
+        ix1 = min(bx1, cand_x1)
+        iy1 = min(by1, cand_y1)
+        inter = max(0, ix1 - ix0) * max(0, iy1 - iy0)
+        cand_area = float(w * h)
+        iou = inter / float(orig_area + cand_area - inter)
+
+        # STRICT SAFETY: IoU must be >= 0.65 to ensure it is the exact same bubble
+        if iou >= 0.65 and 0.5 <= (cand_area / orig_area) <= 1.8:
             crop_cand = search_crop[y:y+h, x:x+w]
-            bright_ratio = np.mean(crop_cand > 195)
+            bright_ratio = np.mean(crop_cand > 185)
             ink_ratio = np.mean(crop_cand < 125)
-            # A true dialogue bubble or caption has mostly bright paper and 4%-35% dark text ink
-            if bright_ratio >= 0.50 and 0.04 <= ink_ratio <= 0.35:
+            if bright_ratio >= 0.40 and 0.02 <= ink_ratio <= 0.40:
                 fill_ratio = cv2.contourArea(c) / float(w * h)
-                score = (w * h) * bright_ratio * (1.0 + ink_ratio)
+                score = iou * 2.0 + bright_ratio + ink_ratio
                 if score > best_score:
                     best_score = score
-                    best_box = [s_x0 + x, s_y0 + y, s_x0 + x + w, s_y0 + y + h]
+                    best_box = [cand_x0, cand_y0, cand_x1, cand_y1]
                     peri = cv2.arcLength(c, True)
                     approx = cv2.approxPolyDP(c, 0.05 * peri, True)
                     if len(approx) == 4 or fill_ratio > 0.80:
@@ -2650,7 +2676,7 @@ def snap_caption_rectangle(gray_img: np.ndarray, box: List[int], other_boxes: Op
     return [best_left, best_top, best_right, best_bot]
 
 
-def snap_box_to_bubble_borders(gray_img: np.ndarray, box: List[int], max_up: int = 100, max_down: int = 50, max_h: int = 60, other_boxes: Optional[List[List[int]]] = None) -> List[int]:
+def snap_box_to_bubble_borders(gray_img: np.ndarray, box: List[int], max_up: int = 35, max_down: int = 25, max_h: int = 30, other_boxes: Optional[List[List[int]]] = None) -> List[int]:
     """
     Expands a slightly truncated or misaligned OCR/Gemini bounding box outward
     to the authentic dark edge barriers of the speech bubble or caption box, ensuring top and bottom
@@ -2665,9 +2691,9 @@ def snap_box_to_bubble_borders(gray_img: np.ndarray, box: List[int], max_up: int
     cx = (bx0 + bx1) // 2
     span_w = max(10, min(40, bw // 3))
 
-    max_up = max(max_up, int(bh * 0.8))
-    max_down = max(max_down, int(bh * 0.4))
-    max_h = max(max_h, int(bw * 0.35))
+    max_up = min(35, max(12, int(bh * 0.35)))
+    max_down = min(25, max(10, int(bh * 0.25)))
+    max_h = min(30, max(12, int(bw * 0.25)))
 
     min_x, max_x = 0, W - 1
     min_y, max_y = 0, H - 1
@@ -2770,38 +2796,98 @@ def find_authentic_caption_boxes(gray_img: np.ndarray) -> List[Dict[str, Any]]:
 def match_gemini_to_authentic_box(gem_box: List[int], authentic_candidates: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     """
     Matches an AI vision / Gemini bounding box to the ground-truth authentic comic bubble
-    or caption box using IoU, area intersection, and centroid proximity.
+    or caption box using strict IoU and centroid proximity. Strictly prohibits matching
+    distant boxes or boxes from neighboring comic panels.
     """
     gx0, gy0, gx1, gy1 = gem_box
+    gw = max(1, gx1 - gx0)
+    gh = max(1, gy1 - gy0)
     g_cx = (gx0 + gx1) / 2.0
     g_cy = (gy0 + gy1) / 2.0
-    g_area = max(1, (gx1 - gx0) * (gy1 - gy0))
+    g_area = float(gw * gh)
 
     best_match = None
     best_score = -1.0
 
     for cand in authentic_candidates:
         cx0, cy0, cx1, cy1 = cand["box"]
+        cw = max(1, cx1 - cx0)
+        ch = max(1, cy1 - cy0)
         ix0 = max(gx0, cx0)
         iy0 = max(gy0, cy0)
         ix1 = min(gx1, cx1)
         iy1 = min(gy1, cy1)
         inter = max(0, ix1 - ix0) * max(0, iy1 - iy0)
-        c_area = max(1, (cx1 - cx0) * (cy1 - cy0))
+        c_area = float(cw * ch)
         iou = inter / float(g_area + c_area - inter)
 
         c_cx = (cx0 + cx1) / 2.0
         c_cy = (cy0 + cy1) / 2.0
         dist = np.hypot(g_cx - c_cx, g_cy - c_cy)
 
-        # Match criteria: high IoU, or strong intersection within reasonable distance, or close center proximity
-        if iou > 0.25 or (inter > 0.35 * min(g_area, c_area) and dist < 220) or (dist < 160 and cand["is_rect"]):
-            score = iou * 2.0 + (1.0 / (1.0 + dist * 0.01))
+        # STRICT SAFETY: Candidate MUST have significant IoU (>= 0.45) OR high overlap (>= 0.60)
+        # with center distance strictly within 40% of bubble dimensions.
+        # NEVER match disjoint boxes or distant candidates (prevents panel jumping).
+        max_allowed_dist = max(20.0, min(gw, gh) * 0.40)
+        if (iou >= 0.45 or (inter >= 0.60 * min(g_area, c_area))) and dist <= max_allowed_dist:
+            score = iou * 3.0 + (inter / max(g_area, c_area)) - (dist / max_allowed_dist) * 0.2
             if score > best_score:
                 best_score = score
                 best_match = cand
 
     return best_match
+
+
+def deduplicate_speech_bubbles(bubbles: List[SpeechBubble], iou_thresh: float = 0.40, contain_thresh: float = 0.65) -> List[SpeechBubble]:
+    """
+    Suppresses duplicate / ghosted speech bubbles that enclose the same physical comic bubble
+    (e.g. inner vs outer contour detections, or repeated AI bounding boxes).
+    """
+    if not bubbles or len(bubbles) <= 1:
+        return bubbles
+
+    # Sort bubbles so higher quality / longer text bubbles take precedence
+    def _score(b: SpeechBubble):
+        txt = b.clean_text or b.original_text or ""
+        uz = b.uzbek_translation or ""
+        return (len(uz) > 0) * 1000 + len(txt)
+
+    sorted_b = sorted(bubbles, key=_score, reverse=True)
+    kept: List[SpeechBubble] = []
+
+    for b in sorted_b:
+        bx0, by0, bx1, by1 = b.x0, b.y0, b.x1, b.y1
+        b_area = max(1, (bx1 - bx0) * (by1 - by0))
+        is_dup = False
+
+        for k in kept:
+            kx0, ky0, kx1, ky1 = k.x0, k.y0, k.x1, k.y1
+            k_area = max(1, (kx1 - kx0) * (ky1 - ky0))
+
+            ix0 = max(bx0, kx0)
+            iy0 = max(by0, ky0)
+            ix1 = min(bx1, kx1)
+            iy1 = min(by1, ky1)
+            inter = max(0, ix1 - ix0) * max(0, iy1 - iy0)
+
+            if inter > 0:
+                iou = inter / float(b_area + k_area - inter)
+                contain_b = inter / float(b_area)
+                contain_k = inter / float(k_area)
+
+                if iou >= iou_thresh or contain_b >= contain_thresh or contain_k >= contain_thresh:
+                    is_dup = True
+                    b_orig = getattr(b, "original_text", "") or ""
+                    k_orig = getattr(k, "original_text", "") or ""
+                    print(f"[OCR_DEDUP] Suppressed duplicate bubble: '{b_orig[:25]}' overlaps with kept '{k_orig[:25]}' (IoU={iou:.2f}, contain={max(contain_b, contain_k):.2f})", flush=True)
+                    break
+
+        if not is_dup:
+            kept.append(b)
+
+    # Restore natural top-to-bottom spatial order
+    kept.sort(key=lambda b: (b.y0 // 100, b.x0))
+    return kept
 
 
 def scan_bubbles_ocr(image: Image.Image, use_subprocess: bool = True, timeout_seconds: int = 120, ocr_engine: Optional[str] = None, force_refresh: bool = False) -> List[SpeechBubble]:
@@ -3211,6 +3297,74 @@ def scan_bubbles_ocr(image: Image.Image, use_subprocess: bool = True, timeout_se
                         is_occluded=False
                     )
                     gemini_bubbles.append(b)
+
+            # Step 1.0b: Missed Bubble Coverage Audit (Recovers authentic speech bubbles missed by AI vision)
+            if authentic_candidates:
+                for cand in authentic_candidates:
+                    cx0, cy0, cx1, cy1 = cand["box"]
+                    cand_area = max(1, (cx1 - cx0) * (cy1 - cy0))
+                    is_covered = False
+                    for gb in gemini_bubbles:
+                        ix0 = max(cx0, gb.x0)
+                        iy0 = max(cy0, gb.y0)
+                        ix1 = min(cx1, gb.x1)
+                        iy1 = min(cy1, gb.y1)
+                        inter = max(0, ix1 - ix0) * max(0, iy1 - iy0)
+                        if (inter / float(cand_area)) >= 0.35:
+                            is_covered = True
+                            break
+
+                    if not is_covered and cand.get("ink", 0) >= 0.04 and cand_area >= 1200:
+                        try:
+                            crop_bgr = img_cv[cy0:cy1, cx0:cx1]
+                            rec_text = ""
+                            try:
+                                import pytesseract
+                                crop_rgb = cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2RGB)
+                                rec_text = pytesseract.image_to_string(crop_rgb, config="--psm 6").strip()
+                            except Exception:
+                                pass
+
+                            clean_rec = re.sub(r"[^a-zA-Z0-9]", "", rec_text)
+                            if len(clean_rec) >= 3 and not is_pure_sfx_text(rec_text):
+                                print(f"[OCR_AUDIT] Recovered missed authentic bubble at ({cx0},{cy0}): '{rec_text[:35]}'", flush=True)
+                                rec_uz = ""
+                                try:
+                                    import gemini_enhancements
+                                    if gemini_enhancements.is_gemini_enabled():
+                                        rec_uz = gemini_enhancements.gemini_translate_dialogue(rec_text)
+                                except Exception:
+                                    pass
+                                if not rec_uz:
+                                    rec_uz = translate_spiderman_uzbek(rec_text)
+
+                                rec_cnt = cand["contour"]
+                                rec_cnt_pts = rec_cnt.reshape(-1, 2).tolist() if rec_cnt is not None else []
+                                rec_shape = "rectangle" if cand.get("is_rect") else "oval"
+
+                                rec_b = SpeechBubble(
+                                    bubble_id=len(gemini_bubbles) + 1,
+                                    x0=cx0, y0=cy0, x1=cx1, y1=cy1,
+                                    box=[cx0, cy0, cx1, cy1],
+                                    original_text=rec_text,
+                                    clean_text=rec_text,
+                                    uzbek_translation=rec_uz,
+                                    pipeline_uzbek_translation=rec_uz,
+                                    confidence=0.90,
+                                    shape_type=rec_shape,
+                                    z_order=0,
+                                    contour=rec_cnt_pts,
+                                    contour_points=rec_cnt_pts,
+                                    speaker=None,
+                                    is_occluded=False
+                                )
+                                gemini_bubbles.append(rec_b)
+                        except Exception as _rec_ex:
+                            pass
+
+            # Step 1.0c: IoU-based Non-Maximum Suppression (Eliminates duplicate overlapping ghost bubbles)
+            if gemini_bubbles:
+                gemini_bubbles = deduplicate_speech_bubbles(gemini_bubbles, iou_thresh=0.40, contain_thresh=0.65)
 
             if gemini_bubbles:
                 # Step 1.1: Panel-aware topological reading order graph
@@ -5000,8 +5154,8 @@ def typeset_lettering_on_page(
                 pad = 6
                 clearance = 2
             else:
-                pad = 10
-                clearance = 3
+                pad = 12
+                clearance = 6
             frag_max_fs = min(effective_max, 14) if is_occluded else max(effective_max, 32 if is_tinted else effective_max)
 
             layout = bubble_lettering.fit_text_to_bubble(

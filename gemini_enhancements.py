@@ -9,6 +9,7 @@ High-performance, free-tier Google Gemini integration for Comic-Lab:
 """
 
 import os
+import sys
 import io
 import json
 import time
@@ -103,6 +104,80 @@ GEMINI_MODELS = [
     "gemini-3-flash-preview",
 ]
 
+def get_config_file_path() -> str:
+    """Returns persistent JSON config file path in %APPDATA%/ComicLab."""
+    appdata = os.environ.get("APPDATA") or os.path.expanduser("~")
+    target_dir = os.path.join(appdata, "ComicLab")
+    os.makedirs(target_dir, exist_ok=True)
+    return os.path.join(target_dir, "config.json")
+
+def load_user_config() -> Dict[str, Any]:
+    """Loads persistent user configuration safely."""
+    cfg_path = get_config_file_path()
+    if os.path.exists(cfg_path):
+        try:
+            with open(cfg_path, "r", encoding="utf-8") as f:
+                content = json.load(f)
+                return content if isinstance(content, dict) else {}
+        except Exception:
+            return {}
+    return {}
+
+def save_user_api_key(api_key: str) -> bool:
+    """Saves user API key to persistent AppData config and activates in os.environ."""
+    api_key = api_key.strip().strip('"').strip("'")
+    if not api_key:
+        return False
+    cfg_path = get_config_file_path()
+    try:
+        cfg = load_user_config()
+        cfg["gemini_api_key"] = api_key
+        with open(cfg_path, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, indent=2, ensure_ascii=False)
+        os.environ["GEMINI_API_KEY"] = api_key
+        return True
+    except Exception:
+        return False
+
+def delete_user_api_key() -> bool:
+    """Removes saved API key from persistent AppData config and clears os.environ."""
+    cfg_path = get_config_file_path()
+    try:
+        cfg = load_user_config()
+        if "gemini_api_key" in cfg:
+            del cfg["gemini_api_key"]
+            with open(cfg_path, "w", encoding="utf-8") as f:
+                json.dump(cfg, f, indent=2, ensure_ascii=False)
+        os.environ.pop("GEMINI_API_KEY", None)
+        os.environ.pop("GOOGLE_API_KEY", None)
+        os.environ.pop("GEMINI_API_KEYS", None)
+        return True
+    except Exception:
+        return False
+
+def test_gemini_key(api_key: str) -> Tuple[bool, str]:
+    """Tests if a Gemini API key is valid by making a fast lightweight query to Google AI API."""
+    api_key = api_key.strip().strip('"').strip("'")
+    if not api_key or len(api_key) < 15:
+        return False, "Kalit formati noto'g'ri yoki juda qisqa."
+    url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
+    try:
+        import urllib.request
+        import urllib.error
+        req = urllib.request.Request(url, headers={"User-Agent": "ComicLab/1.0"})
+        with urllib.request.urlopen(req, timeout=6) as resp:
+            if resp.status == 200:
+                return True, "API kalit muvaffaqiyatli tekshirildi va faol."
+    except urllib.error.HTTPError as e:
+        if e.code == 400:
+            return False, "Google API xatosi: API kalit noto'g'ri (Invalid API key)."
+        elif e.code == 403:
+            return False, "Google API xatosi: Kalitga ruxsat cheklangan yoki bloklangan."
+        return False, f"Google API xatosi: HTTP {e.code}"
+    except Exception as e:
+        return False, f"Ulanish xatosi: {str(e)}"
+    return False, "Kalitni tekshirib bo'lmadi."
+
 def get_gemini_api_keys() -> List[str]:
     """Retrieves all configured Gemini API keys (supports multiple keys comma-separated or multi-variable)."""
     keys = []
@@ -115,9 +190,27 @@ def get_gemini_api_keys() -> List[str]:
                 if k and len(k) >= 15 and k not in keys:
                     keys.append(k)
 
-    # 2. .env file
-    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
-    if os.path.exists(env_path):
+    # 2. User AppData config JSON
+    cfg = load_user_config()
+    cfg_key = cfg.get("gemini_api_key")
+    if cfg_key and isinstance(cfg_key, str):
+        for k in cfg_key.split(","):
+            k = k.strip().strip('"').strip("'")
+            if k and len(k) >= 15 and k not in keys:
+                keys.append(k)
+
+    # 2. .env files from multiple candidate locations
+    candidate_paths = [
+        os.path.join(os.path.dirname(sys.executable), ".env"),
+        os.path.join(os.environ.get("APPDATA") or "", "ComicLab", ".env"),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"),
+        os.path.join(os.getcwd(), ".env")
+    ]
+    seen_paths = set()
+    for env_path in candidate_paths:
+        if not env_path or env_path in seen_paths or not os.path.exists(env_path):
+            continue
+        seen_paths.add(env_path)
         try:
             with open(env_path, "r", encoding="utf-8") as f:
                 for line in f:

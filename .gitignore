@@ -48,6 +48,11 @@ scratch_*.txt
 query_whatfontis.py
 search_owf_mason.py
 space_letters.py
+
+# Desktop app build artifacts
+build/
+dist/
+installer_output/
 try_freefonts_dl.py
 prepare_clean.py
 all_results.py

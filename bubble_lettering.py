@@ -2228,7 +2228,7 @@ def fit_text_to_bubble(text, contour, image_shape, font_path, safety_padding=12,
                             word_idx += 1
                         else:
                             # Only attempt hyphenation if a single word cannot fit on an empty line at all
-                            if fit_word_with_hyphen is not None and not cur_line:
+                            if size <= min_font_size and fit_word_with_hyphen is not None and not cur_line:
                                 h_fit = fit_word_with_hyphen(next_word, max_w, lambda s: font.getbbox(re.sub(r"\*\*", "", s))[2] - font.getbbox(re.sub(r"\*\*", "", s))[0])
                                 if h_fit:
                                     pref, suff = h_fit

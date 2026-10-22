@@ -263,9 +263,9 @@ def get_hyphenation_points(word: str) -> List[Tuple[str, str]]:
     - Minimum 2 characters on line 2 after the hyphen (no 'eshik-i').
     """
     clean_word = re.sub(r"[^\w'-]", "", word).strip()
-    # Foydalanuvchi qoidasi: 7 ta va undan kam harfli so'zlarda bo'g'in ko'chirilmaydi.
-    # Faqat 7 harfdan ko'p bo'lgan (kamida 8 harf) uzun so'zlargina bo'g'inlab ko'chiriladi.
-    if len(clean_word) <= 7 or is_protected_proper_noun(word):
+    # Foydalanuvchi qoidasi: 9 ta va undan kam harfli so'zlarda bo'g'in ko'chirilmaydi.
+    # Faqat 10 ta va undan ortiq harfli (kamida 10 ta harf) uzun so'zlargina bo'g'inlab ko'chiriladi.
+    if len(clean_word) < 10 or is_protected_proper_noun(word):
         # If word has an existing internal hyphen (like 'O'rgimchak-Odam'), allow break ONLY at that hyphen
         if "-" in clean_word and not is_protected_proper_noun(clean_word):
             parts = clean_word.split("-", 1)

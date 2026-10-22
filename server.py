@@ -10,19 +10,49 @@ from typing import Dict, Any, List
 from PIL import Image
 
 import uvicorn
+import secrets
 from starlette.applications import Starlette
 from starlette.routing import Route, Mount
 from starlette.staticfiles import StaticFiles
-from starlette.responses import JSONResponse, HTMLResponse, Response
+from starlette.requests import Request
+from starlette.responses import JSONResponse, HTMLResponse, Response, FileResponse, RedirectResponse
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 
 # Ensure comic-lab root is in sys.path
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
-import engine
+import threading
+import urllib.request
+from version import APP_VERSION, APP_NAME, DEFAULT_UPDATE_URL, is_newer_version
+
+_engine_module = None
+_engine_lock = threading.Lock()
+
+def get_engine():
+    """Lazily loads the 5,350-line neural translation and OCR engine without blocking UI startup."""
+    global _engine_module
+    if _engine_module is None:
+        with _engine_lock:
+            if _engine_module is None:
+                import engine as eng
+                _engine_module = eng
+    return _engine_module
+
+class _EngineProxy:
+    """Zero-overhead transparent proxy to engine module."""
+    def __getattr__(self, name):
+        return getattr(get_engine(), name)
+
+engine = _EngineProxy()
+
+def warm_engine_in_background():
+    """Pre-compiles engine in background thread after startup so processing is instant."""
+    t = threading.Thread(target=get_engine, daemon=True)
+    t.start()
+
 import cv2
 import numpy as np
 import gemini_enhancements
@@ -58,11 +88,27 @@ def pil_to_png_bytes(img: Image.Image) -> bytes:
 
 async def serve_index(request):
     """Serves the Comic Studio HTML5 app."""
+    is_desktop = (os.getenv("COMICLAB_STANDALONE") == "1" or request.query_params.get("desktop") == "1")
     for rel_path in ["index.html", os.path.join("web", "index.html")]:
         html_path = os.path.join(BASE_DIR, rel_path)
         if os.path.exists(html_path):
             with open(html_path, "r", encoding="utf-8") as f:
-                return HTMLResponse(f.read())
+                content = f.read()
+                if is_desktop:
+                    # Strip download button and modal completely when running inside Desktop App
+                    content = re.sub(
+                        r'<!-- Minimalist Desktop App Pill.*?</a>',
+                        '',
+                        content,
+                        flags=re.DOTALL
+                    )
+                    content = re.sub(
+                        r'<!-- MINIMALIST DOWNLOAD DESKTOP APP MODAL.*?<!-- TEAM GLOSSARY MODAL -->',
+                        '<!-- TEAM GLOSSARY MODAL -->',
+                        content,
+                        flags=re.DOTALL
+                    )
+                return HTMLResponse(content)
     return HTMLResponse("<h1>Comic Studio UI not found</h1>", status_code=404)
 
 async def api_health(request):
@@ -71,8 +117,349 @@ async def api_health(request):
     return JSONResponse({
         "status": "online",
         "gemini_active": gemini_ok,
-        "memory_summary": engine.format_memory_summary()
+        "memory_summary": "Active"
     })
+
+async def api_get_settings(request):
+    """Returns AI engine status and masked API key without leaking secrets."""
+    key = gemini_enhancements.get_gemini_api_key()
+    has_key = bool(key and len(key) >= 15)
+    masked = ""
+    if has_key:
+        masked = key[:6] + "..." + key[-4:] if len(key) > 10 else "******"
+    return JSONResponse({
+        "status": "ok",
+        "gemini_active": gemini_enhancements.is_gemini_enabled(),
+        "has_key": has_key,
+        "masked_key": masked
+    })
+
+async def api_save_settings(request):
+    """Tests and saves new Gemini API key to persistent storage."""
+    try:
+        data = await request.json()
+        new_key = (data.get("gemini_api_key") or "").strip()
+        if not new_key:
+            return JSONResponse({"status": "error", "message": "API kalit kiritilmadi."}, status_code=400)
+
+        # Fast verification ping to Google AI API
+        ok, msg = gemini_enhancements.test_gemini_key(new_key)
+        if not ok:
+            return JSONResponse({"status": "error", "message": msg}, status_code=400)
+
+        saved = gemini_enhancements.save_user_api_key(new_key)
+        if not saved:
+            return JSONResponse({"status": "error", "message": "Kalitni saqlab bo'lmadi."}, status_code=500)
+
+        masked = new_key[:6] + "..." + new_key[-4:]
+        return JSONResponse({
+            "status": "ok",
+            "message": "Gemini API kaliti muvaffaqiyatli saqlandi va faollashtirildi.",
+            "masked_key": masked,
+            "gemini_active": True
+        })
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+async def api_delete_settings(request):
+    """Disconnects and removes saved Gemini API key."""
+    try:
+        gemini_enhancements.delete_user_api_key()
+        return JSONResponse({"status": "ok", "message": "API kaliti o'chirildi."})
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+async def api_download_desktop(request):
+    """Serves the ComicLab desktop application zip bundle for download."""
+    candidate_paths = [
+        os.path.join(BASE_DIR, "dist", "ComicLab_Portable_v1.0.0.zip"),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "dist", "ComicLab_Portable_v1.0.0.zip"),
+        os.path.join(os.getcwd(), "dist", "ComicLab_Portable_v1.0.0.zip")
+    ]
+    zip_path = None
+    for p in candidate_paths:
+        if os.path.exists(p):
+            zip_path = p
+            break
+
+    if not zip_path:
+        fallback_url = os.environ.get(
+            "DESKTOP_DOWNLOAD_URL",
+            "https://github.com/hinklab/comic-lab/releases/download/v1.0.0/ComicLab_Portable_v1.0.0.zip"
+        )
+        return RedirectResponse(url=fallback_url, status_code=302)
+
+    return FileResponse(
+        path=zip_path,
+        filename="ComicLab_Portable_v1.0.0.zip",
+        media_type="application/zip"
+    )
+
+# --- AUTO-UPDATE ENGINE FOR DESKTOP APPLICATION ---
+UPDATE_DOWNLOAD_STATE = {
+    "status": "idle",       # "idle", "downloading", "completed", "error"
+    "percent": 0,
+    "downloaded_bytes": 0,
+    "total_bytes": 0,
+    "downloaded_mb": "0",
+    "total_mb": "0",
+    "filepath": "",
+    "error": None
+}
+UPDATE_LOCK = threading.Lock()
+
+async def api_version(request):
+    """Returns application version manifest for update checks."""
+    manifest_path = os.path.join(BASE_DIR, "version_manifest.json")
+    if os.path.exists(manifest_path):
+        try:
+            with open(manifest_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return JSONResponse(data)
+        except Exception:
+            pass
+    return JSONResponse({
+        "app_name": APP_NAME,
+        "latest_version": APP_VERSION,
+        "release_date": "2026-10-22",
+        "download_url": "/download/desktop",
+        "changelog": "Comic-Lab Studio so'nggi yangilanishi.",
+        "min_supported_version": "1.0.0"
+    })
+
+async def api_check_update(request):
+    """Checks remote server or local manifest for new version availability."""
+    remote_url = os.environ.get("COMICLAB_UPDATE_URL") or DEFAULT_UPDATE_URL
+    latest_v = APP_VERSION
+    changelog = ""
+    download_url = "/download/desktop"
+    release_date = ""
+
+    fetched_data = None
+    # 1. Try querying remote server if online
+    if remote_url and not remote_url.startswith("http://127.0.0.1") and not remote_url.startswith("http://localhost"):
+        try:
+            req = urllib.request.Request(
+                remote_url,
+                headers={"User-Agent": f"ComicLab-Desktop/{APP_VERSION}"}
+            )
+            with urllib.request.urlopen(req, timeout=3.5) as resp:
+                if resp.status == 200:
+                    fetched_data = json.loads(resp.read().decode("utf-8"))
+        except Exception:
+            pass
+
+    # 2. Fallback to local manifest if remote wasn't reachable or in local dev
+    if not fetched_data:
+        manifest_path = os.path.join(BASE_DIR, "version_manifest.json")
+        if os.path.exists(manifest_path):
+            try:
+                with open(manifest_path, "r", encoding="utf-8") as f:
+                    fetched_data = json.load(f)
+            except Exception:
+                pass
+
+    if fetched_data:
+        latest_v = fetched_data.get("latest_version") or APP_VERSION
+        changelog = fetched_data.get("changelog") or ""
+        download_url = fetched_data.get("download_url") or "/download/desktop"
+        release_date = fetched_data.get("release_date") or ""
+
+    update_available = is_newer_version(latest_v, APP_VERSION)
+
+    return JSONResponse({
+        "status": "ok",
+        "current_version": APP_VERSION,
+        "latest_version": latest_v,
+        "update_available": update_available,
+        "download_url": download_url,
+        "changelog": changelog,
+        "release_date": release_date
+    })
+
+def _background_download_worker(source_url: str, target_file: str):
+    global UPDATE_DOWNLOAD_STATE
+    try:
+        with UPDATE_LOCK:
+            UPDATE_DOWNLOAD_STATE["status"] = "downloading"
+            UPDATE_DOWNLOAD_STATE["percent"] = 0
+            UPDATE_DOWNLOAD_STATE["downloaded_bytes"] = 0
+            UPDATE_DOWNLOAD_STATE["total_bytes"] = 0
+            UPDATE_DOWNLOAD_STATE["filepath"] = target_file
+            UPDATE_DOWNLOAD_STATE["error"] = None
+
+        # If source_url is relative, point to remote server or local backend
+        if source_url.startswith("/"):
+            # If local dist file exists, copy directly for instant zero-bandwidth download
+            local_candidate = os.path.join(BASE_DIR, "dist", "ComicLab_Portable_v1.0.0.zip")
+            if not os.environ.get("COMICLAB_FORCE_REMOTE_DOWNLOAD") and os.path.exists(local_candidate):
+                total_sz = os.path.getsize(local_candidate)
+                with UPDATE_LOCK:
+                    UPDATE_DOWNLOAD_STATE["total_bytes"] = total_sz
+                    UPDATE_DOWNLOAD_STATE["total_mb"] = f"{total_sz / (1024*1024):.1f}"
+
+                with open(local_candidate, "rb") as sf, open(target_file, "wb") as df:
+                    copied = 0
+                    while chunk := sf.read(512 * 1024):
+                        df.write(chunk)
+                        copied += len(chunk)
+                        pct = int((copied / float(total_sz)) * 100) if total_sz > 0 else 50
+                        with UPDATE_LOCK:
+                            UPDATE_DOWNLOAD_STATE["downloaded_bytes"] = copied
+                            UPDATE_DOWNLOAD_STATE["percent"] = pct
+                            UPDATE_DOWNLOAD_STATE["downloaded_mb"] = f"{copied / (1024*1024):.1f}"
+                        time.sleep(0.01)
+
+                with UPDATE_LOCK:
+                    UPDATE_DOWNLOAD_STATE["status"] = "completed"
+                    UPDATE_DOWNLOAD_STATE["percent"] = 100
+                return
+
+            remote_base = os.environ.get("COMICLAB_REMOTE_BASE", "https://comic-lab-backend.onrender.com")
+            source_url = remote_base.rstrip("/") + source_url
+
+        req = urllib.request.Request(source_url, headers={"User-Agent": f"ComicLab-Updater/{APP_VERSION}"})
+        with urllib.request.urlopen(req, timeout=30.0) as resp:
+            total_sz = int(resp.headers.get("Content-Length", 0))
+            with UPDATE_LOCK:
+                UPDATE_DOWNLOAD_STATE["total_bytes"] = total_sz
+                UPDATE_DOWNLOAD_STATE["total_mb"] = f"{total_sz / (1024*1024):.1f}" if total_sz > 0 else "N/A"
+
+            downloaded = 0
+            temp_file = target_file + ".tmp"
+            with open(temp_file, "wb") as f_out:
+                while True:
+                    chunk = resp.read(256 * 1024)
+                    if not chunk:
+                        break
+                    f_out.write(chunk)
+                    downloaded += len(chunk)
+                    pct = int((downloaded / float(total_sz)) * 100) if total_sz > 0 else 50
+                    with UPDATE_LOCK:
+                        UPDATE_DOWNLOAD_STATE["downloaded_bytes"] = downloaded
+                        UPDATE_DOWNLOAD_STATE["percent"] = pct
+                        UPDATE_DOWNLOAD_STATE["downloaded_mb"] = f"{downloaded / (1024*1024):.1f}"
+
+            if os.path.exists(target_file):
+                os.remove(target_file)
+            os.rename(temp_file, target_file)
+
+            with UPDATE_LOCK:
+                UPDATE_DOWNLOAD_STATE["status"] = "completed"
+                UPDATE_DOWNLOAD_STATE["percent"] = 100
+
+    except Exception as exc:
+        with UPDATE_LOCK:
+            UPDATE_DOWNLOAD_STATE["status"] = "error"
+            UPDATE_DOWNLOAD_STATE["error"] = str(exc)
+
+async def api_start_update_download(request):
+    """Starts asynchronous background download of the update."""
+    global UPDATE_DOWNLOAD_STATE
+    try:
+        data = await request.json() if request.method == "POST" else {}
+        target_version = data.get("version") or "latest"
+        download_url = data.get("download_url") or "/download/desktop"
+
+        downloads_dir = os.path.join(os.path.expanduser("~"), "Downloads")
+        os.makedirs(downloads_dir, exist_ok=True)
+        filename = f"ComicLab_Portable_v{target_version}.zip"
+        target_path = os.path.join(downloads_dir, filename)
+
+        with UPDATE_LOCK:
+            if UPDATE_DOWNLOAD_STATE["status"] == "downloading":
+                return JSONResponse({"status": "already_downloading", "progress": UPDATE_DOWNLOAD_STATE})
+
+        t = threading.Thread(target=_background_download_worker, args=(download_url, target_path), daemon=True)
+        t.start()
+
+        return JSONResponse({
+            "status": "started",
+            "target_path": target_path,
+            "filename": filename
+        })
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+async def api_get_update_progress(request):
+    """Polls real-time download progress."""
+    with UPDATE_LOCK:
+        return JSONResponse(UPDATE_DOWNLOAD_STATE)
+
+async def api_open_download_folder(request):
+    """Opens Windows Explorer with the downloaded zip selected."""
+    try:
+        with UPDATE_LOCK:
+            filepath = UPDATE_DOWNLOAD_STATE.get("filepath")
+
+        import subprocess
+        downloads_dir = os.path.join(os.path.expanduser("~"), "Downloads")
+        if filepath and os.path.exists(filepath):
+            subprocess.Popen(f'explorer /select,"{os.path.abspath(filepath)}"')
+        else:
+            subprocess.Popen(f'explorer "{downloads_dir}"')
+        return JSONResponse({"status": "ok"})
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+SESSION_COOKIE_NAME = "comiclab_session"
+
+class SessionTokenMiddleware:
+    """
+    Protects localhost backend from unauthorized origins, DNS rebinding,
+    and third-party browser tabs probing localhost.
+    """
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+
+        expected_token = os.environ.get("COMICLAB_SESSION_TOKEN")
+        if not expected_token:
+            # If not configured (raw web dev or tests), allow open local development access
+            return await self.app(scope, receive, send)
+
+        request = Request(scope, receive)
+        path = scope.get("path", "")
+
+        # 1. Allow root, fonts, assets, static files, desktop zip download, and update endpoints
+        if (path == "/" or path.startswith("/assets") or path.startswith("/fonts") or 
+            path.startswith("/static") or path == "/download/desktop" or 
+            path.startswith("/api/version") or path.startswith("/api/check_update") or 
+            path.startswith("/api/start_update_download") or path.startswith("/api/update_download_progress") or 
+            path.startswith("/api/open_download_folder")):
+            query_token = request.query_params.get("token")
+            # If token is passed in query parameter on initial load of "/", attach SameSite=Strict session cookie
+            if path == "/" and query_token and secrets.compare_digest(query_token, expected_token):
+                async def send_wrapper(message):
+                    if message["type"] == "http.response.start":
+                        headers = list(message.get("headers", []))
+                        cookie_val = f"{SESSION_COOKIE_NAME}={expected_token}; Path=/; SameSite=Strict; HttpOnly"
+                        headers.append((b"set-cookie", cookie_val.encode("latin-1")))
+                        message["headers"] = headers
+                    await send(message)
+                return await self.app(scope, receive, send_wrapper)
+
+            return await self.app(scope, receive, send)
+
+        # 2. For all /api/... routes, enforce valid session via cookie, header or query param
+        cookie_token = request.cookies.get(SESSION_COOKIE_NAME)
+        header_token = request.headers.get("X-ComicLab-Token")
+        query_token = request.query_params.get("token")
+
+        is_authorized = (
+            (cookie_token and secrets.compare_digest(cookie_token, expected_token)) or
+            (header_token and secrets.compare_digest(header_token, expected_token)) or
+            (query_token and secrets.compare_digest(query_token, expected_token))
+        )
+
+        if not is_authorized:
+            response = JSONResponse({"error": "Unauthorized request origin or missing session token"}, status_code=403)
+            return await response(scope, receive, send)
+
+        return await self.app(scope, receive, send)
 
 async def api_register_page(request):
     """Registers an uploaded page image into PAGES_CACHE without running OCR (useful for skipped pages)."""
@@ -657,6 +1044,9 @@ async def api_upload_font(request):
         DYNAMIC_FONT_MAP[safe_name] = save_path
         DYNAMIC_FONT_MAP[os.path.splitext(safe_name)[0]] = save_path
 
+        global _FONTS_CACHE
+        _FONTS_CACHE = None
+
         return JSONResponse({
             "status": "ok",
             "font_name": font_name,
@@ -668,8 +1058,14 @@ async def api_upload_font(request):
         traceback.print_exc()
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
+_FONTS_CACHE = None
+
 async def api_list_fonts(request):
-    """Lists all available fonts in the fonts/ directory."""
+    """Lists all available fonts in the fonts/ directory with in-memory caching."""
+    global _FONTS_CACHE
+    if _FONTS_CACHE is not None:
+        return JSONResponse(_FONTS_CACHE)
+
     fonts_dir = os.path.join(BASE_DIR, "fonts")
     result = []
     seen_names = set()
@@ -687,7 +1083,8 @@ async def api_list_fonts(request):
                     "filename": fname,
                     "url": f"/fonts/{fname}"
                 })
-    return JSONResponse({"status": "ok", "fonts": result})
+    _FONTS_CACHE = {"status": "ok", "fonts": result}
+    return JSONResponse(_FONTS_CACHE)
 
 async def api_delete_font(request):
     """
@@ -737,6 +1134,9 @@ async def api_delete_font(request):
                                     deleted_files.append(fname)
                         except Exception:
                             pass
+
+        global _FONTS_CACHE
+        _FONTS_CACHE = None
 
         return JSONResponse({
             "status": "ok",
@@ -1245,9 +1645,25 @@ async def api_get_page_state(request):
     except Exception as e:
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
+assets_dir = os.path.join(BASE_DIR, "assets")
+os.makedirs(assets_dir, exist_ok=True)
+fonts_dir = os.path.join(BASE_DIR, "fonts")
+os.makedirs(fonts_dir, exist_ok=True)
+web_dir = os.path.join(BASE_DIR, "web")
+os.makedirs(web_dir, exist_ok=True)
+
 routes = [
     Route("/", serve_index, methods=["GET"]),
+    Route("/download/desktop", api_download_desktop, methods=["GET"]),
+    Route("/api/version", api_version, methods=["GET"]),
+    Route("/api/check_update", api_check_update, methods=["GET"]),
+    Route("/api/start_update_download", api_start_update_download, methods=["POST"]),
+    Route("/api/update_download_progress", api_get_update_progress, methods=["GET"]),
+    Route("/api/open_download_folder", api_open_download_folder, methods=["POST"]),
     Route("/api/health", api_health, methods=["GET"]),
+    Route("/api/settings", api_get_settings, methods=["GET"]),
+    Route("/api/settings", api_save_settings, methods=["POST"]),
+    Route("/api/settings", api_delete_settings, methods=["DELETE"]),
     Route("/api/register_page", api_register_page, methods=["POST"]),
     Route("/api/process_page", api_process_page, methods=["POST"]),
     Route("/api/get_page_state", api_get_page_state, methods=["GET"]),
@@ -1265,13 +1681,14 @@ routes = [
     Route("/api/delete_font", api_delete_font, methods=["POST"]),
     Route("/api/inpaint_crop", api_inpaint_crop, methods=["POST"]),
     Route("/api/inpaint_crops", api_inpaint_crops, methods=["POST"]),
-    Mount("/assets", StaticFiles(directory=os.path.join(BASE_DIR, "assets")), name="assets"),
-    Mount("/fonts", StaticFiles(directory=os.path.join(BASE_DIR, "fonts")), name="fonts"),
-    Mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "web")), name="static")
+    Mount("/assets", StaticFiles(directory=assets_dir), name="assets"),
+    Mount("/fonts", StaticFiles(directory=fonts_dir), name="fonts"),
+    Mount("/static", StaticFiles(directory=web_dir), name="static")
 ]
 
 middleware = [
-    Middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+    Middleware(SessionTokenMiddleware),
+    Middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"], allow_credentials=True)
 ]
 
 app = Starlette(debug=False, routes=routes, middleware=middleware)
@@ -1279,7 +1696,7 @@ app = Starlette(debug=False, routes=routes, middleware=middleware)
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     print(f"\n=======================================================")
-    print(f"[OK] COMIC-LAB ULTRA STUDIO (FastAPI/Starlette Engine)")
+    print(f"[OK] COMIC-LAB STUDIO (FastAPI/Starlette Engine)")
     print(f"[URL] Studio URL: http://localhost:{port}")
     print(f"[INFO] RAM: ~35 MB | Re-run latency: 0 ms | 60 FPS Canvas")
     print(f"=======================================================\n")
