@@ -6,6 +6,10 @@
       "destination": "https://comic-lab-backend.onrender.com/api/:path*"
     },
     {
+      "source": "/download/desktop",
+      "destination": "https://github.com/hinklab/comic-lab/releases/download/v1.0.0/ComicLab_Portable_v1.0.0.zip"
+    },
+    {
       "source": "/download/:path*",
       "destination": "https://comic-lab-backend.onrender.com/download/:path*"
     }

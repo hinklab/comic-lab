@@ -566,34 +566,29 @@
     .header-update-badge {
       display: none;
       align-items: center;
-      gap: 6px;
-      height: 26px;
-      padding: 0 11px;
-      background: linear-gradient(135deg, rgba(0, 230, 118, 0.16), rgba(0, 230, 118, 0.3));
-      border: 1px solid rgba(0, 230, 118, 0.55);
+      gap: 5px;
+      height: 24px;
+      padding: 0 8px;
+      background: rgba(0, 230, 118, 0.08);
+      border: 1px solid rgba(0, 230, 118, 0.25);
       outline: none;
-      border-radius: 13px;
+      border-radius: 6px;
       color: #00e676;
       font-size: 0.74rem;
-      font-weight: 700;
-      letter-spacing: 0.2px;
+      font-weight: 600;
       cursor: pointer;
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-      margin-left: 8px;
+      transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+      margin-left: 6px;
       white-space: nowrap;
       user-select: none;
-      box-shadow: 0 0 10px rgba(0, 230, 118, 0.2);
-      animation: updatePillGlow 2.5s infinite ease-in-out;
     }
     .header-update-badge:hover {
-      background: linear-gradient(135deg, rgba(0, 230, 118, 0.32), rgba(0, 230, 118, 0.5));
-      border-color: #00e676;
+      background: rgba(0, 230, 118, 0.16);
+      border-color: rgba(0, 230, 118, 0.5);
       color: #ffffff;
-      box-shadow: 0 0 18px rgba(0, 230, 118, 0.45);
-      transform: translateY(-1px);
     }
     .header-update-badge:active {
-      transform: translateY(0);
+      background: rgba(0, 230, 118, 0.24);
     }
     .update-pulse-dot {
       width: 7px;
@@ -2693,16 +2688,16 @@
       </a>
 
       <!-- Minimalist Desktop App Pill (Web browser only) -->
-      <a href="/download/desktop" download="ComicLab_Portable_v1.0.0.zip" class="header-desktop-badge" id="btn-download-app" onclick="openDownloadModal()" title="Windows ish stoli ilovasi (Yuklab olish)">
+      <a href="https://github.com/hinklab/comic-lab/releases/download/v1.0.0/ComicLab_Portable_v1.0.0.zip" class="header-desktop-badge" id="btn-download-app" onclick="openDownloadModal()" title="Windows ish stoli ilovasi (Yuklab olish)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width: 12px; height: 12px; stroke-width: 2.2;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         <span>Desktop App</span>
       </a>
 
       <!-- Dynamic Update Available Badge (Desktop App & Web) -->
-      <button type="button" class="header-update-badge" id="btn-update-available" onclick="openUpdateModal()" title="Yangi yangilanish mavjud! Ko'rish uchun bosing">
+      <button type="button" class="header-update-badge" id="btn-update-available" onclick="openUpdateModal()" style="display: none;" title="Yangi yangilanish mavjud! Ko'rish uchun bosing">
         <span class="update-pulse-dot"></span>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width: 12px; height: 12px; stroke-width: 2.4;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        <span id="update-badge-text">Yangilanish: v1.0.1</span>
+        <span id="update-badge-text">Yangilanish</span>
       </button>
     </div>
 
@@ -3796,6 +3791,12 @@
         </div>
       </div>
 
+      <!-- Download Action Buttons -->
+      <a href="https://github.com/hinklab/comic-lab/releases/download/v1.0.0/ComicLab_Portable_v1.0.0.zip" class="btn btn-primary" style="width: 100%; height: 40px; border-radius: 8px; font-weight: 700; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; background: #00e676; color: #0a0b0e;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width: 16px; height: 16px; stroke-width: 2.3;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span>To'g'ridan-to'g'ri yuklab olish (118 MB)</span>
+      </a>
+
       <!-- Close Button -->
       <button type="button" class="btn btn-secondary" onclick="closeDownloadModal()" style="width: 100%; height: 38px; border-radius: 8px; font-weight: 600; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; justify-content: center;">
         Tushunarli
@@ -3871,13 +3872,9 @@
         <button type="button" class="btn btn-secondary" onclick="closeUpdateModal()" style="height: 34px; padding: 0 14px; font-size: 0.8rem; border-radius: 7px; cursor: pointer;">
           Keyinroq
         </button>
-        <button type="button" class="btn btn-primary" id="btn-start-update-dl" onclick="startFastUpdateDownload()" style="height: 34px; padding: 0 18px; font-size: 0.8rem; background: #00e676; color: #000000; font-weight: 700; border: none; border-radius: 7px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+        <button type="button" class="btn btn-primary" id="btn-start-update-dl" onclick="executeAppUpdateAndRestart()" style="height: 34px; padding: 0 18px; font-size: 0.8rem; background: #00e676; color: #000000; font-weight: 700; border: none; border-radius: 7px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width: 14px; height: 14px; stroke-width: 2.4;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          <span id="btn-start-update-text">Tezda yuklab olish</span>
-        </button>
-        <button type="button" class="btn btn-primary" id="btn-open-update-folder" onclick="openUpdateFolder()" style="display: none; height: 34px; padding: 0 18px; font-size: 0.8rem; background: #00e676; color: #000000; font-weight: 700; border: none; border-radius: 7px; cursor: pointer; align-items: center; gap: 6px;">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width: 14px; height: 14px; stroke-width: 2.2;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-          <span>Papkani ochish</span>
+          <span id="btn-start-update-text">Yangilash va qayta ishga tushirish</span>
         </button>
       </div>
 
@@ -6885,15 +6882,17 @@
         if (isCaption) {
           // For rectangular caption boxes: sample median of bright interior pixels (authentic parchment/colored tint)
           try {
-            const cropW = Math.max(1, bw - 8);
-            const cropH = Math.max(1, bh - 8);
-            const imgData = sCtx.getImageData(bx0 + 4, by0 + 4, cropW, cropH);
+            const padX = Math.max(6, Math.round(bw * 0.15));
+            const padY = Math.max(6, Math.round(bh * 0.15));
+            const cropW = Math.max(1, bw - padX * 2);
+            const cropH = Math.max(1, bh - padY * 2);
+            const imgData = sCtx.getImageData(bx0 + padX, by0 + padY, cropW, cropH);
             const d = imgData.data;
             const brightPixels = [];
             for (let i = 0; i < d.length; i += 4) {
               const r = d[i], g = d[i+1], bVal = d[i+2];
               const lum = 0.299 * r + 0.587 * g + 0.114 * bVal;
-              if (lum > 160) {
+              if (lum > 150) {
                 brightPixels.push({ r, g, b: bVal, lum });
               }
             }
@@ -9646,7 +9645,8 @@
       // Render in reverse array order so top-most Z-order layer is physically at the top
       for (let i = bubbles.length - 1; i >= 0; i--) {
         const b = bubbles[i];
-        const bIdStr = String(b.bubble_id);
+        const safeId = (b.bubble_id !== undefined && b.bubble_id !== null) ? b.bubble_id : (i + 1);
+        const bIdStr = String(safeId);
         const customNameStr = String(b.custom_name || '');
         const uzStr = String(b.uzbek_translation || '');
         const origStr = String(b.original_text || '');
@@ -9676,7 +9676,7 @@
           ? `<div class="layer-type-badge" title="Pufak shakli" style="color: #a855f7; background: rgba(168, 85, 247, 0.12); border: 1px solid rgba(168, 85, 247, 0.3); font-weight: 800; font-size: 0.68rem; font-family: monospace;">P</div>`
           : `<div class="layer-type-badge" title="Matn qatlami" style="color: #38bdf8; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.3); font-weight: 800; font-size: 0.68rem; font-family: monospace;">T</div>`;
 
-        const layerTitle = b.custom_name || (isShape ? `Pufak #${b.bubble_id}` : (uzStr || origStr || `Matn #${b.bubble_id}`));
+        const layerTitle = b.custom_name || (isShape ? `Pufak #${safeId}` : (uzStr || origStr || `Matn #${safeId}`));
         const colorStripHtml = b.color_tag ? `<div class="color-tag-strip" style="background: ${b.color_tag};"></div>` : '';
         const opacityBadgeHtml = (b.opacity !== undefined && b.opacity < 1.0)
           ? `<span style="font-size: 0.6rem; color: var(--text-muted); background: rgba(255,255,255,0.06); padding: 1px 4px; border-radius: 3px;" title="Shaffoflik">${Math.round(b.opacity * 100)}%</span>`
@@ -11265,7 +11265,6 @@
         showToast("Xatolik yuz berdi: " + e.message);
       }
     }
-    }
 
     function openSettingsModal() {
       const modal = document.getElementById('settings-modal');
@@ -11386,7 +11385,7 @@
     let currentUpdateInfo = null;
 
     async function checkForAppUpdates(manual = false) {
-      const btnCheck = (window.event && window.event.target) ? window.event.target.closest('button') : null;
+      const btnCheck = (window.event && window.event.target && typeof window.event.target.closest === 'function') ? window.event.target.closest('button') : null;
       let origCheckText = "";
       if (btnCheck) {
         origCheckText = btnCheck.innerHTML;
@@ -11452,30 +11451,87 @@
       if (modal) modal.style.display = 'none';
     }
 
-    async function startFastUpdateDownload() {
+    async function saveCurrentWorkingSession() {
+      try {
+        if (!pageQueue || pageQueue.length === 0) {
+          if (typeof ComicDB !== 'undefined' && ComicDB.clearAll) {
+            await ComicDB.clearAll();
+          }
+          await fetch('/api/save_session_snapshot', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pages: [], currentPageIndex: 0, currentFontFamily: currentFontFamily, timestamp: Date.now() })
+          }).catch(() => {});
+          return;
+        }
+
+        if (pageQueue && pageQueue.length > 0) {
+          if (pageQueue[currentPageIndex] && Array.isArray(bubbles)) {
+            pageQueue[currentPageIndex].bubbles = bubbles;
+          }
+          if (typeof ComicDB !== 'undefined' && ComicDB.saveAllPages) {
+            await ComicDB.saveAllPages(pageQueue);
+            await ComicDB.saveMeta('currentPageIndex', currentPageIndex);
+            await ComicDB.saveMeta('currentFontFamily', currentFontFamily);
+          }
+          // Also backup complete state to server snapshot
+          const snapData = {
+            pages: pageQueue.map(p => ({
+              id: p.id,
+              name: p.name,
+              pageNum: p.pageNum,
+              sequentialName: p.sequentialName,
+              status: p.status,
+              bubbles: Array.isArray(p.bubbles) ? p.bubbles.map((b, bIdx) => ({
+                ...b,
+                bubble_id: (b.bubble_id !== undefined && b.bubble_id !== null) ? b.bubble_id : (bIdx + 1)
+              })) : [],
+              originalImageB64: p.originalImageB64 || (p.originalImage ? p.originalImage.src : null),
+              cleanedImageB64: p.cleanedImageB64 || (p.cleanedImage ? p.cleanedImage.src : null)
+            })),
+            currentPageIndex: currentPageIndex,
+            currentFontFamily: currentFontFamily,
+            timestamp: Date.now()
+          };
+          await fetch('/api/save_session_snapshot', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(snapData)
+          }).catch(() => {});
+        }
+      } catch (err) {
+        console.warn("Session snapshot backup warning:", err);
+      }
+    }
+
+    async function executeAppUpdateAndRestart() {
       const btn = document.getElementById('btn-start-update-dl');
       const btnText = document.getElementById('btn-start-update-text');
       const progressBox = document.getElementById('update-progress-container');
       const progressBar = document.getElementById('update-progress-bar');
       const progressStats = document.getElementById('update-progress-stats');
+      const progressSub = document.getElementById('update-progress-sub');
       const successBox = document.getElementById('update-success-box');
-      const openFolderBtn = document.getElementById('btn-open-update-folder');
 
-      btn.disabled = true;
-      btnText.textContent = "Yuklanmoqda...";
-      progressBox.style.display = 'flex';
-      successBox.style.display = 'none';
+      if (btn) btn.disabled = true;
+      if (btnText) btnText.textContent = "Jarayon saqlanmoqda...";
+      showToast("Ish jarayoni xavfsiz saqlanmoqda...");
+      await saveCurrentWorkingSession();
+
+      if (progressBox) progressBox.style.display = 'flex';
+      if (progressSub) progressSub.textContent = "Ilova yopilib, yangilanish o'rnatilgach avtomatik qayta ishga tushadi...";
+      if (btnText) btnText.textContent = "Yuklanmoqda...";
+
+      const targetVer = currentUpdateInfo ? currentUpdateInfo.latest_version : '1.0.1';
+      const dlUrl = currentUpdateInfo ? currentUpdateInfo.download_url : '/download/desktop';
 
       try {
-        const targetVer = currentUpdateInfo ? currentUpdateInfo.latest_version : '1.0.1';
-        const dlUrl = currentUpdateInfo ? currentUpdateInfo.download_url : '/download/desktop';
-
+        // Trigger fast update download on backend
         const resp = await fetch('/api/start_update_download', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ version: targetVer, download_url: dlUrl })
         });
-        const resData = await resp.json();
 
         if (updateDownloadPollTimer) clearInterval(updateDownloadPollTimer);
         updateDownloadPollTimer = setInterval(async () => {
@@ -11485,33 +11541,50 @@
 
             if (pData.status === 'downloading') {
               const pct = Math.max(0, Math.min(100, pData.percent || 0));
-              progressBar.style.width = `${pct}%`;
-              progressStats.textContent = `${pct}% (${pData.downloaded_mb || '0'} MB / ${pData.total_mb || '124'} MB)`;
+              if (progressBar) progressBar.style.width = `${pct}%`;
+              if (progressStats) progressStats.textContent = `${pct}% (${pData.downloaded_mb || '0'} MB / ${pData.total_mb || '124'} MB)`;
             } else if (pData.status === 'completed') {
               clearInterval(updateDownloadPollTimer);
               updateDownloadPollTimer = null;
-              progressBar.style.width = '100%';
-              progressStats.textContent = '100%';
-              progressBox.style.display = 'none';
-              successBox.style.display = 'flex';
-              btn.style.display = 'none';
-              if (openFolderBtn) openFolderBtn.style.display = 'inline-flex';
-              showToast("Yangilanish to'liq yuklab olindi!");
+              if (progressBar) progressBar.style.width = '100%';
+              if (progressStats) progressStats.textContent = '100%';
+              if (btnText) btnText.textContent = "O'rnatilmoqda...";
+              showToast("Yangilanish yuklandi! Ilova yopilib yangilanmoqda...");
+
+              // Trigger install & restart
+              setTimeout(async () => {
+                await fetch('/api/apply_update_and_restart', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ version: targetVer, download_url: dlUrl })
+                }).catch(() => {});
+              }, 600);
             } else if (pData.status === 'error') {
               clearInterval(updateDownloadPollTimer);
               updateDownloadPollTimer = null;
-              btn.disabled = false;
-              btnText.textContent = "Qayta urinish";
-              showToast(`Xatolik: ${pData.error || 'Yuklab bo\'lmadi'}`);
+              // If in-app download had an issue, fallback directly to updater script to download externally
+              showToast("Tashqi yuklagich orqali yangilanmoqda...");
+              await fetch('/api/apply_update_and_restart', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ version: targetVer, download_url: dlUrl })
+              }).catch(() => {});
             }
           } catch (_) {}
-        }, 500);
+        }, 400);
 
       } catch (err) {
-        btn.disabled = false;
-        btnText.textContent = "Tezda yuklab olish";
-        showToast("Yuklab olishni boshlashda xatolik yuz berdi.");
+        // Fallback: trigger updater script directly
+        await fetch('/api/apply_update_and_restart', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ version: targetVer, download_url: dlUrl })
+        }).catch(() => {});
       }
+    }
+
+    async function startFastUpdateDownload() {
+      await executeAppUpdateAndRestart();
     }
 
     async function openUpdateFolder() {
@@ -12367,10 +12440,10 @@
     window.addEventListener('DOMContentLoaded', async () => {
       // Preload active primary font immediately for 0ms canvas render
       if (document.fonts && document.fonts.load) {
-        document.fonts.load("16px 'CC Wild Words'");
+        try { document.fonts.load("16px 'CC Wild Words'").catch(() => {}); } catch (_) {}
         const savedInitial = localStorage.getItem('comic_selected_font');
         if (savedInitial && savedInitial !== 'CC Wild Words') {
-          try { document.fonts.load(`16px '${savedInitial}'`); } catch (_) {}
+          try { document.fonts.load(`16px '${savedInitial}'`).catch(() => {}); } catch (_) {}
         }
         // Defer secondary font cache warming to background idle time
         const warmOtherFonts = () => {
@@ -12381,7 +12454,7 @@
             "16px 'Back Issues BB'", "16px 'VC Joe Caramagna'", "16px 'Mason'"
           ];
           deferredList.forEach(f => {
-            try { document.fonts.load(f); } catch (_) {}
+            try { document.fonts.load(f).catch(() => {}); } catch (_) {}
           });
         };
         if ('requestIdleCallback' in window) {
@@ -12430,18 +12503,73 @@
         document.body.classList.add('sidebar-collapsed');
       }
 
-      updateProcessButtons();
-      checkSavedSession();
-      loadSettingsStatus();
-      checkDesktopEnvironment();
-      checkForAppUpdates();
+      try { updateProcessButtons(); } catch (_) {}
+      try { await checkSavedSession(); } catch (_) {}
+      try { await loadSettingsStatus(); } catch (_) {}
+      try { checkDesktopEnvironment(); } catch (_) {}
+      try { checkForAppUpdates(); } catch (_) {}
     });
 
     async function checkSavedSession() {
       try {
-        const savedPages = await ComicDB.getAllPages();
+        let savedPages = [];
+        if (typeof ComicDB !== 'undefined' && ComicDB.getAllPages) {
+          savedPages = await ComicDB.getAllPages();
+        }
+
+        // Validate IndexedDB pages: they MUST have actual image data
+        if (savedPages && savedPages.length > 0) {
+          savedPages = savedPages.filter(p => p && (p.fileBlob || p.originalImageB64 || p.file || (p.originalImage && p.originalImage.src)));
+          if (savedPages.length === 0) {
+            // All entries were invalid / corrupt ghosts without image, wipe them out
+            await ComicDB.clearAll();
+          }
+        }
+
+        // Fallback to backend snapshot if IndexedDB is empty
+        if (!savedPages || savedPages.length === 0) {
+          try {
+            const snapRes = await fetch('/api/get_session_snapshot');
+            if (snapRes && snapRes.ok) {
+              const snapJson = await snapRes.json();
+              if (snapJson && snapJson.status === 'ok' && snapJson.snapshot && Array.isArray(snapJson.snapshot.pages)) {
+                const validPages = snapJson.snapshot.pages.filter(p => p && (p.fileBlob || p.originalImageB64 || p.file || p.cleanedImageB64));
+                if (validPages.length > 0) {
+                  savedPages = validPages;
+                  if (typeof ComicDB !== 'undefined' && ComicDB.saveAllPages) {
+                    await ComicDB.saveAllPages(savedPages);
+                    if (typeof snapJson.snapshot.currentPageIndex === 'number') {
+                      await ComicDB.saveMeta('currentPageIndex', snapJson.snapshot.currentPageIndex);
+                    }
+                    if (snapJson.snapshot.currentFontFamily) {
+                      await ComicDB.saveMeta('currentFontFamily', snapJson.snapshot.currentFontFamily);
+                    }
+                  }
+                }
+              }
+            }
+          } catch (_) {}
+        }
+
         if (savedPages && savedPages.length > 0) {
           await restoreSession();
+        } else {
+          // Clean empty state: no active project was saved
+          pageQueue = [];
+          bubbles = [];
+          originalImage = null;
+          cleanedImage = null;
+          selectedBubbleId = null;
+          selectedBubbleIds.clear();
+
+          if (dropzone) dropzone.style.display = 'flex';
+          const stripEl = document.getElementById('pages-strip-container');
+          if (stripEl) stripEl.style.display = 'none';
+
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          updateSidebar();
+          updateProcessButtons();
+          updateDownloadButtonState();
         }
       } catch (e) {
         console.error("Auto restore session error:", e);
@@ -12449,19 +12577,31 @@
     }
 
     async function restoreSession() {
-      const savedPages = await ComicDB.getAllPages();
+      let savedPages = await ComicDB.getAllPages();
       if (!savedPages || savedPages.length === 0) return;
 
-      savedPages.sort((a, b) => a.pageNum - b.pageNum);
+      // Filter out invalid pages with no image
+      savedPages = savedPages.filter(rec => rec && (rec.fileBlob || rec.originalImageB64 || rec.file || rec.cleanedImageB64));
+      if (savedPages.length === 0) {
+        await ComicDB.clearAll();
+        if (dropzone) dropzone.style.display = 'flex';
+        updateSidebar();
+        return;
+      }
+
+      savedPages.sort((a, b) => (a.pageNum || 0) - (b.pageNum || 0));
 
       pageQueue = savedPages.map(rec => ({
         id: rec.id,
-        file: rec.fileBlob,
+        file: rec.fileBlob || rec.file,
         name: rec.name,
-        pageNum: rec.pageNum,
-        sequentialName: `${rec.pageNum}_${rec.name}`,
-        status: rec.status,
-        bubbles: Array.isArray(rec.bubbles) ? rec.bubbles : [],
+        pageNum: rec.pageNum || 1,
+        sequentialName: `${rec.pageNum || 1}_${rec.name || 'sahifa.png'}`,
+        status: rec.status || 'ready',
+        bubbles: Array.isArray(rec.bubbles) ? rec.bubbles.map((b, bIdx) => ({
+          ...b,
+          bubble_id: (b.bubble_id !== undefined && b.bubble_id !== null) ? b.bubble_id : (bIdx + 1)
+        })) : [],
         originalImageB64: rec.originalImageB64 || null,
         cleanedImageB64: rec.cleanedImageB64 || null,
         originalImage: null,
@@ -12503,13 +12643,18 @@
       updateDownloadButtonState();
       renderPagesStrip();
       await loadPageInQueue(currentPageIndex);
-      showToast(`Avvalgi ish seansi to'liq tiklandi (${pageQueue.length} ta sahifa)`);
+      showToast(`Avvalgi ish jarayoni to'liq tiklandi (${pageQueue.length} ta sahifa)`);
     }
 
     async function dismissRestoreSession() {
       await ComicDB.clearAll();
       try {
         await fetch('/api/clear_workspace_state', { method: 'POST' });
+        await fetch('/api/save_session_snapshot', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pages: [], currentPageIndex: 0, currentFontFamily: currentFontFamily, timestamp: Date.now() })
+        }).catch(() => {});
       } catch (e) {}
       document.getElementById('restore-banner').style.display = 'none';
       showToast("Eski seans tozalandi");
@@ -12536,6 +12681,11 @@
 
       try {
         await fetch('/api/clear_workspace_state', { method: 'POST' });
+        await fetch('/api/save_session_snapshot', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pages: [], currentPageIndex: 0, currentFontFamily: currentFontFamily, timestamp: Date.now() })
+        }).catch(() => {});
       } catch (e) {
         console.warn('Server keshini tozalashda xatolik:', e);
       }
@@ -12559,6 +12709,11 @@
       updateSidebar();
       showToast("Barcha sahifalar va keshlar tozalandi");
     }
+
+    // Auto-save session snapshot when closing or reloading window
+    window.addEventListener('beforeunload', () => {
+      saveCurrentWorkingSession();
+    });
   </script>
 </body>
 </html>

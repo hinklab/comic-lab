@@ -4,7 +4,7 @@ Comic-Lab Version and Auto-Update Engine
 import re
 from typing import Tuple
 
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.0.1"
 APP_NAME = "Comic-Lab Studio"
 DEFAULT_UPDATE_URL = "https://comic-lab-backend.onrender.com/api/version"
 

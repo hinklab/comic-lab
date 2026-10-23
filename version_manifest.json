@@ -2,7 +2,7 @@
   "app_name": "Comic-Lab Studio",
   "latest_version": "1.0.1",
   "release_date": "2026-10-22",
-  "download_url": "/download/desktop",
-  "changelog": "1. Kadrlararo pufak sakrash xatosi (2-panelga noto'g'ri o'tish) to'liq bartaraf etildi.\n2. So'zlarning har bir satrda bo'g'inlarga maydalanib ketishi to'xtatildi (9 harfgacha bo'lgan so'zlar yaxlit saqlanadi).\n3. Matn o'lchamini pufak shakliga qarab eng optimal tanlash va xavfsiz chegaralash yaxshilandi.\n4. Shriftlar yuklanishi 0ms tezlikka keltirildi va FOUT miltillashi yo'qotildi.",
+  "download_url": "https://github.com/hinklab/comic-lab/releases/download/v1.0.0/ComicLab_Portable_v1.0.0.zip",
+  "changelog": "Comic-Lab Studio barqaror v1.0.0 versiyasi.",
   "min_supported_version": "1.0.0"
 }

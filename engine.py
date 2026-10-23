@@ -2593,80 +2593,134 @@ def realign_misplaced_bubble(gray_img: np.ndarray, box: List[int]) -> Tuple[List
 def snap_caption_rectangle(gray_img: np.ndarray, box: List[int], other_boxes: Optional[List[List[int]]] = None) -> List[int]:
     """
     Snaps an approximate rectangular caption or narrative box to its authentic
-    outer dark border strokes with sub-pixel precision. Tightly bounds search to ±25%
-    of box dimension around each edge to strictly prevent expanding into character art.
+    outer dark border strokes with sub-pixel precision.
+    Intelligently handles both AI vision overshoots (pulls inward from artwork to the authentic
+    paper boundary) and AI truncations (searches forward along authentic paper until border).
     """
     bx0, by0, bx1, by1 = box
     bw = max(10, bx1 - bx0)
     bh = max(10, by1 - by0)
     H, W = gray_img.shape[:2]
 
-    # Search window: tightly bounded to ±25% of box dimension (max 35px)
-    max_dx = max(12, min(35, int(bw * 0.25)))
-    max_dy = max(12, min(35, int(bh * 0.25)))
+    # Sample typical interior paper brightness from left-center safe zone
+    safe_x0 = max(0, bx0 + int(bw * 0.10))
+    safe_x1 = min(W, bx0 + int(bw * 0.40))
+    safe_y0 = max(0, by0 + int(bh * 0.20))
+    safe_y1 = min(H, by1 - int(bh * 0.20))
+    patch = gray_img[safe_y0:safe_y1, safe_x0:safe_x1]
+    paper_val = float(np.median(patch)) if patch.size > 0 else 200.0
+    dark_thresh = min(115, max(80, int(paper_val * 0.60)))
 
-    # Evaluate along safe inner span
-    eval_y0 = max(0, by0 + int(bh * 0.20))
-    eval_y1 = min(H, by1 - int(bh * 0.20))
+    # Evaluate along safe inner vertical span
+    eval_y0 = max(0, by0 + int(bh * 0.15))
+    eval_y1 = min(H, by1 - int(bh * 0.15))
     if eval_y1 <= eval_y0:
         eval_y0, eval_y1 = max(0, by0), min(H, by1)
 
-    # Left border: search near bx0
+    max_dy = max(15, min(45, int(bh * 0.25)))
+
+    # 1. Left border: search near bx0
+    max_dx_left = max(15, min(50, int(bw * 0.20)))
     best_left = bx0
-    best_left_score = -1
-    for x in range(max(0, bx0 - max_dx), min(W, bx0 + max_dx)):
+    best_left_score = -1.0
+    for x in range(max(0, bx0 - max_dx_left), min(W, bx0 + max_dx_left)):
         col = gray_img[eval_y0:eval_y1, x]
         if col.size > 0:
-            dark_ratio = np.mean(col < 130)
-            if dark_ratio >= 0.65:
-                score = dark_ratio - abs(x - bx0) * 0.01
+            dark_ratio = np.mean(col < dark_thresh)
+            if dark_ratio >= 0.50:
+                score = dark_ratio - abs(x - bx0) * 0.005
                 if score > best_left_score:
                     best_left_score = score
                     best_left = x + 1
 
-    # Right border: search near bx1
-    best_right = bx1
-    best_right_score = -1
-    for x in range(max(0, bx1 - max_dx), min(W, bx1 + max_dx)):
-        col = gray_img[eval_y0:eval_y1, x]
-        if col.size > 0:
-            dark_ratio = np.mean(col < 130)
-            if dark_ratio >= 0.65:
-                score = dark_ratio - abs(x - bx1) * 0.01
-                if score > best_right_score:
-                    best_right_score = score
-                    best_right = x
-
-    eval_x0 = max(0, best_left + int((best_right - best_left) * 0.20))
-    eval_x1 = min(W, best_right - int((best_right - best_left) * 0.20))
+    # 2. Top & Bottom borders
+    eval_x0 = max(0, best_left + 15)
+    eval_x1 = min(W, bx1 - 15)
     if eval_x1 <= eval_x0:
-        eval_x0, eval_x1 = max(0, best_left), min(W, best_right)
+        eval_x0, eval_x1 = best_left, bx1
 
-    # Top border: search near by0
     best_top = by0
-    best_top_score = -1
+    best_top_score = -1.0
     for y in range(max(0, by0 - max_dy), min(H, by0 + max_dy)):
         row = gray_img[y, eval_x0:eval_x1]
         if row.size > 0:
-            dark_ratio = np.mean(row < 130)
-            if dark_ratio >= 0.65:
+            dark_ratio = np.mean(row < dark_thresh)
+            if dark_ratio >= 0.50:
                 score = dark_ratio - abs(y - by0) * 0.01
                 if score > best_top_score:
                     best_top_score = score
                     best_top = y + 1
 
-    # Bottom border: search near by1
     best_bot = by1
-    best_bot_score = -1
+    best_bot_score = -1.0
     for y in range(max(0, by1 - max_dy), min(H, by1 + max_dy)):
         row = gray_img[y, eval_x0:eval_x1]
         if row.size > 0:
-            dark_ratio = np.mean(row < 130)
-            if dark_ratio >= 0.65:
+            dark_ratio = np.mean(row < dark_thresh)
+            if dark_ratio >= 0.50:
                 score = dark_ratio - abs(y - by1) * 0.01
                 if score > best_bot_score:
                     best_bot_score = score
                     best_bot = y
+
+    # Re-evaluate safe vertical span using snapped top/bottom
+    if best_bot > best_top + 20:
+        eval_y0 = best_top + int((best_bot - best_top) * 0.15)
+        eval_y1 = best_bot - int((best_bot - best_top) * 0.15)
+
+    # 3. Right border:
+    # First check if bx1 overshot into dark artwork outside the box
+    end_col = gray_img[eval_y0:eval_y1, max(0, bx1 - 5)]
+    if end_col.size > 0 and np.mean(end_col) < paper_val * 0.65:
+        # bx1 is deep in external dark artwork -> scan inward to find authentic paper edge
+        inward_found = False
+        for x in range(bx1, max(best_left + 20, bx0), -1):
+            col = gray_img[eval_y0:eval_y1, x]
+            if np.mean(col > paper_val * 0.70) > 0.55:
+                best_right = x + 1
+                inward_found = True
+                break
+        if not inward_found:
+            best_right = bx1
+    else:
+        # Search near bx1
+        max_dx_right = max(15, min(45, int(bw * 0.20)))
+        best_right = bx1
+        best_right_score = -1.0
+        for x in range(max(0, bx1 - max_dx_right), min(W, bx1 + max_dx_right)):
+            col = gray_img[eval_y0:eval_y1, x]
+            if col.size > 0:
+                dark_ratio = np.mean(col < dark_thresh)
+                if dark_ratio >= 0.50:
+                    score = dark_ratio - abs(x - bx1) * 0.005
+                    if score > best_right_score:
+                        best_right_score = score
+                        best_right = x
+
+        # If no strong vertical stroke near bx1, search forward ONLY while on bright paper
+        if best_right_score < 0.50:
+            forward_limit = min(W - 5, bx0 + int(bw * 3.5))
+            if other_boxes:
+                for ob in other_boxes:
+                    ox0, oy0, ox1, oy1 = ob
+                    if ox0 > bx0 and not (oy1 < best_top or oy0 > best_bot):
+                        forward_limit = min(forward_limit, ox0 - 5)
+
+            peak_x = bx1
+            peak_score = -1.0
+            for x in range(bx1, forward_limit):
+                col = gray_img[eval_y0:eval_y1, x]
+                if col.size == 0 or np.mean(col > paper_val * 0.65) < 0.40:
+                    break
+                dark_ratio = np.mean(col < dark_thresh)
+                if dark_ratio >= 0.50:
+                    if dark_ratio > peak_score:
+                        peak_score = dark_ratio
+                        peak_x = x
+                elif peak_score >= 0.50 and dark_ratio < 0.30:
+                    break
+            if peak_score >= 0.50:
+                best_right = peak_x
 
     if best_right <= best_left + 15:
         best_left, best_right = bx0, bx1
@@ -2825,12 +2879,16 @@ def match_gemini_to_authentic_box(gem_box: List[int], authentic_candidates: List
         c_cy = (cy0 + cy1) / 2.0
         dist = np.hypot(g_cx - c_cx, g_cy - c_cy)
 
-        # STRICT SAFETY: Candidate MUST have significant IoU (>= 0.45) OR high overlap (>= 0.60)
-        # with center distance strictly within 40% of bubble dimensions.
-        # NEVER match disjoint boxes or distant candidates (prevents panel jumping).
-        max_allowed_dist = max(20.0, min(gw, gh) * 0.40)
-        if (iou >= 0.45 or (inter >= 0.60 * min(g_area, c_area))) and dist <= max_allowed_dist:
-            score = iou * 3.0 + (inter / max(g_area, c_area)) - (dist / max_allowed_dist) * 0.2
+        # STRICT SAFETY: Normalized directional centroid differences and directional containment.
+        # Prevents rejection when AI vision overshoots along one dimension (e.g. wide narrative boxes),
+        # while strictly preventing panel jumping or matching across comic borders.
+        cand_overlap = inter / c_area
+        gem_overlap = inter / g_area
+        dx = abs(g_cx - c_cx) / max(gw, cw)
+        dy = abs(g_cy - c_cy) / max(gh, ch)
+
+        if (iou >= 0.40 or cand_overlap >= 0.70 or gem_overlap >= 0.70) and dx < 0.40 and dy < 0.35:
+            score = max(iou, cand_overlap) * 3.0 + (inter / max(g_area, c_area)) - (dx + dy) * 0.5
             if score > best_score:
                 best_score = score
                 best_match = cand
@@ -2914,6 +2972,8 @@ def scan_bubbles_ocr(image: Image.Image, use_subprocess: bool = True, timeout_se
 
     if ocr_engine == "tesseract":
         return scan_bubbles_ocr_tesseract(image)
+
+    img_cv = cv2.cvtColor(np.array(image.convert("RGB")), cv2.COLOR_RGB2BGR)
 
     # 0. Opt-In / Fast Cloud: Google Gemini Multimodal Vision API (~2s bubble detection + translation)
     if ocr_engine == "gemini" or (ocr_engine is None and os.getenv("FORCE_LOCAL_OCR") != "1"):
@@ -3074,6 +3134,11 @@ def scan_bubbles_ocr(image: Image.Image, use_subprocess: bool = True, timeout_se
                     bh = use_y1 - use_y0
                     if auth_match["is_rect"] or b_type == "caption":
                         shape_type = "rectangle"
+                        other_neighbors = [other["box"] for j, other in enumerate(gemini_results) if j != idx]
+                        sbx0, sby0, sbx1, sby1 = snap_caption_rectangle(gray_full, [use_x0, use_y0, use_x1, use_y1], other_boxes=other_neighbors)
+                        use_x0, use_y0, use_x1, use_y1 = sbx0, sby0, sbx1, sby1
+                        bw = use_x1 - use_x0
+                        bh = use_y1 - use_y0
                         synth_cnt = np.array([[[use_x0, use_y0]], [[use_x1, use_y0]], [[use_x1, use_y1]], [[use_x0, use_y1]]], dtype=np.int32)
                         cnt_page = synth_cnt
                         cnt_pts = synth_cnt.reshape(-1, 2).tolist()

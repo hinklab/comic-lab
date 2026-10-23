@@ -402,6 +402,217 @@ async def api_open_download_folder(request):
     except Exception as e:
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
+SESSION_SNAPSHOT_FILE = os.path.join(
+    os.environ.get("APPDATA") or os.path.expanduser("~"),
+    "ComicLab",
+    "session_snapshot.json"
+)
+
+async def api_save_session_snapshot(request):
+    """Saves complete working project state to disk as persistent safety backup."""
+    try:
+        data = await request.json()
+        os.makedirs(os.path.dirname(SESSION_SNAPSHOT_FILE), exist_ok=True)
+        temp_file = SESSION_SNAPSHOT_FILE + ".tmp"
+        with open(temp_file, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False)
+        if os.path.exists(SESSION_SNAPSHOT_FILE):
+            os.remove(SESSION_SNAPSHOT_FILE)
+        os.rename(temp_file, SESSION_SNAPSHOT_FILE)
+        return JSONResponse({"status": "ok", "saved_at": time.time()})
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+async def api_get_session_snapshot(request):
+    """Retrieves saved session snapshot if present."""
+    try:
+        if os.path.exists(SESSION_SNAPSHOT_FILE):
+            with open(SESSION_SNAPSHOT_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return JSONResponse({"status": "ok", "snapshot": data})
+        return JSONResponse({"status": "empty"})
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+UPDATER_PS1_SCRIPT = """# ComicLab Studio Auto-Updater Script
+param(
+    [int]$AppPid,
+    [string]$AppDir,
+    [string]$ExePath,
+    [string]$DownloadUrl,
+    [string]$ZipPath = ""
+)
+
+$host.UI.RawUI.WindowTitle = "Comic-Lab Studio - Yangilanish o'rnatilmoqda"
+Write-Host ""
+Write-Host " ========================================================== " -ForegroundColor Cyan
+Write-Host "           Comic-Lab Studio Avtomatik Yangilash             " -ForegroundColor Green
+Write-Host " ========================================================== " -ForegroundColor Cyan
+Write-Host ""
+
+# 1. Wait for parent ComicLab process to exit cleanly
+if ($AppPid -gt 0) {
+    Write-Host "[1/4] Ilova yopilishi kutilmoqda (PID: $AppPid)..." -ForegroundColor Yellow
+    $p = Get-Process -Id $AppPid -ErrorAction SilentlyContinue
+    if ($p) {
+        $p.WaitForExit(10000)
+    }
+}
+
+# Ensure no ComicLab instance locks files in AppDir
+$waitCount = 0
+while ($waitCount -lt 15) {
+    $running = Get-Process -Name "*ComicLab*" -ErrorAction SilentlyContinue | Where-Object {
+        try { $_.Path -like "$AppDir*" } catch { $false }
+    }
+    if (-not $running) { break }
+    Start-Sleep -Seconds 1
+    $waitCount++
+}
+Start-Sleep -Milliseconds 800
+
+# 2. Check or download update package
+$finalZip = $ZipPath
+if (-not $finalZip -or -not (Test-Path $finalZip) -or ((Get-Item $finalZip).Length -lt 1000000)) {
+    $finalZip = Join-Path $env:TEMP "ComicLab_Update.zip"
+    Write-Host "[2/4] Yangilanish paketi yuklab olinmoqda..." -ForegroundColor Cyan
+    Write-Host "      Manba: $DownloadUrl" -ForegroundColor Gray
+    try {
+        $wc = New-Object System.Net.WebClient
+        $wc.Headers.Add("User-Agent", "ComicLab-AutoUpdater/1.0.0")
+        $wc.DownloadFile($DownloadUrl, $finalZip)
+        Write-Host "      Muvaffaqiyatli yuklandi ($( [math]::Round((Get-Item $finalZip).Length / 1MB, 1) ) MB)" -ForegroundColor Green
+    } catch {
+        Write-Host "[XATO] Yuklab olishda xatolik yuz berdi: $_" -ForegroundColor Red
+        Write-Host "Ilova qayta ishga tushirilmoqda..." -ForegroundColor Yellow
+        Start-Process -FilePath $ExePath -WorkingDirectory $AppDir
+        exit 1
+    }
+} else {
+    Write-Host "[2/4] Tayyor yangilanish paketi topildi ($( [math]::Round((Get-Item $finalZip).Length / 1MB, 1) ) MB)" -ForegroundColor Green
+}
+
+# 3. Extract and overwrite update files
+Write-Host "[3/4] Yangi versiya fayllari o'rnatilmoqda..." -ForegroundColor Cyan
+try {
+    [System.Reflection.Assembly]::LoadWithPartialName('System.IO.Compression.FileSystem') | Out-Null
+    $staging = Join-Path $env:TEMP "ComicLab_Staging"
+    if (Test-Path $staging) {
+        Remove-Item -Recurse -Force $staging -ErrorAction SilentlyContinue
+    }
+    New-Item -ItemType Directory -Path $staging -Force | Out-Null
+    [System.IO.Compression.ZipFile]::ExtractToDirectory($finalZip, $staging)
+
+    # Detect root of extracted files
+    $sourceRoot = $staging
+    if (-not (Test-Path (Join-Path $sourceRoot "ComicLab.exe"))) {
+        $sub = Get-ChildItem -Path $staging -Directory | Where-Object { Test-Path (Join-Path $_.FullName "ComicLab.exe") } | Select-Object -First 1
+        if ($sub) {
+            $sourceRoot = $sub.FullName
+        }
+    }
+
+    # Copy all files over AppDir
+    Get-ChildItem -Path $sourceRoot -Recurse | ForEach-Object {
+        $rel = $_.FullName.Substring($sourceRoot.Length).TrimStart('\\', '/')
+        $dest = Join-Path $AppDir $rel
+        if ($_.PSIsContainer) {
+            if (-not (Test-Path $dest)) {
+                New-Item -ItemType Directory -Path $dest -Force | Out-Null
+            }
+        } else {
+            $destDir = Split-Path $dest -Parent
+            if (-not (Test-Path $destDir)) {
+                New-Item -ItemType Directory -Path $destDir -Force | Out-Null
+            }
+            Copy-Item -Path $_.FullName -Destination $dest -Force
+        }
+    }
+    Remove-Item -Recurse -Force $staging -ErrorAction SilentlyContinue
+    Write-Host "      Barcha yangi fayllar muvaffaqiyatli o'rnatildi!" -ForegroundColor Green
+} catch {
+    Write-Host "[XATO] O'rnatishda xatolik: $_" -ForegroundColor Red
+}
+
+# 4. Relaunch ComicLab.exe
+Write-Host "[4/4] Comic-Lab Studio qayta ishga tushirilmoqda..." -ForegroundColor Green
+Start-Sleep -Milliseconds 600
+Start-Process -FilePath $ExePath -WorkingDirectory $AppDir
+Write-Host " [Muvaffaqiyatli] Yangilanish to'liq yakunlandi!" -ForegroundColor Cyan
+Start-Sleep -Seconds 1
+"""
+
+async def api_apply_update_and_restart(request):
+    """Triggers the external updater script and closes the current app."""
+    try:
+        data = await request.json() if request.method == "POST" else {}
+        target_version = data.get("version") or "1.0.1"
+        download_url = data.get("download_url") or "/download/desktop"
+
+        if download_url.startswith("/"):
+            remote_base = os.environ.get("COMICLAB_REMOTE_BASE", "https://comic-lab-backend.onrender.com")
+            download_url = remote_base.rstrip("/") + download_url
+
+        # Determine app directory and executable
+        if getattr(sys, "frozen", False):
+            exe_path = sys.executable
+            app_dir = os.path.dirname(exe_path)
+        else:
+            app_dir = os.path.abspath(os.path.join(BASE_DIR, "dist", "ComicLab"))
+            exe_path = os.path.join(app_dir, "ComicLab.exe")
+
+        # Check if zip is already downloaded locally
+        with UPDATE_LOCK:
+            zip_path = UPDATE_DOWNLOAD_STATE.get("filepath") or ""
+
+        if not (zip_path and os.path.exists(zip_path)):
+            local_cand = os.path.join(BASE_DIR, "dist", f"ComicLab_Portable_v{target_version}.zip")
+            if not os.path.exists(local_cand):
+                local_cand = os.path.join(BASE_DIR, "dist", "ComicLab_Portable_v1.0.0.zip")
+            if os.path.exists(local_cand):
+                zip_path = local_cand
+
+        user_data = os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~"), "ComicLab")
+        os.makedirs(user_data, exist_ok=True)
+        updater_script_path = os.path.join(user_data, "comic_lab_updater.ps1")
+        with open(updater_script_path, "w", encoding="utf-8") as f:
+            f.write(UPDATER_PS1_SCRIPT)
+
+        current_pid = os.getpid()
+
+        import subprocess
+        cmd = [
+            "powershell.exe",
+            "-ExecutionPolicy", "Bypass",
+            "-NoProfile",
+            "-File", updater_script_path,
+            "-AppPid", str(current_pid),
+            "-AppDir", app_dir,
+            "-ExePath", exe_path,
+            "-DownloadUrl", download_url,
+            "-ZipPath", zip_path
+        ]
+        subprocess.Popen(
+            cmd,
+            creationflags=subprocess.CREATE_NEW_CONSOLE | subprocess.DETACHED_PROCESS if sys.platform == "win32" else 0
+        )
+
+        def _delayed_exit():
+            time.sleep(0.5)
+            if sys.platform == "win32":
+                try:
+                    import ctypes
+                    ctypes.windll.kernel32.ExitProcess(0)
+                except Exception:
+                    pass
+            os._exit(0)
+
+        threading.Thread(target=_delayed_exit, daemon=True).start()
+
+        return JSONResponse({"status": "ok", "message": "Ilova yopilib yangilanmoqda va qayta ochiladi..."})
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
 SESSION_COOKIE_NAME = "comiclab_session"
 
 class SessionTokenMiddleware:
@@ -424,12 +635,15 @@ class SessionTokenMiddleware:
         request = Request(scope, receive)
         path = scope.get("path", "")
 
-        # 1. Allow root, fonts, assets, static files, desktop zip download, and update endpoints
+        # 1. Allow root, fonts, assets, static files, desktop zip download, settings, glossary, fonts list, and update endpoints
         if (path == "/" or path.startswith("/assets") or path.startswith("/fonts") or 
             path.startswith("/static") or path == "/download/desktop" or 
+            path == "/api/health" or path == "/api/settings" or
+            path == "/api/list_fonts" or path == "/api/glossary" or
             path.startswith("/api/version") or path.startswith("/api/check_update") or 
             path.startswith("/api/start_update_download") or path.startswith("/api/update_download_progress") or 
-            path.startswith("/api/open_download_folder")):
+            path.startswith("/api/open_download_folder") or path.startswith("/api/apply_update_and_restart") or
+            path.startswith("/api/save_session_snapshot") or path.startswith("/api/get_session_snapshot")):
             query_token = request.query_params.get("token")
             # If token is passed in query parameter on initial load of "/", attach SameSite=Strict session cookie
             if path == "/" and query_token and secrets.compare_digest(query_token, expected_token):
@@ -1660,6 +1874,9 @@ routes = [
     Route("/api/start_update_download", api_start_update_download, methods=["POST"]),
     Route("/api/update_download_progress", api_get_update_progress, methods=["GET"]),
     Route("/api/open_download_folder", api_open_download_folder, methods=["POST"]),
+    Route("/api/apply_update_and_restart", api_apply_update_and_restart, methods=["POST"]),
+    Route("/api/save_session_snapshot", api_save_session_snapshot, methods=["POST"]),
+    Route("/api/get_session_snapshot", api_get_session_snapshot, methods=["GET"]),
     Route("/api/health", api_health, methods=["GET"]),
     Route("/api/settings", api_get_settings, methods=["GET"]),
     Route("/api/settings", api_save_settings, methods=["POST"]),

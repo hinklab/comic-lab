@@ -124,8 +124,48 @@ sys.stderr = file_logger
 # Ensure standalone offline mode to eliminate cloud DNS delays on startup
 os.environ["COMICLAB_STANDALONE"] = "1"
 
-def find_free_port() -> int:
-    """Finds an available TCP port on 127.0.0.1."""
+DEFAULT_PREFERRED_PORT = 51820
+
+def free_preferred_port_if_zombie(preferred: int = DEFAULT_PREFERRED_PORT) -> None:
+    """Terminates orphaned zombie ComicLab/Python instances holding the preferred port."""
+    try:
+        import psutil
+        my_pid = os.getpid()
+        for p in psutil.process_iter(['pid', 'name']):
+            if p.pid == my_pid:
+                continue
+            name = (p.info['name'] or '').lower()
+            if 'comiclab' in name or 'python' in name:
+                try:
+                    for conn in p.connections(kind='inet'):
+                        if conn.status == 'LISTEN' and conn.laddr.port == preferred:
+                            p.terminate()
+                            p.wait(timeout=1.0)
+                            break
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+def find_free_port(preferred: int = DEFAULT_PREFERRED_PORT) -> int:
+    """Finds an available TCP port on 127.0.0.1, preferring DEFAULT_PREFERRED_PORT for persistent origin/IndexedDB."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.bind(("127.0.0.1", preferred))
+            return preferred
+    except OSError:
+        pass
+
+    free_preferred_port_if_zombie(preferred)
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.bind(("127.0.0.1", preferred))
+            return preferred
+    except OSError:
+        pass
+
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("127.0.0.1", 0))
         s.listen(1)
@@ -254,6 +294,26 @@ def main():
         except ImportError:
             pass
 
+        # Single-instance guard: prevent multiple processes colliding on WebView2 data lockfile
+        if sys.platform == "win32" and not args.headless:
+            try:
+                import ctypes
+                mutex = ctypes.windll.kernel32.CreateMutexW(None, False, "Global\\ComicLab_SingleInstance_Mutex")
+                if ctypes.windll.kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
+                    hwnd = ctypes.windll.user32.FindWindowW(None, "Comic-Lab Studio")
+                    if hwnd:
+                        ctypes.windll.user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+                        ctypes.windll.user32.SetForegroundWindow(hwnd)
+                    try:
+                        import pyi_splash
+                        if pyi_splash.is_alive():
+                            pyi_splash.close()
+                    except Exception:
+                        pass
+                    sys.exit(0)
+            except Exception:
+                pass
+
         session_token = secrets.token_hex(24)
         os.environ["COMICLAB_SESSION_TOKEN"] = session_token
 
@@ -288,6 +348,8 @@ def main():
         bridge = DesktopBridge()
 
         win_state = load_window_state()
+        should_maximize = win_state.get("maximized", False)
+        should_fullscreen = win_state.get("fullscreen", False)
 
         window = webview.create_window(
             title="Comic-Lab Studio",
@@ -297,8 +359,8 @@ def main():
             height=win_state.get("height", 920),
             x=win_state.get("x"),
             y=win_state.get("y"),
-            maximized=win_state.get("maximized", False),
-            fullscreen=win_state.get("fullscreen", False),
+            maximized=False,
+            fullscreen=False,
             min_size=(1080, 720),
             resizable=True,
             text_select=True,
@@ -313,8 +375,8 @@ def main():
             "height": win_state.get("height", 920),
             "x": win_state.get("x"),
             "y": win_state.get("y"),
-            "maximized": win_state.get("maximized", False),
-            "fullscreen": win_state.get("fullscreen", False)
+            "maximized": should_maximize,
+            "fullscreen": should_fullscreen
         }
 
         def on_maximized(*args):
@@ -371,8 +433,24 @@ def main():
             except Exception:
                 pass
 
-        window.events.shown += close_splash
+        def on_shown():
+            close_splash()
+            # If previous state was maximized or fullscreen, apply after WebView2 control is rendered
+            if should_fullscreen:
+                try:
+                    window.toggle_fullscreen()
+                except Exception:
+                    pass
+            elif should_maximize:
+                try:
+                    window.maximize()
+                except Exception:
+                    pass
+
+        window.events.shown += on_shown
         window.events.loaded += close_splash
+        # Fallback safety timer: ensure splash never stays stranded even on slow display drivers
+        threading.Timer(5.0, close_splash).start()
 
         def on_closing():
             try:
@@ -411,8 +489,10 @@ def main():
         window.events.closing += on_closing
         window.events.closed += on_closing
 
-        # Start pywebview using Edge Chromium (WebView2)
-        webview.start(debug=args.dev)
+        # Start pywebview using Edge Chromium (WebView2) with persistent storage_path
+        storage_path = os.path.join(USER_DATA_DIR, "webview_data")
+        os.makedirs(storage_path, exist_ok=True)
+        webview.start(debug=args.dev, storage_path=storage_path)
     except Exception as exc:
         import traceback
         traceback.print_exc()
