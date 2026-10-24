@@ -134,8 +134,70 @@ async def api_get_settings(request):
         "has_key": has_key,
         "masked_key": masked,
         "is_locked": is_locked,
+        "download_dir": gemini_enhancements.get_download_dir(),
+        "default_download_dir": gemini_enhancements.get_default_download_dir(),
         "message": "Jamoaviy Studio Master API kaliti biriktirilgan va doimiy faol. Xavfsizlik yuzasidan kalit qulflangan." if is_locked else ""
     })
+
+async def api_save_download_dir(request):
+    """Updates persistent download / save directory."""
+    try:
+        data = await request.json()
+        new_dir = (data.get("download_dir") or "").strip()
+        if not new_dir:
+            new_dir = gemini_enhancements.get_default_download_dir()
+        ok = gemini_enhancements.set_download_dir(new_dir)
+        if not ok:
+            return JSONResponse({"status": "error", "message": "Papka yo'li noto'g'ri yoki unga yozish imkonsiz."}, status_code=400)
+        return JSONResponse({
+            "status": "ok",
+            "download_dir": gemini_enhancements.get_download_dir(),
+            "message": "Yuklab olish va saqlash manzili muvaffaqiyatli saqlandi."
+        })
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+async def api_browse_folder(request):
+    """Opens native Windows FolderBrowserDialog via PowerShell as a fallback."""
+    try:
+        import subprocess
+        ps_script = (
+            "[System.Reflection.Assembly]::LoadWithPartialName('System.windows.forms') | Out-Null; "
+            "$f = New-Object System.Windows.Forms.FolderBrowserDialog; "
+            "$f.Description = 'ComicLab yuklab olish va saqlash papkasini tanlang'; "
+            "if($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK){ Write-Output $f.SelectedPath }"
+        )
+        proc = subprocess.run(["powershell", "-NoProfile", "-Command", ps_script], capture_output=True, text=True, timeout=60)
+        path = proc.stdout.strip()
+        if path and os.path.exists(path):
+            return JSONResponse({"status": "ok", "path": path})
+        return JSONResponse({"status": "cancelled", "path": None})
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+async def api_save_export_to_download_dir(request):
+    """Directly saves exported comic chapter/page into the user's configured download directory."""
+    try:
+        data = await request.json()
+        filename = data.get("filename") or "comic_uzbek_chapter.zip"
+        content_b64 = data.get("content_b64", "")
+        if not content_b64:
+            return JSONResponse({"status": "error", "message": "Fayl ma'lumoti bo'sh."}, status_code=400)
+        if "," in content_b64:
+            content_b64 = content_b64.split(",", 1)[1]
+        dest_dir = gemini_enhancements.get_download_dir()
+        os.makedirs(dest_dir, exist_ok=True)
+        dest_path = os.path.join(dest_dir, filename)
+        with open(dest_path, "wb") as f:
+            f.write(base64.b64decode(content_b64))
+        return JSONResponse({
+            "status": "ok",
+            "path": dest_path,
+            "filename": filename,
+            "message": f"Fayl saqlandi: {dest_path}"
+        })
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
 async def api_save_settings(request):
     """Tests and saves new Gemini API key to persistent storage."""
@@ -374,7 +436,7 @@ async def api_start_update_download(request):
         target_version = data.get("version") or "latest"
         download_url = data.get("download_url") or "/download/desktop"
 
-        downloads_dir = os.path.join(os.path.expanduser("~"), "Downloads")
+        downloads_dir = gemini_enhancements.get_download_dir()
         os.makedirs(downloads_dir, exist_ok=True)
         filename = f"ComicLab_Portable_v{target_version}.zip"
         target_path = os.path.join(downloads_dir, filename)
@@ -406,7 +468,7 @@ async def api_open_download_folder(request):
             filepath = UPDATE_DOWNLOAD_STATE.get("filepath")
 
         import subprocess
-        downloads_dir = os.path.join(os.path.expanduser("~"), "Downloads")
+        downloads_dir = gemini_enhancements.get_download_dir()
         if filepath and os.path.exists(filepath):
             subprocess.Popen(f'explorer /select,"{os.path.abspath(filepath)}"')
         else:
@@ -1894,6 +1956,9 @@ routes = [
     Route("/api/settings", api_get_settings, methods=["GET"]),
     Route("/api/settings", api_save_settings, methods=["POST"]),
     Route("/api/settings", api_delete_settings, methods=["DELETE"]),
+    Route("/api/settings/download_dir", api_save_download_dir, methods=["POST"]),
+    Route("/api/browse_folder", api_browse_folder, methods=["POST"]),
+    Route("/api/save_export", api_save_export_to_download_dir, methods=["POST"]),
     Route("/api/register_page", api_register_page, methods=["POST"]),
     Route("/api/process_page", api_process_page, methods=["POST"]),
     Route("/api/get_page_state", api_get_page_state, methods=["GET"]),

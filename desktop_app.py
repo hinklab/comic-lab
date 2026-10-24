@@ -255,7 +255,8 @@ class DesktopBridge:
         """Opens Windows Explorer with downloaded file selected."""
         try:
             import subprocess
-            downloads = os.path.join(os.path.expanduser("~"), "Downloads")
+            import gemini_enhancements
+            downloads = gemini_enhancements.get_download_dir()
             if filepath and os.path.exists(filepath):
                 subprocess.Popen(f'explorer /select,"{os.path.abspath(filepath)}"')
             else:

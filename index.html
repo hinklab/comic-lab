@@ -3727,6 +3727,27 @@
           </span>
         </div>
 
+        <!-- Download and Save Directory -->
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <label style="font-size: 0.86rem; font-weight: 600; color: var(--text-main);">Yuklab olish va Saqlash papkasi</label>
+            <button type="button" onclick="resetDownloadDirToDesktop()" style="background: transparent; border: none; color: var(--accent); font-size: 0.76rem; font-weight: 600; cursor: pointer; text-decoration: underline;" title="Standart Ish stoli (Desktop) manziliga qaytarish">Standart Desktop</button>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <input type="text" id="input-download-dir" placeholder="C:\Users\...\Desktop" style="flex: 1; height: 38px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 0 12px; color: var(--text-main); font-family: monospace; font-size: 0.84rem;" spellcheck="false">
+            <button type="button" class="btn btn-secondary" onclick="browseDownloadFolder()" style="height: 38px; padding: 0 14px; font-size: 0.82rem; font-weight: 600; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;" title="Kompyuterdan papkani tanlash">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width: 14px; height: 14px; stroke-width: 2;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              <span>Tanlash</span>
+            </button>
+            <button type="button" class="btn btn-primary" onclick="saveDownloadDirectory()" style="height: 38px; padding: 0 14px; font-size: 0.82rem; font-weight: 600; border-radius: 8px; cursor: pointer;">
+              <span>Saqlash</span>
+            </button>
+          </div>
+          <span style="font-size: 0.76rem; color: var(--text-muted); line-height: 1.4;">
+            Ilova yangilanishlari va eksport qilingan komikslar saqlanadigan papka. Standart: kompyuterning Ish stoli (Desktop).
+          </span>
+        </div>
+
         <!-- App Version & Update Check -->
         <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-card); padding: 12px 16px; border-radius: 10px; border: 1px solid var(--border);">
           <div style="display: flex; flex-direction: column; gap: 3px;">
@@ -11078,13 +11099,30 @@
           });
           hideSpinner();
 
+          // Direct save to configured Desktop / Download folder
+          try {
+            const reader = new FileReader();
+            reader.readAsDataURL(zipBlob);
+            reader.onloadend = async () => {
+              const base64data = reader.result;
+              await fetch('/api/save_export', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  filename: 'comic_chapter_uzbek.zip',
+                  content_b64: base64data
+                })
+              });
+            };
+          } catch (_) {}
+
           const url = URL.createObjectURL(zipBlob);
           const a = document.createElement('a');
           a.href = url;
           a.download = `comic_chapter_uzbek.zip`;
           a.click();
           URL.revokeObjectURL(url);
-          showToast(`Butun bob (${pageQueue.length} ta sahifa) to'liq ZIP formatida yuklab olindi!`);
+          showToast(`Butun bob (${pageQueue.length} ta sahifa) saqlandi!`);
           return;
         }
 
@@ -11234,6 +11272,12 @@
           const saveBtn = document.getElementById('btn-save-key');
           const eyeBtn = document.getElementById('btn-toggle-eye');
           const descSpan = document.getElementById('settings-key-description');
+          const dlInput = document.getElementById('input-download-dir');
+
+          if (dlInput && data.download_dir) {
+            dlInput.value = data.download_dir;
+          }
+          window._defaultDownloadDir = data.default_download_dir || '';
 
           if (data.is_locked) {
             if (badge) {
@@ -11310,6 +11354,69 @@
         }
       } catch (e) {
         showToast("Xatolik yuz berdi: " + e.message);
+      }
+    }
+
+    async function browseDownloadFolder() {
+      // 1. Try PyWebView native dialog if running in desktop app
+      try {
+        if (window.pywebview && window.pywebview.api && window.pywebview.api.open_folder_dialog) {
+          const selected = await window.pywebview.api.open_folder_dialog();
+          if (selected) {
+            const dlInput = document.getElementById('input-download-dir');
+            if (dlInput) dlInput.value = selected;
+            await saveDownloadDirectory(selected);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn("PyWebView folder dialog error:", err);
+      }
+
+      // 2. Fallback to server-side PowerShell FolderBrowserDialog
+      try {
+        showToast("Papka tanlash oynasi ochilmoqda...");
+        const res = await fetch('/api/browse_folder', { method: 'POST' });
+        const data = await res.json();
+        if (data && data.status === 'ok' && data.path) {
+          const dlInput = document.getElementById('input-download-dir');
+          if (dlInput) dlInput.value = data.path;
+          await saveDownloadDirectory(data.path);
+        }
+      } catch (e) {
+        showToast("Papka tanlashda xatolik: " + e.message);
+      }
+    }
+
+    async function resetDownloadDirToDesktop() {
+      const def = window._defaultDownloadDir || '';
+      const dlInput = document.getElementById('input-download-dir');
+      if (dlInput && def) {
+        dlInput.value = def;
+        await saveDownloadDirectory(def);
+      } else {
+        await saveDownloadDirectory('');
+      }
+    }
+
+    async function saveDownloadDirectory(explicitPath) {
+      const dlInput = document.getElementById('input-download-dir');
+      const val = explicitPath !== undefined ? explicitPath : (dlInput ? dlInput.value.trim() : '');
+      try {
+        const res = await fetch('/api/settings/download_dir', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ download_dir: val })
+        });
+        const data = await res.json();
+        if (res.ok && data.status === 'ok') {
+          if (dlInput) dlInput.value = data.download_dir;
+          showToast("Saqlash manzili o'rnatildi: " + data.download_dir);
+        } else {
+          showToast(data.message || "Manzilni saqlashda xatolik yuz berdi.");
+        }
+      } catch (e) {
+        showToast("Xatolik: " + e.message);
       }
     }
 

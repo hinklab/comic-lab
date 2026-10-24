@@ -128,6 +128,37 @@ def load_user_config() -> Dict[str, Any]:
             return {}
     return {}
 
+def get_default_download_dir() -> str:
+    """Returns default Desktop directory for the current user's machine."""
+    user_home = os.environ.get("USERPROFILE") or os.path.expanduser("~")
+    desktop = os.path.join(user_home, "Desktop")
+    if os.path.exists(desktop):
+        return os.path.abspath(desktop)
+    return os.path.abspath(user_home)
+
+def get_download_dir() -> str:
+    """Returns configured download directory, defaulting to Desktop."""
+    cfg = load_user_config()
+    d = cfg.get("download_dir")
+    if d and os.path.exists(d):
+        return os.path.abspath(d)
+    return get_default_download_dir()
+
+def set_download_dir(path: str) -> bool:
+    """Sets persistent download directory in AppData configuration."""
+    path = path.strip().strip('"').strip("'")
+    if not path:
+        return False
+    try:
+        os.makedirs(path, exist_ok=True)
+        cfg = load_user_config()
+        cfg["download_dir"] = os.path.abspath(path)
+        with open(get_config_file_path(), "w", encoding="utf-8") as f:
+            json.dump(cfg, f, indent=2, ensure_ascii=False)
+        return True
+    except Exception:
+        return False
+
 def save_user_api_key(api_key: str) -> bool:
     """Saves user API key to persistent AppData config and activates in os.environ."""
     api_key = api_key.strip().strip('"').strip("'")
