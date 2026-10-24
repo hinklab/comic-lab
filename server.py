@@ -1924,10 +1924,16 @@ middleware = [
 app = Starlette(debug=False, routes=routes, middleware=middleware)
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8080))
+    host = os.environ.get("HOST", "127.0.0.1")
+    port = int(os.environ.get("PORT", 8000))
     print(f"\n=======================================================")
     print(f"[OK] COMIC-LAB STUDIO (FastAPI/Starlette Engine)")
-    print(f"[URL] Studio URL: http://localhost:{port}")
+    print(f"[URL] Studio URL: http://{host}:{port}")
     print(f"[INFO] RAM: ~35 MB | Re-run latency: 0 ms | 60 FPS Canvas")
     print(f"=======================================================\n")
-    uvicorn.run(app, host="0.0.0.0", port=port, log_level="warning")
+    try:
+        uvicorn.run(app, host=host, port=port, log_level="warning")
+    except Exception as e:
+        alt_port = 8080 if port != 8080 else 8001
+        print(f"[RETRY] Port {port} band, muqobil port {alt_port} ishlatilmoqda...")
+        uvicorn.run(app, host=host, port=alt_port, log_level="warning")
