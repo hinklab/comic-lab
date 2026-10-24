@@ -637,13 +637,42 @@ def gemini_extract_comic_bubbles(image: Image.Image, use_cache: bool = True) -> 
                     if isinstance(raw_b, list) and len(raw_b) >= 4 and all(isinstance(x, (int, float)) for x in raw_b[:4]):
                         valid_items.append(b)
                     elif isinstance(raw_b, list) and len(raw_b) > 0 and all(isinstance(sb, list) and len(sb) >= 4 for sb in raw_b):
-                        # Handles multi-box grouping inside a single object
-                        for sb in raw_b:
+                        # Handles multi-box grouping inside a single object (e.g. conjoined figure-8 lobes)
+                        n_sub = len(raw_b)
+                        orig_full = str(b.get("original_text") or "").strip()
+                        uz_full = str(b.get("uzbek_translation") or "").strip()
+
+                        orig_sents = [s.strip() for s in re.split(r'(?<=[.!?])\s+', orig_full) if s.strip()]
+                        uz_sents = [s.strip() for s in re.split(r'(?<=[.!?])\s+', uz_full) if s.strip()]
+
+                        if len(orig_sents) >= n_sub:
+                            k_o, m_o = divmod(len(orig_sents), n_sub)
+                            orig_parts = []
+                            idx_o = 0
+                            for si in range(n_sub):
+                                take = k_o + (1 if si < m_o else 0)
+                                orig_parts.append(" ".join(orig_sents[idx_o:idx_o + take]))
+                                idx_o += take
+                        else:
+                            orig_parts = [orig_full] * n_sub
+
+                        if len(uz_sents) >= n_sub:
+                            k_u, m_u = divmod(len(uz_sents), n_sub)
+                            uz_parts = []
+                            idx_u = 0
+                            for si in range(n_sub):
+                                take = k_u + (1 if si < m_u else 0)
+                                uz_parts.append(" ".join(uz_sents[idx_u:idx_u + take]))
+                                idx_u += take
+                        else:
+                            uz_parts = [uz_full] * n_sub
+
+                        for sb_idx, sb in enumerate(raw_b):
                             valid_items.append({
                                 "box_2d": sb[:4],
                                 "speaker": b.get("speaker") or "Unknown",
-                                "original_text": b.get("original_text") or "",
-                                "uzbek_translation": b.get("uzbek_translation") or "",
+                                "original_text": orig_parts[sb_idx],
+                                "uzbek_translation": uz_parts[sb_idx],
                                 "bubble_type": b.get("bubble_type") or "speech"
                             })
                     elif isinstance(raw_b, list) and len(raw_b) > 0 and isinstance(raw_b[0], list) and len(raw_b[0]) >= 4:
@@ -810,16 +839,22 @@ def gemini_extract_comic_bubbles(image: Image.Image, use_cache: bool = True) -> 
         if len(letters) < 2 and (aspect >= 6.0 or bh <= 12 or bw <= 12):
             continue
 
-        if orig:
-            try:
-                import engine
-                if engine.is_pure_sfx_text(orig):
-                    print(f"[GEMINI_FILTER] Ignored pure SFX sound effect '{orig}' to preserve comic art.", flush=True)
-                    continue
-            except Exception:
-                pass
+        b_type = str(b.get("bubble_type") or "speech").lower()
+        if b_type == "sfx":
+            print(f"[GEMINI_FILTER] Ignored sound effect outside bubbles '{orig}' to preserve comic art.", flush=True)
+            continue
 
-            # Automatic fallback: if Uzbek translation is missing, translate original text
+        if orig:
+            # User rule: If sound effect/dialogue is inside a bubble/caption, it MUST be translated.
+            # Only sound effects outside bubbles are ignored.
+
+            # Automatic fallback: if Uzbek translation is missing, check idioms then translate original text
+            if not uz:
+                try:
+                    import naturalization_rules
+                    uz = naturalization_rules.apply_naturalization("", en_orig=orig, character_profile=spk)
+                except Exception:
+                    pass
             if not uz:
                 try:
                     uz = gemini_translate_dialogue(orig, speaker=spk)

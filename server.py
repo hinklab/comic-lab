@@ -877,15 +877,9 @@ async def api_process_page(request):
             uz_txt = str(b_dict.get("uzbek_translation") or "").strip()
             clean_o = re.sub(r'[^a-zA-Z0-9]', '', orig_txt).lower()
             clean_u = re.sub(r'[^a-zA-Z0-9]', '', uz_txt).lower()
-            is_untranslated = (not uz_txt) or (clean_o and clean_u and clean_o == clean_u and not engine.is_pure_sfx_text(orig_txt) and len(clean_o) >= 2)
+            is_untranslated = (not uz_txt) or (clean_o and clean_u and clean_o == clean_u and len(clean_o) >= 2)
 
             if orig_txt and is_untranslated:
-                if engine.is_pure_sfx_text(orig_txt):
-                    if hasattr(bubbles[idx], "uzbek_translation"):
-                        bubbles[idx].uzbek_translation = orig_txt
-                    elif isinstance(bubbles[idx], dict):
-                        bubbles[idx]["uzbek_translation"] = orig_txt
-                    continue
                 untranslated.append((idx, orig_txt, b_dict.get("speaker")))
 
         # Batch translate untranslated bubbles to save API calls and avoid 429 rate limit
@@ -918,7 +912,7 @@ async def api_process_page(request):
                     # 100% Reliable Offline Fallback so no bubble is EVER left untranslated!
                     clean_u_chk = re.sub(r'[^a-zA-Z0-9]', '', uz_res).lower()
                     clean_o_chk = re.sub(r'[^a-zA-Z0-9]', '', orig).lower()
-                    if not uz_res or (clean_o_chk and clean_u_chk and clean_o_chk == clean_u_chk and not engine.is_pure_sfx_text(orig)):
+                    if not uz_res or (clean_o_chk and clean_u_chk and clean_o_chk == clean_u_chk):
                         try:
                             uz_res = engine.translate_text(orig, speaker=spk)
                         except Exception as ex:
@@ -1758,9 +1752,12 @@ async def api_retranslate(request):
         speaker = data.get("speaker", "")
         if not text:
             return JSONResponse({"uzbek_translation": ""})
-        if engine.is_pure_sfx_text(text):
-            return JSONResponse({"uzbek_translation": text})
         uz = ""
+        try:
+            import naturalization_rules
+            uz = naturalization_rules.apply_naturalization("", en_orig=text, character_profile=speaker)
+        except Exception:
+            uz = ""
         if gemini_enhancements.is_gemini_enabled():
             try:
                 uz = gemini_enhancements.gemini_translate_dialogue(text, speaker=speaker, use_cache=False)

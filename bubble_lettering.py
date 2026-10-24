@@ -145,8 +145,12 @@ def _suppress_text_for_barrier(gray_roi, approx_glyph_px, ink_thresh=120):
         # edges between 255 and the 210-230 paper tint, creating thousands of false barrier walls!
         non_text_bg = gray_roi[suppress_mask == 0]
         if non_text_bg.size > 0:
-            light_bg = non_text_bg[non_text_bg >= 150]
-            fill_val = int(np.median(light_bg)) if light_bg.size > 0 else int(np.percentile(non_text_bg, 80))
+            bright_bg = non_text_bg[non_text_bg >= 180]
+            if bright_bg.size > 0:
+                fill_val = int(np.percentile(bright_bg, 80))
+            else:
+                light_bg = non_text_bg[non_text_bg >= 140]
+                fill_val = int(np.percentile(light_bg, 80)) if light_bg.size > 0 else int(np.percentile(non_text_bg, 80))
         else:
             fill_val = 255
         clean[suppress_mask > 0] = fill_val

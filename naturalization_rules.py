@@ -134,7 +134,10 @@ EXACT_COMIC_IDIOMS: List[Tuple[str, str]] = [
     (r"^WISH\s+I\s+COULD\s+REMEMBER\s+WHAT\s+HAPPENED[\.!\s]*$", "QANIYDI, NIMA BO'LGANINI ESLOLMASAM..."),
     (r"^NO,?\s+AT\s+THE\s+CRIME\s+SCENE\s+TODAY.*$", "YO'Q, BUGUN JINOYAT JOYIDA... O'ZINI TUTISHI, SO'Z BOYLIGI. BITTA HAM HAZIL QILMADI."),
     (r"^RRPHBL\??[\.!\s]*$", "RRPHBL?"),
-    (r"^AH[\.!\s]*$", "AH."),
+    (r"^AH[\.!\s]*$", "AX."),
+    (r"^AH!+[\s]*$", "AX!"),
+    (r"^OH[\.!\s]*$", "OH."),
+    (r"^OH!+[\s]*$", "OH!"),
 
     # Mined critical limit, combat, and page 18/22 dialogue patterns
     (r"^CRITICAL\s+LIMIT\s+REACHED[!\.:_—\s]*$", "XAVFLI CHEGARAGA YETILDI!"),

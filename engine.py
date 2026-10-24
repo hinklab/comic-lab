@@ -55,7 +55,9 @@ SFX_WORDS = {
 
 DIALOGUE_COMMANDS_EXEMPT_FROM_SFX = {
     "STOP", "WAIT", "HELP", "LOOK", "RUN", "YES", "NO", "WHY", "HOW", "WHAT",
-    "WHO", "NOW", "HEY", "HI", "HELLO", "PLEASE", "THANKS", "OK", "OKAY"
+    "WHO", "NOW", "HEY", "HI", "HELLO", "PLEASE", "THANKS", "OK", "OKAY",
+    "AH", "OH", "UH", "UM", "HMM", "EH", "AHA", "OOH", "HA", "HUH", "PHEW", "OUCH", "OW",
+    "WELL", "SURE", "FINE", "YEAH", "YEP", "NOPE", "ALRIGHT"
 }
 
 
@@ -103,6 +105,13 @@ WATERMARK_WORDS = {
 
 # Exact / Full-Sentence Comic Idiom Mappings
 EXACT_COMIC_MATCHES = [
+    (r"^AH[\s\._]*$", "AX."),
+    (r"^AH[!i\s]+$", "AX!"),
+    (r"^OH[\s\._]*$", "OH."),
+    (r"^OH[!i\s]+$", "OH!"),
+    (r"^UGH[\s\._!]*$", "UH!"),
+    (r"^GASP[!i\s]*$", "HOVLIQIB!"),
+    (r"^KOFF[!i\s]*$", "KX-KX!"),
     (r"^STOP!?\s*KOFF[!i\s]*$", "TO'XTANG!"),
     (r"^STOP[!i\s]*$", "TO'XTANG!"),
     (r"^PLEASE[!i\s]*$", "ILTIMOS!"),
@@ -2982,9 +2991,14 @@ def deduplicate_speech_bubbles(bubbles: List[SpeechBubble], iou_thresh: float = 
                 contain_k = inter / float(k_area)
 
                 if iou >= iou_thresh or contain_b >= contain_thresh or contain_k >= contain_thresh:
-                    is_dup = True
                     b_orig = getattr(b, "original_text", "") or ""
                     k_orig = getattr(k, "original_text", "") or ""
+                    b_clean = re.sub(r'[^a-zA-Z0-9]', '', b_orig).lower()
+                    k_clean = re.sub(r'[^a-zA-Z0-9]', '', k_orig).lower()
+                    # Do not suppress conjoined multi-lobe bubbles that carry distinct dialogue lines
+                    if b_clean and k_clean and (b_clean != k_clean) and (contain_b < 0.88 and contain_k < 0.88):
+                        continue
+                    is_dup = True
                     print(f"[OCR_DEDUP] Suppressed duplicate bubble: '{b_orig[:25]}' overlaps with kept '{k_orig[:25]}' (IoU={iou:.2f}, contain={max(contain_b, contain_k):.2f})", flush=True)
                     break
 
@@ -3075,20 +3089,52 @@ def scan_bubbles_ocr(image: Image.Image, use_subprocess: bool = True, timeout_se
                 if len(letters) < 1:
                     continue
 
-                # - SFX sound effect / onomatopoeia: preserve original comic artwork, do not translate or inpaint
-                if is_pure_sfx_text(orig):
-                    print(f"[OCR_FILTER] Ignored pure SFX bubble '{orig}' to preserve original comic art.", flush=True)
+                # - SFX sound effect / onomatopoeia: only ignore if NOT inside a speech bubble or caption
+                b_type = item.get("bubble_type", "speech")
+                if is_pure_sfx_text(orig) and b_type not in ("speech", "caption", "thought"):
+                    print(f"[OCR_FILTER] Ignored background sound effect '{orig}' outside bubbles to preserve comic art.", flush=True)
                     continue
 
-                # - CRITICAL: Reject candidates located on pitch dark artwork, dark clothing (e.g. Ben's shirt)
+                # - CRITICAL: Check candidates located on pitch dark artwork or shifted coordinates
                 if crop_gray.size > 0:
                     p95_cand = float(np.percentile(crop_gray, 95))
-                    # Authentic speech bubbles have white or light paper with max >= 135 or p95 >= 115
-                    # If even the top 5% brightest pixels in this candidate are dark (< 115) and max is dark (< 135),
-                    # it is dark artwork, shadow, or clothing, NOT a dialogue bubble!
                     if p95_cand < 115 and np.max(crop_gray) < 135:
-                        print(f"[OCR_FILTER] Rejected dark artwork/clothing candidate '{orig}' (p95={p95_cand:.1f} < 115)", flush=True)
-                        continue
+                        # Before rejecting genuine dialogue/bubble text, search nearby (+/- 55px)
+                        # in case Gemini coordinates were slightly shifted into dark artwork/gutters!
+                        realigned_nearby = False
+                        s_y0 = max(0, by0 - 55)
+                        s_y1 = min(H_img, by1 + 55)
+                        s_x0 = max(0, bx0 - 55)
+                        s_x1 = min(W_img, bx1 + 55)
+                        search_crop = gray_full[s_y0:s_y1, s_x0:s_x1]
+                        if search_crop.size > 0:
+                            bright_near = (search_crop > 180).astype(np.uint8) * 255
+                            cnts_near, _ = cv2.findContours(bright_near, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                            best_near = None
+                            best_dist = 999999
+                            for cn in cnts_near:
+                                nx, ny, nw, nh = cv2.boundingRect(cn)
+                                if nw >= 15 and nh >= 10 and cv2.contourArea(cn) >= 80:
+                                    ncx = s_x0 + nx + nw // 2
+                                    ncy = s_y0 + ny + nh // 2
+                                    dist = (ncx - (bx0 + bx1) // 2) ** 2 + (ncy - (by0 + by1) // 2) ** 2
+                                    if dist < best_dist:
+                                        best_dist = dist
+                                        best_near = [s_x0 + nx, s_y0 + ny, s_x0 + nx + nw, s_y0 + ny + nh]
+                            if best_near:
+                                bx0, by0, bx1, by1 = best_near
+                                item["box"] = best_near
+                                item["x0"], item["y0"], item["x1"], item["y1"] = bx0, by0, bx1, by1
+                                cx0, cy0 = max(0, bx0), max(0, by0)
+                                cx1, cy1 = min(W_img, bx1), min(H_img, by1)
+                                crop_gray = gray_full[cy0:cy1, cx0:cx1]
+                                p95_cand = float(np.percentile(crop_gray, 95)) if crop_gray.size > 0 else 0
+                                realigned_nearby = True
+                                print(f"[OCR_FILTER] Realigned slightly shifted bubble '{orig}' to nearby authentic bubble {best_near}", flush=True)
+
+                        if not realigned_nearby and p95_cand < 115 and np.max(crop_gray) < 135:
+                            print(f"[OCR_FILTER] Rejected dark artwork/clothing candidate '{orig}' (p95={p95_cand:.1f} < 115)", flush=True)
+                            continue
 
                 words = [w for w in re.findall(r"[a-zA-Z0-9']+", orig.lower()) if len(w) > 0]
                 has_dialogue_structure = (
@@ -3128,7 +3174,7 @@ def scan_bubbles_ocr(image: Image.Image, use_subprocess: bool = True, timeout_se
                 uz_txt = g_item.get("uzbek_translation", "").strip()
                 c_o = re.sub(r'[^a-zA-Z0-9]', '', orig_txt).lower()
                 c_u = re.sub(r'[^a-zA-Z0-9]', '', uz_txt).lower()
-                if orig_txt and ((not uz_txt) or (c_o and c_u and c_o == c_u and not is_pure_sfx_text(orig_txt) and len(c_o) >= 2)):
+                if orig_txt and ((not uz_txt) or (c_o and c_u and c_o == c_u and len(c_o) >= 2)):
                     untranslated_map[len(untranslated_items)] = g_idx
                     untranslated_items.append({"text": orig_txt, "speaker": g_item.get("speaker")})
 
@@ -3220,10 +3266,11 @@ def scan_bubbles_ocr(image: Image.Image, use_subprocess: bool = True, timeout_se
                         # Speech bubble: edge-aware flood-fill contour detection
                         snapped_box = snap_box_to_bubble_borders(gray_full, [bx0, by0, bx1, by1], other_boxes=other_neighbors)
                         sbx0, sby0, sbx1, sby1 = snapped_box
+                        neighbor_centroids = [((other["box"][0] + other["box"][2]) // 2, (other["box"][1] + other["box"][3]) // 2) for j, other in enumerate(gemini_results) if j != idx]
                         cnt_page, is_rect = bubble_lettering.get_bubble_contour(
                             img_cv,
                             snapped_box,
-                            neighbor_seeds=other_neighbors,
+                            neighbor_seeds=neighbor_centroids,
                             approx_glyph_height=max(28, int(bh * 0.40))
                         )
                         cnt_page = bubble_lettering.clamp_contour_to_dark_edges(cnt_page, gray_full)
@@ -3272,9 +3319,11 @@ def scan_bubbles_ocr(image: Image.Image, use_subprocess: bool = True, timeout_se
                         inter_area = inter_w * inter_h
                         overlap_ratio = (inter_area / float(min(ref_area, cnt_area))) if min(ref_area, cnt_area) > 0 else 0.0
 
+                        # Bubble contour must enclose substantial bubble area and not collapse into inner text trapped regions
                         is_valid_contour = (
-                            (overlap_ratio >= 0.35)
-                            and (cnt_area >= 0.15 * ref_area)
+                            (overlap_ratio >= 0.40)
+                            and (cnt_area >= 0.50 * ref_area)
+                            and (rw >= int(bw * 0.65) and rh >= int(bh * 0.65))
                             and (cnt_area <= 12.0 * ref_area or cnt_area <= 4.0 * max(1, gemini_area))
                             and (cnt_area < 0.25 * (W_img * H_img))
                         )
@@ -3296,7 +3345,7 @@ def scan_bubbles_ocr(image: Image.Image, use_subprocess: bool = True, timeout_se
                                 synth_cnt = np.array([[[use_x0, use_y0]], [[use_x1, use_y0]], [[use_x1, use_y1]], [[use_x0, use_y1]]], dtype=np.int32)
                                 synth_cnt = bubble_lettering.clamp_contour_to_dark_edges(synth_cnt, gray_full)
                             else:
-                                synth_cnt = bubble_lettering._synthetic_ellipse_contour((use_x0 + use_x1) // 2, (use_y0 + use_y1) // 2, use_x1 - use_x0, use_y1 - use_y0, gray_img=gray_full)
+                                synth_cnt = bubble_lettering._synthetic_ellipse_contour((use_x0 + use_x1) // 2, (use_y0 + use_y1) // 2, use_x1 - use_x0, use_y1 - use_y0, width_pad=1.0, height_pad=1.0, gray_img=gray_full)
                             cnt_page = synth_cnt
                             cnt_pts = synth_cnt.reshape(-1, 2).tolist()
 
@@ -3307,7 +3356,7 @@ def scan_bubbles_ocr(image: Image.Image, use_subprocess: bool = True, timeout_se
                 # Fallback: if translation is missing or untranslated leak, translate on-the-fly
                 clean_o = re.sub(r'[^a-zA-Z0-9]', '', orig).lower()
                 clean_u = re.sub(r'[^a-zA-Z0-9]', '', uz).lower()
-                is_untranslated = (not item.get("_batch_translated")) and ((not uz) or (clean_o and clean_u and clean_o == clean_u and not is_pure_sfx_text(orig) and len(clean_o) >= 2))
+                is_untranslated = (not item.get("_batch_translated")) and ((not uz) or (clean_o and clean_u and clean_o == clean_u and len(clean_o) >= 2))
 
                 if orig and is_untranslated:
                     try:
@@ -3320,7 +3369,7 @@ def scan_bubbles_ocr(image: Image.Image, use_subprocess: bool = True, timeout_se
                         print(f"[OCR_FALLBACK_WARN] Gemini translate failed for '{orig[:40]}...': {_fb_ex}", flush=True)
 
                     clean_u_check = re.sub(r'[^a-zA-Z0-9]', '', uz).lower()
-                    if not uz or (clean_o and clean_u_check and clean_o == clean_u_check and not is_pure_sfx_text(orig)):
+                    if not uz or (clean_o and clean_u_check and clean_o == clean_u_check):
                         try:
                             uz = translate_spiderman_uzbek(orig, speaker=spk if spk != "Unknown" else None)
                             print(f"[OCR_FALLBACK_OFFLINE] Offline translated: '{orig[:40]}...' -> '{uz[:40]}'", flush=True)
