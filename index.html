@@ -5290,7 +5290,13 @@
 
       // 2. Ensure Original Image is loaded
       if (!item.originalImage) {
-        if (item.originalImageB64) {
+        let origSrc = item.originalImageB64;
+        if (origSrc && typeof origSrc === 'string' && !origSrc.startsWith('data:') && !origSrc.startsWith('blob:') && !origSrc.startsWith('http')) {
+          origSrc = 'data:image/png;base64,' + origSrc;
+          item.originalImageB64 = origSrc;
+        }
+
+        if (origSrc) {
           await new Promise((resolve) => {
             const img = new Image();
             img.onload = () => {
@@ -5298,8 +5304,11 @@
               originalImage = img;
               resolve();
             };
-            img.onerror = () => resolve();
-            img.src = item.originalImageB64;
+            img.onerror = () => {
+              console.warn("Failed to load originalImage from b64");
+              resolve();
+            };
+            img.src = origSrc;
           });
         } else if (item.file) {
           await new Promise((resolve) => {
@@ -5324,19 +5333,45 @@
       }
 
       // 3. Ensure Cleaned Image is loaded (if page was translated)
-      if (item.status !== 'pending' && !item.cleanedImage && item.cleanedImageB64) {
-        await new Promise((resolve) => {
-          const cImg = new Image();
-          cImg.onload = () => {
-            item.cleanedImage = cImg;
-            cleanedImage = cImg;
-            resolve();
-          };
-          cImg.onerror = () => resolve();
-          cImg.src = item.cleanedImageB64;
-        });
+      if (item.status !== 'pending' && !item.cleanedImage) {
+        let cleanSrc = item.cleanedImageB64;
+        if (cleanSrc && typeof cleanSrc === 'string' && !cleanSrc.startsWith('data:') && !cleanSrc.startsWith('blob:') && !cleanSrc.startsWith('http')) {
+          cleanSrc = 'data:image/png;base64,' + cleanSrc;
+          item.cleanedImageB64 = cleanSrc;
+        }
+
+        if (cleanSrc) {
+          await new Promise((resolve) => {
+            const cImg = new Image();
+            cImg.onload = () => {
+              item.cleanedImage = cImg;
+              cleanedImage = cImg;
+              resolve();
+            };
+            cImg.onerror = () => {
+              console.warn("Failed to load cleanedImage from b64");
+              resolve();
+            };
+            cImg.src = cleanSrc;
+          });
+        }
       } else {
         cleanedImage = (item.status !== 'pending') ? (item.cleanedImage || null) : null;
+      }
+
+      // 3b. Fallback: if one loaded, share between original and cleaned
+      if (!originalImage && cleanedImage) {
+        originalImage = cleanedImage;
+        item.originalImage = cleanedImage;
+      }
+      if (!cleanedImage && originalImage && item.status !== 'pending') {
+        cleanedImage = originalImage;
+        item.cleanedImage = originalImage;
+      }
+
+      // 3c. If page has no valid image at all, show dropzone so user is never stuck on black empty rectangle
+      if (!originalImage && !cleanedImage) {
+        if (dropzone) dropzone.style.display = 'flex';
       }
 
       // 4. Render fully hydrated workspace
