@@ -175,8 +175,11 @@ async def api_browse_folder(request):
     except Exception as e:
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
+LAST_SAVED_EXPORT_PATH = None
+
 async def api_save_export_to_download_dir(request):
     """Directly saves exported comic chapter/page into the user's configured download directory."""
+    global LAST_SAVED_EXPORT_PATH
     try:
         data = await request.json()
         filename = data.get("filename") or "comic_uzbek_chapter.zip"
@@ -190,6 +193,7 @@ async def api_save_export_to_download_dir(request):
         dest_path = os.path.join(dest_dir, filename)
         with open(dest_path, "wb") as f:
             f.write(base64.b64decode(content_b64))
+        LAST_SAVED_EXPORT_PATH = dest_path
         return JSONResponse({
             "status": "ok",
             "path": dest_path,
@@ -462,17 +466,29 @@ async def api_get_update_progress(request):
         return JSONResponse(UPDATE_DOWNLOAD_STATE)
 
 async def api_open_download_folder(request):
-    """Opens Windows Explorer with the downloaded zip selected."""
+    """Opens Windows Explorer with the downloaded zip or saved export selected."""
+    global LAST_SAVED_EXPORT_PATH
     try:
-        with UPDATE_LOCK:
-            filepath = UPDATE_DOWNLOAD_STATE.get("filepath")
+        req_path = None
+        try:
+            body = await request.json()
+            if isinstance(body, dict):
+                req_path = body.get("filepath") or body.get("path")
+        except Exception:
+            pass
+
+        filepath = req_path or LAST_SAVED_EXPORT_PATH
+        if not filepath:
+            with UPDATE_LOCK:
+                filepath = UPDATE_DOWNLOAD_STATE.get("filepath")
 
         import subprocess
         downloads_dir = gemini_enhancements.get_download_dir()
         if filepath and os.path.exists(filepath):
             subprocess.Popen(f'explorer /select,"{os.path.abspath(filepath)}"')
         else:
-            subprocess.Popen(f'explorer "{downloads_dir}"')
+            os.makedirs(downloads_dir, exist_ok=True)
+            subprocess.Popen(f'explorer "{os.path.abspath(downloads_dir)}"')
         return JSONResponse({"status": "ok"})
     except Exception as e:
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)

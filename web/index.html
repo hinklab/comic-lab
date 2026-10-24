@@ -3625,9 +3625,10 @@
   </main>
 
   <!-- MINIMALIST TOAST -->
-  <div id="toast">
+  <div id="toast" style="z-index: 9999; max-width: 560px; word-break: break-all;">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
     <span id="toast-text"></span>
+    <button id="toast-action" type="button" style="display: none; background: rgba(0, 230, 118, 0.15); border: 1px solid #00e676; color: #00e676; border-radius: 6px; padding: 4px 10px; font-size: 0.76rem; font-weight: 600; cursor: pointer; white-space: nowrap; margin-left: 8px; flex-shrink: 0;"></button>
   </div>
 
   <!-- MINIMALIST LOADING OVERLAY -->
@@ -10933,6 +10934,74 @@
       return null;
     }
 
+    // --- DIRECT DESKTOP/DOWNLOAD FOLDER EXPORT STORAGE ---
+    async function saveExportBlob(blob, filename) {
+      let savedPath = null;
+      let safeFilename = filename || 'comic_page.png';
+      if (!safeFilename.toLowerCase().endsWith('.png') && !safeFilename.toLowerCase().endsWith('.zip') && !safeFilename.toLowerCase().endsWith('.jpg')) {
+        safeFilename += '.png';
+      }
+
+      // 1. Direct write to user's configured directory (Desktop by default) via backend API
+      try {
+        const base64data = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+
+        const res = await fetch(`${API_BASE}/api/save_export`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            filename: safeFilename,
+            content_b64: base64data
+          })
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.status === 'ok') {
+            savedPath = data.path;
+          }
+        }
+      } catch (err) {
+        console.warn("Backend /api/save_export error:", err);
+      }
+
+      // 2. Also trigger standard browser download (fallback for browser use)
+      try {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = safeFilename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 1500);
+      } catch (_) {}
+
+      // 3. User notification with direct action button to open folder in Windows Explorer
+      if (savedPath) {
+        showToast(`Saqlandi: ${savedPath}`, "Papkani ochish", () => openDownloadFolder(savedPath), 7000);
+      } else {
+        showToast(`${safeFilename} yuklab olindi`, "Papkani ochish", () => openDownloadFolder(), 5000);
+      }
+    }
+
+    async function openDownloadFolder(targetPath) {
+      try {
+        await fetch(`${API_BASE}/api/open_download_folder`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filepath: targetPath || '' })
+        });
+      } catch (e) {
+        console.warn("Folder open failed:", e);
+      }
+    }
+
     // --- DOWNLOAD SINGLE PAGE HD PNG (EXACT WYSIWYG CANVAS AT FULL RESOLUTION) ---
     async function downloadCurrentPageHD() {
       if (pageQueue.length === 0) return;
@@ -10947,14 +11016,10 @@
 
       try {
         if (item.status === 'skipped') {
-          const url = URL.createObjectURL(item.file);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = item.sequentialName;
-          a.click();
-          URL.revokeObjectURL(url);
           hideSpinner();
-          showToast(`${item.sequentialName} yuklab olindi`);
+          if (item.file) {
+            await saveExportBlob(item.file, item.sequentialName);
+          }
           return;
         }
 
@@ -10966,20 +11031,13 @@
         // Render EXACT WYSIWYG clean canvas at 100% full original native resolution
         const exportCanvas = renderPristinePageCanvas(activeImg, bubbles);
 
-        exportCanvas.toBlob((blob) => {
-          hideSpinner();
-          if (!blob) {
-            alert("Rasm eksportida xatolik yuz berdi");
-            return;
-          }
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = item.sequentialName;
-          a.click();
-          URL.revokeObjectURL(url);
-          showToast(`${item.sequentialName} aynan tahrirlangan holatda (WYSIWYG) yuklab olindi!`);
-        }, 'image/png');
+        const blob = await new Promise(res => exportCanvas.toBlob(res, 'image/png'));
+        hideSpinner();
+        if (!blob) {
+          alert("Rasm eksportida xatolik yuz berdi");
+          return;
+        }
+        await saveExportBlob(blob, item.sequentialName || 'comic_page.png');
       } catch (err) {
         hideSpinner();
         alert("Yuklab olishda xatolik: " + err);
@@ -11000,14 +11058,8 @@
 
       try {
         if (item.status === 'skipped' && item.file) {
-          const url = URL.createObjectURL(item.file);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = item.sequentialName;
-          a.click();
-          URL.revokeObjectURL(url);
           hideSpinner();
-          showToast(`${item.sequentialName} yuklab olindi`);
+          await saveExportBlob(item.file, item.sequentialName);
           return;
         }
 
@@ -11026,20 +11078,13 @@
         const pageBubbles = (Array.isArray(item.bubbles) && item.bubbles.length > 0) ? item.bubbles : [];
         const exportCanvas = renderPristinePageCanvas(pageImg, pageBubbles);
 
-        exportCanvas.toBlob((blob) => {
-          hideSpinner();
-          if (!blob) {
-            alert("Rasm eksportida xatolik yuz berdi");
-            return;
-          }
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = item.sequentialName;
-          a.click();
-          URL.revokeObjectURL(url);
-          showToast(`${item.sequentialName} aynan tahrirlangan holatda (WYSIWYG) yuklab olindi!`);
-        }, 'image/png');
+        const blob = await new Promise(res => exportCanvas.toBlob(res, 'image/png'));
+        hideSpinner();
+        if (!blob) {
+          alert("Rasm eksportida xatolik yuz berdi");
+          return;
+        }
+        await saveExportBlob(blob, item.sequentialName || 'comic_page.png');
       } catch (err) {
         hideSpinner();
         alert("Yuklab olishda xatolik: " + err);
@@ -11099,30 +11144,7 @@
           });
           hideSpinner();
 
-          // Direct save to configured Desktop / Download folder
-          try {
-            const reader = new FileReader();
-            reader.readAsDataURL(zipBlob);
-            reader.onloadend = async () => {
-              const base64data = reader.result;
-              await fetch('/api/save_export', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  filename: 'comic_chapter_uzbek.zip',
-                  content_b64: base64data
-                })
-              });
-            };
-          } catch (_) {}
-
-          const url = URL.createObjectURL(zipBlob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `comic_chapter_uzbek.zip`;
-          a.click();
-          URL.revokeObjectURL(url);
-          showToast(`Butun bob (${pageQueue.length} ta sahifa) saqlandi!`);
+          await saveExportBlob(zipBlob, 'comic_chapter_uzbek.zip');
           return;
         }
 
@@ -11167,13 +11189,7 @@
         const blob = await res.blob();
         hideSpinner();
 
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `comic_chapter_uzbek.zip`;
-        a.click();
-        URL.revokeObjectURL(url);
-        showToast(`Butun bob (${pageQueue.length} ta sahifa) aynan tahrirlangan holatda ZIP formatida yuklab olindi!`);
+        await saveExportBlob(blob, 'comic_chapter_uzbek.zip');
       } catch (err) {
         hideSpinner();
         alert("ZIP yuklab olishda xatolik: " + err);
@@ -11226,11 +11242,35 @@
     }
 
     // --- HELPERS ---
-    function showToast(msg) {
+    let toastTimeout = null;
+    function showToast(msg, actionText = null, actionCallback = null, durationMs = 4500) {
       const t = document.getElementById('toast');
-      document.getElementById('toast-text').innerText = msg;
+      const textElem = document.getElementById('toast-text');
+      const actionBtn = document.getElementById('toast-action');
+      if (!t || !textElem) return;
+
+      if (toastTimeout) clearTimeout(toastTimeout);
+      textElem.innerText = msg;
+
+      if (actionBtn) {
+        if (actionText && typeof actionCallback === 'function') {
+          actionBtn.textContent = actionText;
+          actionBtn.style.display = 'inline-flex';
+          actionBtn.onclick = (e) => {
+            e.stopPropagation();
+            actionCallback();
+          };
+        } else {
+          actionBtn.style.display = 'none';
+          actionBtn.onclick = null;
+        }
+      }
+
       t.style.display = 'inline-flex';
-      setTimeout(() => { t.style.display = 'none'; }, 3000);
+      toastTimeout = setTimeout(() => {
+        t.style.display = 'none';
+        if (actionBtn) actionBtn.style.display = 'none';
+      }, durationMs);
     }
     function showSpinner(text, showCancel = false) {
       document.getElementById('spinner-text').innerText = text;
