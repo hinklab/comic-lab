@@ -10942,35 +10942,55 @@
         safeFilename += '.png';
       }
 
-      // 1. Direct write to user's configured directory (Desktop by default) via backend API
+      // Convert blob to base64
+      let base64data = null;
       try {
-        const base64data = await new Promise((resolve, reject) => {
+        base64data = await new Promise((resolve, reject) => {
           const reader = new FileReader();
           reader.onloadend = () => resolve(reader.result);
           reader.onerror = reject;
           reader.readAsDataURL(blob);
         });
-
-        const res = await fetch(`${API_BASE}/api/save_export`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            filename: safeFilename,
-            content_b64: base64data
-          })
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          if (data && data.status === 'ok') {
-            savedPath = data.path;
-          }
-        }
-      } catch (err) {
-        console.warn("Backend /api/save_export error:", err);
+      } catch (e) {
+        console.warn("Base64 conversion failed:", e);
       }
 
-      // 2. Also trigger standard browser download (fallback for browser use)
+      // 1. PyWebView Native Bridge Direct File Write (fastest, 100% bypasses network/tokens)
+      try {
+        if (window.pywebview && window.pywebview.api && window.pywebview.api.save_file_to_desktop && base64data) {
+          const bridgeRes = await window.pywebview.api.save_file_to_desktop(safeFilename, base64data);
+          if (bridgeRes && bridgeRes.status === 'ok') {
+            savedPath = bridgeRes.path;
+          }
+        }
+      } catch (bridgeErr) {
+        console.warn("PyWebView bridge save error:", bridgeErr);
+      }
+
+      // 2. Server API Direct File Write (/api/save_export)
+      if (!savedPath && base64data) {
+        try {
+          const res = await fetch(`${API_BASE}/api/save_export`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              filename: safeFilename,
+              content_b64: base64data
+            })
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.status === 'ok') {
+              savedPath = data.path;
+            }
+          }
+        } catch (err) {
+          console.warn("Backend /api/save_export error:", err);
+        }
+      }
+
+      // 3. Fallback standard browser download for web browsers
       try {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -10982,7 +11002,7 @@
         setTimeout(() => URL.revokeObjectURL(url), 1500);
       } catch (_) {}
 
-      // 3. User notification with direct action button to open folder in Windows Explorer
+      // 4. User notification with direct action button to open folder in Windows Explorer
       if (savedPath) {
         showToast(`Saqlandi: ${savedPath}`, "Papkani ochish", () => openDownloadFolder(savedPath), 7000);
       } else {
@@ -10991,6 +11011,12 @@
     }
 
     async function openDownloadFolder(targetPath) {
+      try {
+        if (window.pywebview && window.pywebview.api && window.pywebview.api.open_download_folder) {
+          await window.pywebview.api.open_download_folder(targetPath || '');
+          return;
+        }
+      } catch (_) {}
       try {
         await fetch(`${API_BASE}/api/open_download_folder`, {
           method: 'POST',

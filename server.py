@@ -729,7 +729,8 @@ class SessionTokenMiddleware:
         # 1. Allow root, fonts, assets, static files, desktop zip download, settings, glossary, fonts list, and update endpoints
         if (path == "/" or path.startswith("/assets") or path.startswith("/fonts") or 
             path.startswith("/static") or path == "/download/desktop" or 
-            path == "/api/health" or path == "/api/settings" or
+            path == "/api/health" or path.startswith("/api/settings") or
+            path == "/api/browse_folder" or path == "/api/save_export" or
             path == "/api/list_fonts" or path == "/api/glossary" or
             path.startswith("/api/version") or path.startswith("/api/check_update") or 
             path.startswith("/api/start_update_download") or path.startswith("/api/update_download_progress") or 

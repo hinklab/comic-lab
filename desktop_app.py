@@ -265,6 +265,22 @@ class DesktopBridge:
         except Exception:
             return False
 
+    def save_file_to_desktop(self, filename: str, content_b64: str) -> dict:
+        """Directly writes base64 file to the user's desktop or configured download dir."""
+        try:
+            import base64
+            import gemini_enhancements
+            dest_dir = gemini_enhancements.get_download_dir()
+            os.makedirs(dest_dir, exist_ok=True)
+            if "," in content_b64:
+                content_b64 = content_b64.split(",", 1)[1]
+            dest_path = os.path.join(dest_dir, filename)
+            with open(dest_path, "wb") as f:
+                f.write(base64.b64decode(content_b64))
+            return {"status": "ok", "path": dest_path}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
 def wait_for_server(port: int, token: str = "", timeout: float = 10.0) -> bool:
     """Polls server health endpoint until ready."""
     t0 = time.time()
