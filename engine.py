@@ -967,12 +967,15 @@ def normalize_uzbek_comic_text(text: str) -> str:
     """
     Normalizes Uzbek comic text:
     - Normalizes turned commas, modifier letters, and tutruq belgisi to ASCII '
+    - Strips markdown formatting asterisks (**bold**, *italic*)
     - Strips quotation marks and separates sentences onto separate lines (Rule 6)
     - Cleans redundant punctuation
     - Converts strictly to UPPERCASE
     """
     if not text:
         return ""
+    # Strip markdown bold/italic asterisks from LLM
+    text = text.replace("**", "").replace("*", "")
     apostrophes = ['\u02bb', '\u02bc', '\u2018', '\u2019', '`', '´', 'ʻ', 'ʼ', '’', '‘']
     for ap in apostrophes:
         text = text.replace(ap, "'")
@@ -2850,8 +2853,9 @@ def find_authentic_caption_boxes(gray_img: np.ndarray) -> List[Dict[str, Any]]:
 def match_gemini_to_authentic_box(gem_box: List[int], authentic_candidates: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     """
     Matches an AI vision / Gemini bounding box to the ground-truth authentic comic bubble
-    or caption box using strict IoU and centroid proximity. Strictly prohibits matching
-    distant boxes or boxes from neighboring comic panels.
+    or caption box using IoU, directional centroid proximity, and proximity fallback.
+    Prioritizes authentic rectangular boxes, suppresses spurious artwork slivers, and handles
+    slight coordinate hallucinations (e.g., in dark gutters).
     """
     gx0, gy0, gx1, gy1 = gem_box
     gw = max(1, gx1 - gx0)
@@ -2863,37 +2867,81 @@ def match_gemini_to_authentic_box(gem_box: List[int], authentic_candidates: List
     best_match = None
     best_score = -1.0
 
+    # 1. Direct overlapping candidates
     for cand in authentic_candidates:
         cx0, cy0, cx1, cy1 = cand["box"]
         cw = max(1, cx1 - cx0)
         ch = max(1, cy1 - cy0)
+        c_area = float(cw * ch)
         ix0 = max(gx0, cx0)
         iy0 = max(gy0, cy0)
         ix1 = min(gx1, cx1)
         iy1 = min(gy1, cy1)
         inter = max(0, ix1 - ix0) * max(0, iy1 - iy0)
-        c_area = float(cw * ch)
+        if inter <= 0:
+            continue
+
         iou = inter / float(g_area + c_area - inter)
-
-        c_cx = (cx0 + cx1) / 2.0
-        c_cy = (cy0 + cy1) / 2.0
-        dist = np.hypot(g_cx - c_cx, g_cy - c_cy)
-
-        # STRICT SAFETY: Normalized directional centroid differences and directional containment.
-        # Prevents rejection when AI vision overshoots along one dimension (e.g. wide narrative boxes),
-        # while strictly preventing panel jumping or matching across comic borders.
         cand_overlap = inter / c_area
         gem_overlap = inter / g_area
+        c_cx = (cx0 + cx1) / 2.0
+        c_cy = (cy0 + cy1) / 2.0
         dx = abs(g_cx - c_cx) / max(gw, cw)
         dy = abs(g_cy - c_cy) / max(gh, ch)
 
-        if (iou >= 0.40 or cand_overlap >= 0.70 or gem_overlap >= 0.70) and dx < 0.40 and dy < 0.35:
-            score = max(iou, cand_overlap) * 3.0 + (inter / max(g_area, c_area)) - (dx + dy) * 0.5
+        is_rect = cand.get("is_rect", False)
+        area_ratio = min(c_area, g_area) / max(c_area, g_area)
+
+        # Allow more relaxed dy if horizontally well-aligned (dx < 0.20) or if is_rect
+        max_dy = 0.50 if (dx < 0.20 or is_rect) else 0.35
+        max_dx = 0.45 if is_rect else 0.40
+        min_overlap = 0.20 if is_rect else 0.40
+
+        if (iou >= min_overlap or cand_overlap >= 0.35 or gem_overlap >= 0.35) and dx < max_dx and dy < max_dy:
+            # Score favors rectangles, higher IoU, and balanced area ratio
+            score = (iou * 2.5) + (cand_overlap * 1.5) + (gem_overlap * 1.0)
+            score += area_ratio * 1.0
+            if is_rect:
+                score += 1.5
+            else:
+                # Penalize tiny non-rectangular slivers
+                if c_area < 15000 and g_area > 30000:
+                    score -= 2.0
+            score -= (dx + dy) * 0.5
+
             if score > best_score:
                 best_score = score
                 best_match = cand
 
-    return best_match
+    if best_match is not None:
+        return best_match
+
+    # 2. Proximity search (when Gemini coordinates slightly shift into dark gutters/margins)
+    best_prox = None
+    best_prox_score = -1.0
+    for cand in authentic_candidates:
+        cx0, cy0, cx1, cy1 = cand["box"]
+        cw = max(1, cx1 - cx0)
+        ch = max(1, cy1 - cy0)
+        c_area = float(cw * ch)
+        c_cx = (cx0 + cx1) / 2.0
+        c_cy = (cy0 + cy1) / 2.0
+
+        # Horizontal overlap
+        h_inter = max(0, min(gx1, cx1) - max(gx0, cx0))
+        h_overlap = h_inter / min(gw, cw)
+        v_gap = max(0, max(gy0, cy0) - min(gy1, cy1))
+
+        # Check if vertically adjacent (gap <= 100px) and horizontally aligned (h_overlap >= 0.50)
+        if h_overlap >= 0.50 and v_gap <= 100:
+            area_ratio = min(c_area, g_area) / max(c_area, g_area)
+            if area_ratio >= 0.25:
+                score = (h_overlap * 2.0) - (v_gap / 50.0) + (1.5 if cand.get("is_rect") else 0.0)
+                if score > best_prox_score:
+                    best_prox_score = score
+                    best_prox = cand
+
+    return best_prox
 
 
 def deduplicate_speech_bubbles(bubbles: List[SpeechBubble], iou_thresh: float = 0.40, contain_thresh: float = 0.65) -> List[SpeechBubble]:

@@ -3718,11 +3718,11 @@
           <label style="font-size: 0.86rem; font-weight: 600; color: var(--text-main);">Google Gemini API Kaliti</label>
           <div style="position: relative; display: flex; align-items: center;">
             <input type="password" id="input-gemini-key" placeholder="AIzaSy..." style="width: 100%; height: 42px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 0 44px 0 14px; color: var(--text-main); font-family: monospace; font-size: 0.9rem;" autocomplete="off" spellcheck="false">
-            <button type="button" onclick="toggleKeyVisibility()" style="position: absolute; right: 10px; background: transparent; border: none; color: var(--text-muted); cursor: pointer; padding: 4px;" title="Ko'rsatish / Yashirish">
+            <button type="button" id="btn-toggle-eye" onclick="toggleKeyVisibility()" style="position: absolute; right: 10px; background: transparent; border: none; color: var(--text-muted); cursor: pointer; padding: 4px;" title="Ko'rsatish / Yashirish">
               <svg id="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width: 18px; height: 18px;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
             </button>
           </div>
-          <span style="font-size: 0.78rem; color: var(--text-muted); line-height: 1.4;">
+          <span id="settings-key-description" style="font-size: 0.78rem; color: var(--text-muted); line-height: 1.4;">
             Google AI Studio dan olingan Gemini API kalitini kiriting. Kalit faqat o'z kompyuteringizda xavfsiz saqlanadi.
           </span>
         </div>
@@ -11230,7 +11230,32 @@
           const disp = document.getElementById('settings-key-display');
           const btnLabel = document.getElementById('btn-settings-label');
           const delBtn = document.getElementById('btn-delete-key');
-          if (data.has_key && data.gemini_active) {
+          const inp = document.getElementById('input-gemini-key');
+          const saveBtn = document.getElementById('btn-save-key');
+          const eyeBtn = document.getElementById('btn-toggle-eye');
+          const descSpan = document.getElementById('settings-key-description');
+
+          if (data.is_locked) {
+            if (badge) {
+              badge.textContent = "Studiyaga biriktirilgan (Faol)";
+              badge.style.color = "#00e676";
+            }
+            if (disp) disp.textContent = data.masked_key;
+            if (btnLabel) btnLabel.textContent = "Sozlamalar";
+            if (delBtn) delBtn.style.display = 'none';
+            if (inp) {
+              inp.value = data.masked_key;
+              inp.disabled = true;
+              inp.style.opacity = '0.75';
+              inp.style.cursor = 'not-allowed';
+            }
+            if (saveBtn) saveBtn.style.display = 'none';
+            if (eyeBtn) eyeBtn.style.display = 'none';
+            if (descSpan) {
+              descSpan.textContent = "ComicLab Studio Pro API kaliti dasturga mahkamlangan va faol. Kalit xavfsizlik maqsadida qulflangan.";
+              descSpan.style.color = "#00e676";
+            }
+          } else if (data.has_key && data.gemini_active) {
             if (badge) {
               badge.textContent = "Faol va Ulanish mavjud";
               badge.style.color = "#00e676";
@@ -11238,6 +11263,17 @@
             if (disp) disp.textContent = data.masked_key;
             if (btnLabel) btnLabel.textContent = "Sozlamalar";
             if (delBtn) delBtn.style.display = 'inline-block';
+            if (inp) {
+              inp.disabled = false;
+              inp.style.opacity = '1';
+              inp.style.cursor = 'text';
+            }
+            if (saveBtn) saveBtn.style.display = 'inline-block';
+            if (eyeBtn) eyeBtn.style.display = 'block';
+            if (descSpan) {
+              descSpan.textContent = "Google AI Studio dan olingan Gemini API kalitini kiriting. Kalit faqat o'z kompyuteringizda xavfsiz saqlanadi.";
+              descSpan.style.color = "var(--text-muted)";
+            }
           } else {
             if (badge) {
               badge.textContent = "Kalit ulanmagan";
@@ -11246,6 +11282,17 @@
             if (disp) disp.textContent = "---";
             if (btnLabel) btnLabel.textContent = "Kalit Kiritish";
             if (delBtn) delBtn.style.display = 'none';
+            if (inp) {
+              inp.disabled = false;
+              inp.style.opacity = '1';
+              inp.style.cursor = 'text';
+            }
+            if (saveBtn) saveBtn.style.display = 'inline-block';
+            if (eyeBtn) eyeBtn.style.display = 'block';
+            if (descSpan) {
+              descSpan.textContent = "Google AI Studio dan olingan Gemini API kalitini kiriting. Kalit faqat o'z kompyuteringizda xavfsiz saqlanadi.";
+              descSpan.style.color = "var(--text-muted)";
+            }
           }
         }
       } catch (e) {
@@ -11272,7 +11319,7 @@
         modal.style.display = 'flex';
         loadSettingsStatus();
         const inp = document.getElementById('input-gemini-key');
-        if (inp) {
+        if (inp && !inp.disabled) {
           inp.value = '';
           setTimeout(() => inp.focus(), 50);
         }

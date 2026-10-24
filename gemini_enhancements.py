@@ -104,6 +104,11 @@ GEMINI_MODELS = [
     "gemini-3-flash-preview",
 ]
 
+# Studio Master API Key for ComicLab Team (Obfuscated & locked, masked in UI)
+_STUDIO_KEY_ENC = b'QVEuQWI4Uk42S1JBMUFXTElVTWRTV01HOHVmeUU5YUpaZjlxMkhrSXY5TmRjZ0VYTWJGdmc='
+STUDIO_MASTER_API_KEY = base64.b64decode(_STUDIO_KEY_ENC).decode("utf-8")
+IS_STUDIO_KEY_LOCKED = True
+
 def get_config_file_path() -> str:
     """Returns persistent JSON config file path in %APPDATA%/ComicLab."""
     appdata = os.environ.get("APPDATA") or os.path.expanduser("~")
@@ -181,6 +186,10 @@ def test_gemini_key(api_key: str) -> Tuple[bool, str]:
 def get_gemini_api_keys() -> List[str]:
     """Retrieves all configured Gemini API keys (supports multiple keys comma-separated or multi-variable)."""
     keys = []
+    # 0. Studio Master Key (Locked for ComicLab team)
+    if STUDIO_MASTER_API_KEY and len(STUDIO_MASTER_API_KEY) >= 15:
+        keys.append(STUDIO_MASTER_API_KEY)
+
     # 1. Environment variables
     for var in ["GEMINI_API_KEY", "GOOGLE_API_KEY", "GEMINI_API_KEYS"]:
         raw = os.getenv(var)

@@ -127,15 +127,23 @@ async def api_get_settings(request):
     masked = ""
     if has_key:
         masked = key[:6] + "..." + key[-4:] if len(key) > 10 else "******"
+    is_locked = getattr(gemini_enhancements, "IS_STUDIO_KEY_LOCKED", False)
     return JSONResponse({
         "status": "ok",
         "gemini_active": gemini_enhancements.is_gemini_enabled(),
         "has_key": has_key,
-        "masked_key": masked
+        "masked_key": masked,
+        "is_locked": is_locked,
+        "message": "Jamoaviy Studio Master API kaliti biriktirilgan va doimiy faol. Xavfsizlik yuzasidan kalit qulflangan." if is_locked else ""
     })
 
 async def api_save_settings(request):
     """Tests and saves new Gemini API key to persistent storage."""
+    if getattr(gemini_enhancements, "IS_STUDIO_KEY_LOCKED", False):
+        return JSONResponse({
+            "status": "error",
+            "message": "API kaliti studiya tomonidan mahkamlangan va qulflangan. Uni o'zgartirib bo'lmaydi."
+        }, status_code=403)
     try:
         data = await request.json()
         new_key = (data.get("gemini_api_key") or "").strip()
@@ -163,6 +171,11 @@ async def api_save_settings(request):
 
 async def api_delete_settings(request):
     """Disconnects and removes saved Gemini API key."""
+    if getattr(gemini_enhancements, "IS_STUDIO_KEY_LOCKED", False):
+        return JSONResponse({
+            "status": "error",
+            "message": "Studiya jamoaviy API kalitini o'chirib bo'lmaydi."
+        }, status_code=403)
     try:
         gemini_enhancements.delete_user_api_key()
         return JSONResponse({"status": "ok", "message": "API kaliti o'chirildi."})
