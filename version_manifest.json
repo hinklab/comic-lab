@@ -1,8 +1,8 @@
 {
   "app_name": "Comic-Lab Studio",
-  "latest_version": "1.0.4",
-  "release_date": "2026-11-10",
-  "download_url": "https://github.com/hinklab/comic-lab/releases/download/v1.0.4/ComicLab_Setup_v1.0.4.exe",
-  "changelog": "Comic-Lab Studio v1.0.4: Komiks tipografiyasi va pufaklarining 5 ustunli mukammal integratsiyasi: Bog'langan pufaklar (Compound Balloons) birlashishi, uzun o'zbekcha so'zlarda shrift kichrayishini to'xtatuvchi faol bo'g'inlash, zinasimon va yetim bog'lovchilarni yo'qotish, kadrlardan chiqib ketmaydigan dumlar (Clamped Tails) va qatlam xavfsizligi.",
+  "latest_version": "1.1.0",
+  "release_date": "2026-11-12",
+  "download_url": "https://github.com/hinklab/comic-lab/releases/download/v1.0.4/ComicLab_Setup_v1.1.0.exe",
+  "changelog": "Comic-Lab Studio v1.1.0: Yuqori interfeys 2-bosqichli CorelDRAW menyu tizimiga (File, Edit, Tools, View, Window, Help) o'tkazildi. Eksport amallari to'liq File menyusiga jamlandi. Yangi klaviatura tezkor tugmalari (Ctrl+O, Ctrl+E, F1) qo'shildi.",
   "min_supported_version": "1.0.0"
 }
